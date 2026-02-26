@@ -207,16 +207,19 @@ export default function RegisterSalePage() {
         setSelectedProduct("");
         return;
       }
-      const { data: serialData } = await supabase
-        .from("serials").select("id, status, product_id").eq("serial", serial).maybeSingle();
+      const [serialRes, salesRes] = await Promise.all([
+        supabase.from("serials").select("id, status, product_id").eq("serial", serial).maybeSingle(),
+        supabase.from("sales").select("id").eq("serial", serial).not("status", "eq", "rejected").limit(1),
+      ]);
+      const serialData = serialRes.data;
       if (!serialData) {
         setSerialValidation({ status: "error", message: "Serial no encontrado en el sistema" });
         setProductAutoDetected(false);
         setSelectedProduct("");
         return;
       }
-      if (serialData.status === "used") {
-        setSerialValidation({ status: "error", message: "Serial ya fue utilizado en otra venta" });
+      if (serialData.status === "used" || (salesRes.data && salesRes.data.length > 0)) {
+        setSerialValidation({ status: "error", message: "Serial ya fue registrado en otra venta" });
         setProductAutoDetected(false);
         setSelectedProduct("");
         return;
