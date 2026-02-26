@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, XCircle, Upload, ImageIcon, Brain, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Upload, ImageIcon, Brain, AlertTriangle, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Product {
@@ -121,6 +121,14 @@ function isWithinCurrentWeek(dateStr: string) {
   return inputWeek.week_start === currentWeek.week_start;
 }
 
+function isCampaignRegistrationOpen(c: Campaign) {
+  if (!c.registration_enabled) return false;
+  const now = new Date();
+  if (c.registration_open_at && new Date(c.registration_open_at) > now) return false;
+  if (c.registration_close_at && new Date(c.registration_close_at) < now) return false;
+  return true;
+}
+
 // --- Main Component ---
 
 export default function RegisterSalePage() {
@@ -130,6 +138,7 @@ export default function RegisterSalePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
+  const [productAutoDetected, setProductAutoDetected] = useState(false);
   const [serial, setSerial] = useState("");
   const [serialValidation, setSerialValidation] = useState<SerialValidation>({ status: "idle", message: "" });
   const [saleDate, setSaleDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -156,7 +165,16 @@ export default function RegisterSalePage() {
       supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
     ]);
 
-    if (campaignsRes.data) setCampaigns(campaignsRes.data);
+    if (campaignsRes.data) {
+      setCampaigns(campaignsRes.data);
+      // Auto-select campaign: prefer one with registration open, otherwise first
+      const openCampaigns = campaignsRes.data.filter(isCampaignRegistrationOpen);
+      if (openCampaigns.length >= 1) {
+        setSelectedCampaign(openCampaigns[0].id);
+      } else if (campaignsRes.data.length === 1) {
+        setSelectedCampaign(campaignsRes.data[0].id);
+      }
+    }
     if (productsRes.data) setProducts(productsRes.data);
     if (vendorRes.data) {
       setVendorId(vendorRes.data.id);
@@ -171,10 +189,12 @@ export default function RegisterSalePage() {
     }
   };
 
-  // Serial validation
+  // Serial validation + auto-detect product
   useEffect(() => {
     if (!serial || serial.length < 3) {
       setSerialValidation({ status: "idle", message: "" });
+      setProductAutoDetected(false);
+      setSelectedProduct("");
       return;
     }
     const timer = setTimeout(async () => {
@@ -183,30 +203,42 @@ export default function RegisterSalePage() {
         .from("restricted_serials").select("reason").eq("serial", serial).maybeSingle();
       if (restricted) {
         setSerialValidation({ status: "error", message: `Serial restringido: ${restricted.reason}` });
+        setProductAutoDetected(false);
+        setSelectedProduct("");
         return;
       }
       const { data: serialData } = await supabase
         .from("serials").select("id, status, product_id").eq("serial", serial).maybeSingle();
       if (!serialData) {
         setSerialValidation({ status: "error", message: "Serial no encontrado en el sistema" });
+        setProductAutoDetected(false);
+        setSelectedProduct("");
         return;
       }
       if (serialData.status === "used") {
         setSerialValidation({ status: "error", message: "Serial ya fue utilizado en otra venta" });
+        setProductAutoDetected(false);
+        setSelectedProduct("");
         return;
       }
       if (serialData.status === "blocked") {
         setSerialValidation({ status: "error", message: "Serial bloqueado" });
+        setProductAutoDetected(false);
+        setSelectedProduct("");
         return;
       }
-      if (selectedProduct && serialData.product_id && serialData.product_id !== selectedProduct) {
-        setSerialValidation({ status: "error", message: "El serial no corresponde al producto seleccionado" });
-        return;
+      // Auto-detect product from serial
+      if (serialData.product_id) {
+        setSelectedProduct(serialData.product_id);
+        setProductAutoDetected(true);
+      } else {
+        setProductAutoDetected(false);
+        setSelectedProduct("");
       }
       setSerialValidation({ status: "ok", message: "Serial disponible ✓" });
     }, 500);
     return () => clearTimeout(timer);
-  }, [serial, selectedProduct]);
+  }, [serial]);
 
   const uploadFile = async (file: File, folder: string) => {
     const ext = file.name.split(".").pop();
@@ -233,12 +265,10 @@ export default function RegisterSalePage() {
     }
     const campaign = campaigns.find((c) => c.id === selectedCampaign);
     if (campaign) {
-      // Check manual toggle
       if (!campaign.registration_enabled) {
         toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
         return;
       }
-      // Check scheduled window
       const now = new Date();
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
         toast({ title: "Error", description: `El registro abre el ${new Date(campaign.registration_open_at).toLocaleString("es-BO")}.`, variant: "destructive" });
@@ -252,7 +282,6 @@ export default function RegisterSalePage() {
 
     setSubmitting(true);
     try {
-      // Upload files
       const [tagPath, polizaPath, notaPath] = await Promise.all([
         uploadFile(tagFile, "tag"),
         uploadFile(polizaFile, "poliza"),
@@ -262,7 +291,6 @@ export default function RegisterSalePage() {
       const product = products.find((p) => p.id === selectedProduct);
       const week = getBoliviaWeek(saleDate);
 
-      // AI Date Validation (if enabled)
       let aiDateDetected: string | null = null;
       let aiDateConfidence: number | null = null;
       let aiFlag = false;
@@ -273,46 +301,26 @@ export default function RegisterSalePage() {
           const { data: fnData, error: fnError } = await supabase.functions.invoke("validate-sale-date", {
             body: { image_path: notaPath, week_start: week.week_start, week_end: week.week_end },
           });
-
           if (fnError) throw fnError;
-
           aiDateDetected = fnData?.date_detected || null;
           aiDateConfidence = fnData?.confidence || null;
-
           if (!fnData?.date_detected) {
-            setAiValidation({
-              status: "warning",
-              message: "No se pudo detectar la fecha en la imagen. La venta será marcada para revisión.",
-            });
+            setAiValidation({ status: "warning", message: "No se pudo detectar la fecha en la imagen. La venta será marcada para revisión." });
             aiFlag = true;
           } else if (!fnData?.matches_week) {
-            setAiValidation({
-              status: "error",
-              message: `La fecha detectada (${fnData.date_detected}) no corresponde a la semana actual. Venta bloqueada.`,
-              date_detected: fnData.date_detected,
-              confidence: fnData.confidence,
-            });
+            setAiValidation({ status: "error", message: `La fecha detectada (${fnData.date_detected}) no corresponde a la semana actual. Venta bloqueada.`, date_detected: fnData.date_detected, confidence: fnData.confidence });
             setSubmitting(false);
             return;
           } else {
-            setAiValidation({
-              status: "ok",
-              message: "Fecha verificada correctamente por IA.",
-              date_detected: fnData.date_detected,
-              confidence: fnData.confidence,
-            });
+            setAiValidation({ status: "ok", message: "Fecha verificada correctamente por IA.", date_detected: fnData.date_detected, confidence: fnData.confidence });
           }
         } catch (aiErr: any) {
           console.error("AI validation error:", aiErr);
-          setAiValidation({
-            status: "warning",
-            message: "Error en validación IA. La venta será marcada para revisión manual.",
-          });
+          setAiValidation({ status: "warning", message: "Error en validación IA. La venta será marcada para revisión manual." });
           aiFlag = true;
         }
       }
 
-      // Insert sale
       const { data: sale, error: saleError } = await supabase
         .from("sales")
         .insert({
@@ -335,7 +343,6 @@ export default function RegisterSalePage() {
 
       if (saleError) throw saleError;
 
-      // Insert attachments
       await supabase.from("sale_attachments").insert({
         sale_id: sale.id,
         tag_url: tagPath,
@@ -367,14 +374,7 @@ export default function RegisterSalePage() {
   }
 
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
-
-  const isCampaignRegistrationOpen = (c: Campaign) => {
-    if (!c.registration_enabled) return false;
-    const now = new Date();
-    if (c.registration_open_at && new Date(c.registration_open_at) > now) return false;
-    if (c.registration_close_at && new Date(c.registration_close_at) < now) return false;
-    return true;
-  };
+  const detectedProduct = products.find((p) => p.id === selectedProduct);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -404,7 +404,7 @@ export default function RegisterSalePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Campaign */}
+        {/* Step 1: Campaign (auto-selected) */}
         <Card className="hover:border-primary/20 transition-colors">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-display flex items-center gap-2">
@@ -413,42 +413,27 @@ export default function RegisterSalePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-              <SelectTrigger><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
-              <SelectContent>
-                {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {campaigns.length <= 1 && selectedCampaign ? (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <span className="font-medium">{selectedCampaignData?.name}</span>
+              </div>
+            ) : (
+              <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+                <SelectTrigger><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </CardContent>
         </Card>
 
-        {/* Product */}
+        {/* Step 2: Serial (moved before Product) */}
         <Card className="hover:border-primary/20 transition-colors">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-display flex items-center gap-2">
               <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">2</span>
-              Producto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-              <SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} — {p.points_value} pts / Bs {p.bonus_bs_value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {/* Serial */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">3</span>
               Serial
             </CardTitle>
           </CardHeader>
@@ -472,7 +457,45 @@ export default function RegisterSalePage() {
           </CardContent>
         </Card>
 
-        {/* Date */}
+        {/* Step 3: Product (auto-detected or fallback dropdown) */}
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">3</span>
+              Producto
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {productAutoDetected && detectedProduct ? (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-success/10 border border-success/30 text-sm">
+                <Package className="h-4 w-4 text-success" />
+                <div>
+                  <span className="font-medium text-foreground">{detectedProduct.name}</span>
+                  <span className="text-muted-foreground ml-2">— {detectedProduct.points_value} pts / Bs {detectedProduct.bonus_bs_value}</span>
+                </div>
+              </div>
+            ) : serialValidation.status === "ok" && !productAutoDetected ? (
+              // Serial valid but no product_id — fallback to manual select
+              <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
+                <SelectContent>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} — {p.points_value} pts / Bs {p.bonus_bs_value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                El producto se detectará automáticamente al ingresar un serial válido
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Step 4: Date */}
         <Card className="hover:border-primary/20 transition-colors">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-display flex items-center gap-2">
@@ -491,7 +514,7 @@ export default function RegisterSalePage() {
           </CardContent>
         </Card>
 
-        {/* Photos */}
+        {/* Step 5: Photos */}
         <Card className="hover:border-primary/20 transition-colors">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-display flex items-center gap-2">
