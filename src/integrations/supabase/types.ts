@@ -41,7 +41,9 @@ export type Database = {
           is_active: boolean
           name: string
           points_mode: string
+          registration_close_at: string | null
           registration_enabled: boolean
+          registration_open_at: string | null
           start_date: string
           subtitle: string | null
         }
@@ -53,7 +55,9 @@ export type Database = {
           is_active?: boolean
           name: string
           points_mode?: string
+          registration_close_at?: string | null
           registration_enabled?: boolean
+          registration_open_at?: string | null
           start_date: string
           subtitle?: string | null
         }
@@ -65,7 +69,9 @@ export type Database = {
           is_active?: boolean
           name?: string
           points_mode?: string
+          registration_close_at?: string | null
           registration_enabled?: boolean
+          registration_open_at?: string | null
           start_date?: string
           subtitle?: string | null
         }
