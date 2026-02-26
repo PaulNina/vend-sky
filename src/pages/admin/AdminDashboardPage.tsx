@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, DollarSign, Users, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -66,6 +66,7 @@ export default function AdminDashboardPage() {
   const [cityData, setCityData] = useState<CityData[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [dailyTrend, setDailyTrend] = useState<{ date: string; units: number; bonus: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [vendorCount, setVendorCount] = useState(0);
   const [pendingApprovals, setPendingApprovals] = useState(0);
@@ -103,14 +104,40 @@ export default function AdminDashboardPage() {
     if (dateRange.start) params._start_date = dateRange.start;
     if (dateRange.end) params._end_date = dateRange.end;
 
+    // Build daily trend query
+    let trendQuery = supabase
+      .from("sales")
+      .select("sale_date, bonus_bs")
+      .eq("campaign_id", selectedCampaign)
+      .eq("status", "approved");
+
+    // For daily trend, use current week if "all", otherwise use the selected range
+    const trendStart = dateRange.start || format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const trendEnd = dateRange.end || format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    trendQuery = trendQuery.gte("sale_date", trendStart).lte("sale_date", trendEnd);
+
     Promise.all([
       supabase.rpc("get_sales_by_city", params),
       supabase.rpc("get_top_products", { ...params, _limit: 10 }),
       supabase.rpc("get_campaign_ranking", { _campaign_id: selectedCampaign }),
-    ]).then(([cityRes, prodRes, rankRes]) => {
+      trendQuery,
+    ]).then(([cityRes, prodRes, rankRes, trendRes]) => {
       setCityData((cityRes.data as CityData[]) || []);
       setTopProducts((prodRes.data as TopProduct[]) || []);
       setRanking((rankRes.data as RankingEntry[]) || []);
+
+      // Aggregate trend by date
+      const trendMap: Record<string, { units: number; bonus: number }> = {};
+      (trendRes.data || []).forEach((s: any) => {
+        if (!trendMap[s.sale_date]) trendMap[s.sale_date] = { units: 0, bonus: 0 };
+        trendMap[s.sale_date].units += 1;
+        trendMap[s.sale_date].bonus += Number(s.bonus_bs);
+      });
+      const trendArr = Object.entries(trendMap)
+        .map(([date, vals]) => ({ date: format(new Date(date + "T12:00:00"), "dd MMM", { locale: es }), ...vals }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      setDailyTrend(trendArr);
+
       setLoading(false);
     });
   }, [selectedCampaign, dateRange]);
@@ -259,6 +286,34 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Daily trend line chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Tendencia Diaria de Ventas Aprobadas {period === "all" ? "(semana actual)" : ""}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dailyTrend.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Sin datos en el periodo</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={dailyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 30%, 18%)" />
+                    <XAxis dataKey="date" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                    <YAxis yAxisId="left" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ background: "hsl(216, 50%, 12%)", border: "1px solid hsl(150, 30%, 18%)", borderRadius: 8, color: "hsl(210, 40%, 96%)" }} />
+                    <Legend />
+                    <Line yAxisId="left" type="monotone" dataKey="units" name="Unidades" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    <Line yAxisId="right" type="monotone" dataKey="bonus" name="Bono Bs" stroke="hsl(43, 96%, 56%)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Sales by city - Bs */}
           <Card>
