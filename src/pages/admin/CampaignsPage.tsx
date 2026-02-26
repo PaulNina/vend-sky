@@ -1,0 +1,143 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+import { Loader2, Plus, Pencil } from "lucide-react";
+
+interface Campaign {
+  id: string;
+  name: string;
+  subtitle: string | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  registration_enabled: boolean;
+  ai_date_validation: boolean;
+  points_mode: string;
+}
+
+const empty: Omit<Campaign, "id"> = {
+  name: "", subtitle: "", start_date: "", end_date: "",
+  is_active: true, registration_enabled: true, ai_date_validation: false, points_mode: "product",
+};
+
+export default function CampaignsPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState(false);
+  const [editing, setEditing] = useState<Campaign | null>(null);
+  const [form, setForm] = useState(empty);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("campaigns").select("*").order("start_date", { ascending: false });
+    setCampaigns(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => { setEditing(null); setForm(empty); setDialog(true); };
+  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode }); setDialog(true); };
+
+  const save = async () => {
+    if (!form.name || !form.start_date || !form.end_date) {
+      toast({ title: "Error", description: "Nombre, fecha inicio y fecha fin son obligatorios.", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    if (editing) {
+      const { error } = await supabase.from("campaigns").update(form).eq("id", editing.id);
+      if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+      else toast({ title: "Campaña actualizada" });
+    } else {
+      const { error } = await supabase.from("campaigns").insert(form);
+      if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+      else toast({ title: "Campaña creada" });
+    }
+    setSaving(false);
+    setDialog(false);
+    load();
+  };
+
+  const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Campañas</h1>
+          <p className="text-sm text-muted-foreground">Administra las campañas del programa</p>
+        </div>
+        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nueva Campaña</Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Periodo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Registro</TableHead>
+                  <TableHead>IA Fecha</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {campaigns.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{c.name}</p>
+                        {c.subtitle && <p className="text-xs text-muted-foreground">{c.subtitle}</p>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{fmtDate(c.start_date)} — {fmtDate(c.end_date)}</TableCell>
+                    <TableCell><Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Activa" : "Inactiva"}</Badge></TableCell>
+                    <TableCell><Badge variant={c.registration_enabled ? "default" : "outline"}>{c.registration_enabled ? "Abierto" : "Cerrado"}</Badge></TableCell>
+                    <TableCell>{c.ai_date_validation ? <Badge>ON</Badge> : <Badge variant="outline">OFF</Badge>}</TableCell>
+                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editing ? "Editar Campaña" : "Nueva Campaña"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Nombre *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>Subtítulo</Label><Input value={form.subtitle || ""} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Fecha inicio *</Label><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Fecha fin *</Label><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></div>
+            </div>
+            <div className="flex items-center justify-between"><Label>Campaña activa</Label><Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} /></div>
+            <div className="flex items-center justify-between"><Label>Registro habilitado</Label><Switch checked={form.registration_enabled} onCheckedChange={(v) => setForm({ ...form, registration_enabled: v })} /></div>
+            <div className="flex items-center justify-between"><Label>Validación IA de fecha</Label><Switch checked={form.ai_date_validation} onCheckedChange={(v) => setForm({ ...form, ai_date_validation: v })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(false)}>Cancelar</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{editing ? "Guardar" : "Crear"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
