@@ -80,8 +80,7 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
 
   if (authLoading) return null;
-  // Only redirect if user is logged in AND not in success state (to avoid race condition)
-  if (user && !success) return <Navigate to="/v" replace />;
+  if (user && !success && !loading) return <Navigate to="/v" replace />;
 
   if (success) {
     return (
@@ -207,11 +206,13 @@ export default function RegisterPage() {
         });
       }
 
-      await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: "vendedor" as any,
-        city,
-      });
+      if (!requireApproval) {
+        await supabase.from("user_roles").insert({
+          user_id: userId,
+          role: "vendedor" as any,
+          city,
+        });
+      }
 
       if (requireApproval) {
         await supabase.auth.signOut();
