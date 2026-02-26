@@ -25,6 +25,10 @@ export default function LoginPage() {
     );
   }
   if (user) {
+    if (roles.length === 0) {
+      // User has no roles — let RequireAuth handle the pending screen
+      return <Navigate to="/v" replace />;
+    }
     if (roles.includes("admin")) return <Navigate to="/admin" replace />;
     if (roles.includes("supervisor")) return <Navigate to="/admin/auditoria" replace />;
     if (roles.includes("revisor_ciudad")) return <Navigate to="/admin/revisiones" replace />;
