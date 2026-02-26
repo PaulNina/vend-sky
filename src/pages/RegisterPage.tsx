@@ -66,7 +66,7 @@ function useRegistrationStatus() {
 }
 
 export default function RegisterPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshRoles } = useAuth();
   const { cityNames: CITIES } = useCities();
   const { allowed, campaignName, message, requireApproval } = useRegistrationStatus();
   const [fullName, setFullName] = useState("");
@@ -212,6 +212,8 @@ export default function RegisterPage() {
           role: "vendedor" as any,
           city,
         });
+        // Refresh roles in AuthContext so RequireAuth sees the new role
+        await refreshRoles();
       }
 
       if (requireApproval) {
