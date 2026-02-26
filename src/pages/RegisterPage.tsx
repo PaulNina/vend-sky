@@ -80,7 +80,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
 
   if (authLoading) return null;
-  if (user) return <Navigate to="/v" replace />;
+  // Only redirect if user is logged in AND not in success state (to avoid race condition)
+  if (user && !success) return <Navigate to="/v" replace />;
 
   if (success) {
     return (
