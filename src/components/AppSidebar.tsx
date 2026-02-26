@@ -72,7 +72,7 @@ export function AppSidebar() {
             <div>
               <h2 className="text-lg font-bold text-sidebar-primary">SKYWORTH</h2>
               <p className="text-[10px] text-sidebar-foreground/60 leading-tight">
-                El Sueño del Hincha
+                Bono Vendedor El Sueño del Hincha
               </p>
             </div>
           )}

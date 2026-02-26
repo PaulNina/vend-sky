@@ -38,7 +38,7 @@ function VendorSidebar() {
           {!collapsed ? (
             <div>
               <h2 className="text-lg font-bold text-sidebar-primary">SKYWORTH</h2>
-              <p className="text-[10px] text-sidebar-foreground/60">El Sueño del Hincha</p>
+              <p className="text-[10px] text-sidebar-foreground/60">Bono Vendedor El Sueño del Hincha</p>
             </div>
           ) : (
             <div className="flex justify-center">

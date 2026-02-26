@@ -65,7 +65,7 @@ export default function LoginPage() {
         {/* Logo / Brand */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold text-primary">SKYWORTH</h1>
-          <p className="text-sm text-muted-foreground">Bono Vendedor — El Sueño del Hincha</p>
+          <p className="text-sm text-muted-foreground">Bono Vendedor El Sueño del Hincha</p>
         </div>
 
         <Card className="border-border/50">
