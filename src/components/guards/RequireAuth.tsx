@@ -7,6 +7,14 @@ interface Props {
   allowedRoles?: string[];
 }
 
+function getRoleRedirect(roles: string[]): string {
+  if (roles.includes("admin")) return "/admin";
+  if (roles.includes("supervisor")) return "/admin/auditoria";
+  if (roles.includes("revisor_ciudad")) return "/admin/revisiones";
+  if (roles.includes("vendedor")) return "/v";
+  return "/login";
+}
+
 export default function RequireAuth({ children, allowedRoles }: Props) {
   const { user, loading, roles } = useAuth();
 
@@ -25,14 +33,9 @@ export default function RequireAuth({ children, allowedRoles }: Props) {
   if (allowedRoles && allowedRoles.length > 0) {
     const hasAllowed = allowedRoles.some((r) => roles.includes(r as any));
     if (!hasAllowed) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-destructive">No autorizado</h2>
-            <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
-          </div>
-        </div>
-      );
+      // Redirect to the correct section based on actual role
+      const redirect = getRoleRedirect(roles);
+      return <Navigate to={redirect} replace />;
     }
   }
 
