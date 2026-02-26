@@ -511,6 +511,38 @@ export type Database = {
           vendor_id: string
         }[]
       }
+      get_sales_by_city: {
+        Args: {
+          _campaign_id?: string
+          _end_date?: string
+          _start_date?: string
+        }
+        Returns: {
+          approved_units: number
+          city: string
+          pending_units: number
+          rejected_units: number
+          total_bonus_bs: number
+          total_points: number
+          total_units: number
+        }[]
+      }
+      get_top_products: {
+        Args: {
+          _campaign_id?: string
+          _end_date?: string
+          _limit?: number
+          _start_date?: string
+        }
+        Returns: {
+          city: string
+          model_code: string
+          product_id: string
+          product_name: string
+          total_bonus_bs: number
+          total_units: number
+        }[]
+      }
       get_user_city: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
