@@ -23,8 +23,18 @@ import RegisterSalePage from "@/pages/RegisterSalePage";
 import MySalesPage from "@/pages/MySalesPage";
 import RankingPage from "@/pages/RankingPage";
 
-import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
+// Admin pages
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
+import CampaignsPage from "@/pages/admin/CampaignsPage";
+import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
+import VendorsPage from "@/pages/admin/VendorsPage";
+import ProductsPage from "@/pages/admin/ProductsPage";
+import SerialsPage from "@/pages/admin/SerialsPage";
+import RestrictedPage from "@/pages/admin/RestrictedPage";
+import ReviewsPage from "@/pages/admin/ReviewsPage";
+import AuditPage from "@/pages/admin/AuditPage";
+import EmailRecipientsPage from "@/pages/admin/EmailRecipientsPage";
+import UsersRolesPage from "@/pages/admin/UsersRolesPage";
 
 const queryClient = new QueryClient();
 
@@ -69,17 +79,17 @@ const App = () => (
               }
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/campanias" element={<Placeholder title="Campañas" />} />
+              <Route path="/admin/campanias" element={<CampaignsPage />} />
               <Route path="/admin/solicitudes-registro" element={<RegistrationRequestsPage />} />
-              <Route path="/admin/vendedores" element={<Placeholder title="Vendedores" />} />
-              <Route path="/admin/productos-modelos" element={<Placeholder title="Productos y Modelos" />} />
-              <Route path="/admin/seriales" element={<Placeholder title="Seriales" />} />
-              <Route path="/admin/restringidos" element={<Placeholder title="Restringidos" />} />
-              <Route path="/admin/revisiones" element={<Placeholder title="Revisiones" />} />
-              <Route path="/admin/auditoria" element={<Placeholder title="Auditoría" />} />
+              <Route path="/admin/vendedores" element={<VendorsPage />} />
+              <Route path="/admin/productos-modelos" element={<ProductsPage />} />
+              <Route path="/admin/seriales" element={<SerialsPage />} />
+              <Route path="/admin/restringidos" element={<RestrictedPage />} />
+              <Route path="/admin/revisiones" element={<ReviewsPage />} />
+              <Route path="/admin/auditoria" element={<AuditPage />} />
               <Route path="/admin/metricas" element={<Placeholder title="Métricas" />} />
-              <Route path="/admin/correos-ciudad" element={<Placeholder title="Correos por Ciudad" />} />
-              <Route path="/admin/usuarios-roles" element={<Placeholder title="Usuarios y Roles" />} />
+              <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
+              <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<Placeholder title="Configuración" />} />
             </Route>
 
