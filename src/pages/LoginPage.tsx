@@ -17,7 +17,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<"login" | "forgot">("login");
 
-  if (authLoading) return null;
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
   if (user) {
     if (roles.includes("admin")) return <Navigate to="/admin" replace />;
     if (roles.includes("supervisor")) return <Navigate to="/admin/auditoria" replace />;
