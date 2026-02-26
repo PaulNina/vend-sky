@@ -101,6 +101,53 @@ export type Database = {
         }
         Relationships: []
       }
+      city_group_members: {
+        Row: {
+          city_name: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          city_name: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          city_name?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "city_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "city_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      city_groups: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           bonus_bs_value: number

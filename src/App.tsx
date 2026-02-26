@@ -38,6 +38,7 @@ import EmailRecipientsPage from "@/pages/admin/EmailRecipientsPage";
 import UsersRolesPage from "@/pages/admin/UsersRolesPage";
 import ConfigurationPage from "@/pages/admin/ConfigurationPage";
 import MetricsPage from "@/pages/admin/MetricsPage";
+import CityGroupsPage from "@/pages/admin/CityGroupsPage";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ const App = () => (
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
+              <Route path="/admin/grupos-ciudades" element={<CityGroupsPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
