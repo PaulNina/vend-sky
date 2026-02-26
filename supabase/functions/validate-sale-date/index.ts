@@ -22,19 +22,30 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create signed URL for the image
+    // Create supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Check for custom Gemini API key in app_settings
+    const { data: settingRow } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "gemini_api_key")
+      .maybeSingle();
+
+    const customGeminiKey = settingRow?.value || null;
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+    if (!customGeminiKey && !LOVABLE_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "No hay API key de IA configurada" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Signed URL for the image
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from("sale-attachments")
@@ -48,11 +59,18 @@ serve(async (req) => {
       );
     }
 
-    // Call Lovable AI with vision to extract dates
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Use custom Gemini key if available, otherwise fallback to Lovable AI
+    const aiUrl = customGeminiKey
+      ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const aiAuthHeader = customGeminiKey
+      ? `Bearer ${customGeminiKey}`
+      : `Bearer ${LOVABLE_API_KEY}`;
+
+    const aiResponse = await fetch(aiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: aiAuthHeader,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
