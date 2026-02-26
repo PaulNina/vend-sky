@@ -1,27 +1,33 @@
 
 
-## Analysis
+## Plan: Auto-seleccionar campaña y auto-detectar producto por serial
 
-After reviewing the codebase, most of what you're asking for **already exists**:
+### Problema actual
+1. El vendedor debe seleccionar manualmente la campaña y el producto
+2. El serial ya tiene un `product_id` asociado en la tabla `serials`, pero no se usa para auto-seleccionar el producto
 
-- **Kardex - Talla de Polera**: Already implemented in `VendorsPage.tsx` (admin can edit) and `VendorProfilePage.tsx` (vendor can view)
-- **Kardex - Cambio de tienda con fecha e historial**: Already implemented via `vendor_store_history` table, with date, previous/new store, and observation. Visible in both admin Kardex dialog and vendor profile
-- **Dashboard - Ventas por ciudad en Unidades**: Already has a bar chart in `AdminDashboardPage.tsx`
-- **Dashboard - Ventas por ciudad en Monto Bs**: Already has a horizontal bar chart
-- **Dashboard - Filtros Semana/Mes/Año**: Already implemented
+### Cambios en `src/pages/RegisterSalePage.tsx`
 
-### What's Missing
+1. **Auto-seleccionar campaña**: Después de cargar las campañas en `loadData`, si solo hay una campaña activa, seleccionarla automáticamente. Si hay varias, seleccionar la primera (o la que tenga registro abierto).
 
-Only one thing: the **"Día"** (today) period filter option. The current period selector has "Todo", "Esta semana", "Este mes", "Este año" but lacks "Hoy".
+2. **Auto-detectar producto por serial**: En el `useEffect` de validación de serial (líneas 174-209), cuando el serial es válido y tiene `product_id`, auto-seleccionar ese producto con `setSelectedProduct(serialData.product_id)`. Eliminar la validación de "serial no corresponde al producto" ya que ahora el producto se determina por el serial.
 
-## Implementation
+3. **Ocultar/deshabilitar selector de producto**: Hacer el campo de producto de solo lectura (mostrar el nombre del producto detectado automáticamente en vez del dropdown manual). Si no hay serial válido, mostrar un mensaje indicando que el producto se detectará al ingresar el serial.
 
-### Step 1: Add "Día" period to AdminDashboardPage
+4. **Reordenar formulario**: Mover el campo Serial (paso 3) antes del Producto (paso 2), para que el flujo sea: Campaña (auto) → Serial → Producto (auto) → Fecha → Fotos.
 
-In `src/pages/admin/AdminDashboardPage.tsx`:
-- Add `"day"` to the `PeriodType` union type
-- Add a `case "day"` in the `dateRange` memo that returns today's date as both start and end
-- Add `<SelectItem value="day">Hoy</SelectItem>` to the period selector dropdown
+### Flujo resultante
+- Vendedor abre "Registrar Venta"
+- Campaña ya está seleccionada automáticamente
+- Ingresa el serial
+- El producto se muestra automáticamente basado en el serial
+- Completa fecha y fotos
+- Envía
 
-This is a ~5-line change in a single file.
+### Detalle técnico
+
+- En `loadData`, después de `setCampaigns(data)`, agregar: si hay exactamente 1 campaña activa con registro abierto, hacer `setSelectedCampaign(id)`
+- En el serial validation effect, cuando `serialData` es válido y tiene `product_id`, hacer `setSelectedProduct(serialData.product_id)` 
+- Cambiar el card de Producto para mostrar el producto detectado como texto en vez de dropdown
+- Si el serial no tiene `product_id` en la BD, mantener el dropdown manual como fallback
 
