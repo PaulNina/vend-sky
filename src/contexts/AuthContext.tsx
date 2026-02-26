@@ -10,6 +10,7 @@ interface AuthContextType {
   roles: AppRole[];
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshRoles: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   roles: [],
   loading: true,
   signOut: async () => {},
+  refreshRoles: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -97,6 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [handleSession]);
 
+  const refreshRoles = useCallback(async () => {
+    if (user) {
+      const userRoles = await fetchRoles(user.id);
+      setRoles(userRoles);
+    }
+  }, [user, fetchRoles]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
@@ -105,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, roles, loading, signOut, refreshRoles }}>
       {children}
     </AuthContext.Provider>
   );
