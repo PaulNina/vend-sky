@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, roles } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,11 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "forgot">("login");
 
   if (authLoading) return null;
-  if (user) return <Navigate to="/" replace />;
+  // Redirect based on role
+  if (user) {
+    const isAdmin = roles.includes("admin") || roles.includes("supervisor") || roles.includes("revisor_ciudad");
+    return <Navigate to={isAdmin ? "/admin" : "/v"} replace />;
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

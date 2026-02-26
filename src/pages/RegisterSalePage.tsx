@@ -222,7 +222,7 @@ export default function RegisterSalePage() {
       });
 
       toast({ title: "¡Venta registrada!", description: "Tu venta fue enviada para revisión." });
-      navigate("/mis-ventas");
+      navigate("/v/mis-ventas");
     } catch (error: any) {
       toast({ title: "Error al registrar", description: error.message, variant: "destructive" });
     } finally {

@@ -4,16 +4,33 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import RequireAuth from "@/components/guards/RequireAuth";
+
+// Public pages
+import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import AppLayout from "@/layouts/AppLayout";
+import NotFound from "@/pages/NotFound";
+
+// Layouts
+import VendorLayout from "@/layouts/VendorLayout";
+import AdminLayout from "@/layouts/AdminLayout";
+
+// Vendor pages
 import VendorDashboard from "@/pages/VendorDashboard";
 import RegisterSalePage from "@/pages/RegisterSalePage";
 import MySalesPage from "@/pages/MySalesPage";
 import RankingPage from "@/pages/RankingPage";
-import NotFound from "./pages/NotFound";
+
+// Admin pages
+import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
 
 const queryClient = new QueryClient();
+
+const Placeholder = ({ title }: { title: string }) => (
+  <div className="text-muted-foreground">{title} — Próximamente</div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -23,27 +40,49 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* Public */}
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<VendorDashboard />} />
-              <Route path="/registrar-venta" element={<RegisterSalePage />} />
-              <Route path="/mis-ventas" element={<MySalesPage />} />
-              <Route path="/ranking" element={<RankingPage />} />
-              {/* Revisor routes */}
-              <Route path="/revisor/pendientes" element={<div className="text-muted-foreground">Pendientes — Próximamente</div>} />
-              {/* Supervisor routes */}
-              <Route path="/supervisor/auditoria" element={<div className="text-muted-foreground">Auditoría — Próximamente</div>} />
-              <Route path="/supervisor/metricas" element={<div className="text-muted-foreground">Métricas — Próximamente</div>} />
-              {/* Admin routes */}
-              <Route path="/admin/dashboard" element={<div className="text-muted-foreground">Dashboard Admin — Próximamente</div>} />
-              <Route path="/admin/campanias" element={<div className="text-muted-foreground">Campañas — Próximamente</div>} />
-              <Route path="/admin/productos" element={<div className="text-muted-foreground">Productos — Próximamente</div>} />
-              <Route path="/admin/seriales" element={<div className="text-muted-foreground">Seriales — Próximamente</div>} />
-              <Route path="/admin/restringidos" element={<div className="text-muted-foreground">Restringidos — Próximamente</div>} />
-              <Route path="/admin/usuarios" element={<div className="text-muted-foreground">Usuarios — Próximamente</div>} />
-              <Route path="/admin/reportes" element={<div className="text-muted-foreground">Reportes — Próximamente</div>} />
+
+            {/* Vendor (protected) */}
+            <Route
+              element={
+                <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                  <VendorLayout />
+                </RequireAuth>
+              }
+            >
+              <Route path="/v" element={<VendorDashboard />} />
+              <Route path="/v/registrar-venta" element={<RegisterSalePage />} />
+              <Route path="/v/mis-ventas" element={<MySalesPage />} />
+              <Route path="/v/ranking" element={<RankingPage />} />
             </Route>
+
+            {/* Admin (protected) */}
+            <Route
+              element={
+                <RequireAuth allowedRoles={["admin", "supervisor", "revisor_ciudad"]}>
+                  <AdminLayout />
+                </RequireAuth>
+              }
+            >
+              <Route path="/admin" element={<Placeholder title="Dashboard Admin" />} />
+              <Route path="/admin/campanias" element={<Placeholder title="Campañas" />} />
+              <Route path="/admin/solicitudes-registro" element={<RegistrationRequestsPage />} />
+              <Route path="/admin/vendedores" element={<Placeholder title="Vendedores" />} />
+              <Route path="/admin/productos-modelos" element={<Placeholder title="Productos y Modelos" />} />
+              <Route path="/admin/seriales" element={<Placeholder title="Seriales" />} />
+              <Route path="/admin/restringidos" element={<Placeholder title="Restringidos" />} />
+              <Route path="/admin/revisiones" element={<Placeholder title="Revisiones" />} />
+              <Route path="/admin/auditoria" element={<Placeholder title="Auditoría" />} />
+              <Route path="/admin/metricas" element={<Placeholder title="Métricas" />} />
+              <Route path="/admin/correos-ciudad" element={<Placeholder title="Correos por Ciudad" />} />
+              <Route path="/admin/usuarios-roles" element={<Placeholder title="Usuarios y Roles" />} />
+              <Route path="/admin/configuracion" element={<Placeholder title="Configuración" />} />
+            </Route>
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

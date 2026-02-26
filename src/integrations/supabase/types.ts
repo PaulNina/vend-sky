@@ -414,6 +414,44 @@ export type Database = {
           },
         ]
       }
+      vendor_store_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          id: string
+          new_store: string | null
+          observation: string | null
+          previous_store: string | null
+          vendor_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          id?: string
+          new_store?: string | null
+          observation?: string | null
+          previous_store?: string | null
+          vendor_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          id?: string
+          new_store?: string | null
+          observation?: string | null
+          previous_store?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_store_history_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           city: string
@@ -422,8 +460,10 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          pending_approval: boolean
           phone: string | null
           store_name: string | null
+          talla_polera: string | null
           user_id: string
         }
         Insert: {
@@ -433,8 +473,10 @@ export type Database = {
           full_name: string
           id?: string
           is_active?: boolean
+          pending_approval?: boolean
           phone?: string | null
           store_name?: string | null
+          talla_polera?: string | null
           user_id: string
         }
         Update: {
@@ -444,8 +486,10 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          pending_approval?: boolean
           phone?: string | null
           store_name?: string | null
+          talla_polera?: string | null
           user_id?: string
         }
         Relationships: []
