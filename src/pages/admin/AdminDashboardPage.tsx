@@ -173,12 +173,12 @@ export default function AdminDashboardPage() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard Gerencial</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold font-display tracking-tight">Dashboard Gerencial</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Vista general del programa Bono Vendedor
             {pendingApprovals > 0 && (
               <Badge variant="destructive" className="ml-2">{pendingApprovals} solicitudes pendientes</Badge>
@@ -218,17 +218,19 @@ export default function AdminDashboardPage() {
       ) : (
         <>
           {/* Stats cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {statCards.map((stat) => (
-              <Card key={stat.label}>
-                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+              <Card key={stat.label} className="hover:border-primary/20 transition-all duration-200">
+                <CardHeader className="pb-1.5 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
                     {stat.label}
                   </CardTitle>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  <div className={`w-7 h-7 rounded-lg bg-muted/50 flex items-center justify-center`}>
+                    <stat.icon className={`h-3.5 w-3.5 ${stat.color}`} />
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xl font-bold">{stat.value}</p>
+                  <p className="text-xl font-bold font-display">{stat.value}</p>
                 </CardContent>
               </Card>
             ))}

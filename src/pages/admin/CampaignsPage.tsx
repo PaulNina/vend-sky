@@ -74,13 +74,13 @@ export default function CampaignsPage() {
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Campañas</h1>
+          <h1 className="text-2xl font-bold font-display tracking-tight">Campañas</h1>
           <p className="text-sm text-muted-foreground">Administra las campañas del programa</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nueva Campaña</Button>
+        <Button onClick={openNew} variant="premium"><Plus className="h-4 w-4 mr-1" />Nueva Campaña</Button>
       </div>
 
       <Card>
