@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCities } from "@/hooks/useCities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,13 +30,10 @@ const podiumIcons = [
   { icon: Award, color: "text-amber-600", bg: "bg-amber-600/10 border-amber-600/30" },
 ];
 
-const ALL_CITIES = [
-  "La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro",
-  "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija",
-];
-const cities = ["Todas", ...ALL_CITIES];
 
 export default function RankingPage() {
+  const { cityNames: ALL_CITIES } = useCities();
+  const cities = ["Todas", ...ALL_CITIES];
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [ranking, setRanking] = useState<RankingEntry[]>([]);

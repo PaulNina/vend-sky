@@ -8,10 +8,11 @@ import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
   Loader2, Settings, Package, ShieldCheck, BarChart3, Users, Calendar,
-  Clock, Brain, ArrowRight
+  Clock, Brain, ArrowRight, MapPin
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useCities, type City } from "@/hooks/useCities";
 
 interface CampaignFull {
   id: string;
@@ -28,6 +29,7 @@ export default function ConfigurationPage() {
   const [campaigns, setCampaigns] = useState<CampaignFull[]>([]);
   const [counts, setCounts] = useState({ products: 0, serials: 0, vendors: 0, recipients: 0 });
   const [loading, setLoading] = useState(true);
+  const { cities, reload: reloadCities } = useCities(false);
 
   useEffect(() => {
     loadData();
@@ -63,6 +65,19 @@ export default function ConfigurationPage() {
         prev.map((c) => (c.id === campaignId ? { ...c, ai_date_validation: !currentValue } : c))
       );
       toast({ title: "Actualizado", description: `Validación IA ${!currentValue ? "activada" : "desactivada"}` });
+    }
+  };
+
+  const toggleCity = async (city: City) => {
+    const { error } = await supabase
+      .from("cities")
+      .update({ is_active: !city.is_active })
+      .eq("id", city.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      reloadCities();
+      toast({ title: "Actualizado", description: `${city.name} ${!city.is_active ? "habilitada" : "deshabilitada"}` });
     }
   };
 
@@ -159,6 +174,39 @@ export default function ConfigurationPage() {
           </Card>
         ))}
       </div>
+
+      {/* Cities Management */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-primary" />
+            Ciudades Habilitadas
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Las ciudades deshabilitadas no aparecerán en los formularios de registro ni de ventas.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {cities.map((city) => (
+              <div
+                key={city.id}
+                className={`flex items-center justify-between p-3 rounded-lg border ${
+                  city.is_active ? "bg-primary/5 border-primary/20" : "bg-muted/50 border-muted"
+                }`}
+              >
+                <span className={`text-sm font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
+                  {city.name}
+                </span>
+                <Switch
+                  checked={city.is_active}
+                  onCheckedChange={() => toggleCity(city)}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Links */}
       <div>
