@@ -134,14 +134,14 @@ export default function VendorLayout() {
       <div className="min-h-screen flex w-full">
         <VendorSidebar />
         <div className="flex-1 flex flex-col">
-          <header className="h-14 flex items-center border-b border-border/50 px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
-            <SidebarTrigger className="mr-4 text-muted-foreground hover:text-foreground transition-colors" />
-            <div className="flex items-center gap-2.5">
-              <span className="text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
-              <span className="text-[11px] text-muted-foreground font-medium">Bono Vendedor</span>
+          <header className="h-12 sm:h-14 flex items-center border-b border-border/50 px-3 sm:px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
+            <SidebarTrigger className="mr-3 sm:mr-4 text-muted-foreground hover:text-foreground transition-colors" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
+          <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-auto">
             {isPending ? (
               <Card className="max-w-lg mx-auto mt-12 border-warning/30 bg-warning/5">
                 <CardContent className="p-8 text-center space-y-4">

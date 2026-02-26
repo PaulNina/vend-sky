@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Eye, List } from "lucide-react";
+import { Loader2, Eye, List, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -60,18 +60,18 @@ export default function MySalesPage() {
   const totalBs = sales.filter(s => s.status === "approved").reduce((a, s) => a + Number(s.bonus_bs), 0);
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
-            <List className="h-6 w-6 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+            <List className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             Mis Ventas
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Historial de ventas registradas</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Historial de ventas registradas</p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="pending">Pendientes</SelectItem>
@@ -83,77 +83,110 @@ export default function MySalesPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Card className="hover:border-primary/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total Registros</p>
-            <p className="text-xl font-bold font-display mt-0.5">{sales.length}</p>
+          <CardContent className="py-2.5 sm:py-3 px-3 sm:px-4">
+            <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Registros</p>
+            <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{sales.length}</p>
           </CardContent>
         </Card>
         <Card className="hover:border-success/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
-            <p className="text-xl font-bold font-display mt-0.5 text-success">{approvedCount}</p>
+          <CardContent className="py-2.5 sm:py-3 px-3 sm:px-4">
+            <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
+            <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{approvedCount}</p>
           </CardContent>
         </Card>
         <Card className="hover:border-primary/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Bono Aprobado</p>
-            <p className="text-xl font-bold font-display mt-0.5">Bs {totalBs.toLocaleString()}</p>
+          <CardContent className="py-2.5 sm:py-3 px-3 sm:px-4">
+            <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Bono</p>
+            <p className="text-lg sm:text-xl font-bold font-display mt-0.5">Bs {totalBs.toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Content */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : sales.length === 0 ? (
-            <div className="text-center p-12 text-muted-foreground">No tienes ventas registradas aún.</div>
+            <div className="text-center p-12 text-muted-foreground text-sm">No tienes ventas registradas aún.</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Serial</TableHead>
-                  <TableHead>Campaña</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Pts</TableHead>
-                  <TableHead className="text-right">Bs</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Serial</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Pts</TableHead>
+                      <TableHead className="text-right">Bs</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sales.map((sale) => {
+                      const s = statusLabels[sale.status] || statusLabels.pending;
+                      return (
+                        <TableRow key={sale.id} className="cursor-pointer" onClick={() => viewDetail(sale)}>
+                          <TableCell className="text-sm">{formatDate(sale.sale_date)}</TableCell>
+                          <TableCell className="text-sm font-medium">{sale.products?.name || "—"}</TableCell>
+                          <TableCell className="font-mono text-xs">{sale.serial}</TableCell>
+                          <TableCell><Badge variant={s.variant} className="text-[10px]">{s.label}</Badge></TableCell>
+                          <TableCell className="text-right">{sale.points}</TableCell>
+                          <TableCell className="text-right font-medium">Bs {sale.bonus_bs}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="hover:bg-primary/10">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile card list */}
+              <div className="md:hidden divide-y divide-border">
                 {sales.map((sale) => {
                   const s = statusLabels[sale.status] || statusLabels.pending;
                   return (
-                    <TableRow key={sale.id}>
-                      <TableCell className="text-sm">{formatDate(sale.sale_date)}</TableCell>
-                      <TableCell className="text-sm font-medium">{sale.products?.name || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">{sale.serial}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{sale.campaigns?.name || "—"}</TableCell>
-                      <TableCell><Badge variant={s.variant} className="text-[10px]">{s.label}</Badge></TableCell>
-                      <TableCell className="text-right">{sale.points}</TableCell>
-                      <TableCell className="text-right font-medium">Bs {sale.bonus_bs}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => viewDetail(sale)} className="hover:bg-primary/10">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <button
+                      key={sale.id}
+                      onClick={() => viewDetail(sale)}
+                      className="w-full text-left p-3.5 hover:bg-muted/30 transition-colors flex items-center gap-3"
+                    >
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{sale.products?.name || "—"}</span>
+                          <Badge variant={s.variant} className="text-[9px] shrink-0">{s.label}</Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{formatDate(sale.sale_date)}</span>
+                          <span className="font-mono">{sale.serial}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-primary font-semibold">{sale.points} pts</span>
+                          <span className="font-medium">Bs {sale.bonus_bs}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </button>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display flex items-center gap-2">
               <List className="h-5 w-5 text-primary" />
@@ -162,9 +195,9 @@ export default function MySalesPage() {
           </DialogHeader>
           {selectedSale && (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm p-4 rounded-lg bg-muted/30 border border-border/50">
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Producto</span><p className="font-medium mt-0.5">{selectedSale.products?.name}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Serial</span><p className="font-mono font-medium mt-0.5">{selectedSale.serial}</p></div>
+              <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 text-sm p-3 sm:p-4 rounded-lg bg-muted/30 border border-border/50">
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Producto</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{selectedSale.products?.name}</p></div>
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Serial</span><p className="font-mono font-medium mt-0.5 text-xs sm:text-sm break-all">{selectedSale.serial}</p></div>
                 <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Fecha</span><p className="font-medium mt-0.5">{formatDate(selectedSale.sale_date)}</p></div>
                 <div>
                   <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Estado</span>
@@ -176,10 +209,10 @@ export default function MySalesPage() {
               {attachments && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fotos Adjuntas</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {[{ label: "TAG", url: attachments.tag_url }, { label: "Póliza", url: attachments.poliza_url }, { label: "Nota", url: attachments.nota_url }].map((att) => (
-                      <div key={att.label} className="space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground font-medium">{att.label}</p>
+                      <div key={att.label} className="space-y-1">
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">{att.label}</p>
                         <a href={getImageUrl(att.url)} target="_blank" rel="noopener noreferrer">
                           <img src={getImageUrl(att.url)} alt={att.label} className="rounded-lg border border-border w-full aspect-square object-cover hover:opacity-80 transition-opacity cursor-zoom-in shadow-sm" />
                         </a>
