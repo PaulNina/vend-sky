@@ -214,6 +214,8 @@ export type Database = {
       }
       sales: {
         Row: {
+          ai_date_confidence: number | null
+          ai_date_detected: string | null
           ai_flag: boolean | null
           bonus_bs: number
           campaign_id: string
@@ -230,6 +232,8 @@ export type Database = {
           week_start: string
         }
         Insert: {
+          ai_date_confidence?: number | null
+          ai_date_detected?: string | null
           ai_flag?: boolean | null
           bonus_bs?: number
           campaign_id: string
@@ -246,6 +250,8 @@ export type Database = {
           week_start: string
         }
         Update: {
+          ai_date_confidence?: number | null
+          ai_date_detected?: string | null
           ai_flag?: boolean | null
           bonus_bs?: number
           campaign_id?: string
