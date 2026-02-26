@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Eye } from "lucide-react";
+import { Loader2, Eye, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -17,23 +17,13 @@ const statusLabels: Record<string, { label: string; variant: "default" | "second
 };
 
 interface Sale {
-  id: string;
-  serial: string;
-  sale_date: string;
-  status: string;
-  points: number;
-  bonus_bs: number;
-  week_start: string;
-  created_at: string;
+  id: string; serial: string; sale_date: string; status: string;
+  points: number; bonus_bs: number; week_start: string; created_at: string;
   products: { name: string; model_code: string } | null;
   campaigns: { name: string } | null;
 }
 
-interface SaleAttachment {
-  tag_url: string;
-  poliza_url: string;
-  nota_url: string;
-}
+interface SaleAttachment { tag_url: string; poliza_url: string; nota_url: string; }
 
 export default function MySalesPage() {
   const { user } = useAuth();
@@ -44,23 +34,13 @@ export default function MySalesPage() {
   const [attachments, setAttachments] = useState<SaleAttachment | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  useEffect(() => {
-    loadSales();
-  }, [user, statusFilter]);
+  useEffect(() => { loadSales(); }, [user, statusFilter]);
 
   const loadSales = async () => {
     if (!user) return;
     setLoading(true);
-
-    let query = supabase
-      .from("sales")
-      .select("*, products(name, model_code), campaigns(name)")
-      .order("created_at", { ascending: false });
-
-    if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter as "pending" | "approved" | "rejected" | "closed");
-    }
-
+    let query = supabase.from("sales").select("*, products(name, model_code), campaigns(name)").order("created_at", { ascending: false });
+    if (statusFilter !== "all") query = query.eq("status", statusFilter as any);
     const { data } = await query;
     setSales((data as any) || []);
     setLoading(false);
@@ -68,36 +48,30 @@ export default function MySalesPage() {
 
   const viewDetail = async (sale: Sale) => {
     setSelectedSale(sale);
-    const { data } = await supabase
-      .from("sale_attachments")
-      .select("tag_url, poliza_url, nota_url")
-      .eq("sale_id", sale.id)
-      .maybeSingle();
+    const { data } = await supabase.from("sale_attachments").select("tag_url, poliza_url, nota_url").eq("sale_id", sale.id).maybeSingle();
     setAttachments(data);
     setDetailOpen(true);
   };
 
-  const getImageUrl = (path: string) => {
-    const { data } = supabase.storage.from("sale-attachments").getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const getImageUrl = (path: string) => supabase.storage.from("sale-attachments").getPublicUrl(path).data.publicUrl;
+  const formatDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
-  const formatDate = (d: string) => {
-    const [y, m, day] = d.split("-");
-    return `${day}/${m}/${y}`;
-  };
+  const approvedCount = sales.filter(s => s.status === "approved").length;
+  const totalBs = sales.filter(s => s.status === "approved").reduce((a, s) => a + Number(s.bonus_bs), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Mis Ventas</h1>
-          <p className="text-sm text-muted-foreground">Historial de ventas registradas</p>
+          <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+            <List className="h-6 w-6 text-primary" />
+            Mis Ventas
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Historial de ventas registradas</p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="pending">Pendientes</SelectItem>
@@ -108,16 +82,35 @@ export default function MySalesPage() {
         </Select>
       </div>
 
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardContent className="py-3 px-4">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total Registros</p>
+            <p className="text-xl font-bold font-display mt-0.5">{sales.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-success/20 transition-colors">
+          <CardContent className="py-3 px-4">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
+            <p className="text-xl font-bold font-display mt-0.5 text-success">{approvedCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardContent className="py-3 px-4">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Bono Aprobado</p>
+            <p className="text-xl font-bold font-display mt-0.5">Bs {totalBs.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
+            <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : sales.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground">
-              No tienes ventas registradas aún.
-            </div>
+            <div className="text-center p-12 text-muted-foreground">No tienes ventas registradas aún.</div>
           ) : (
             <Table>
               <TableHeader>
@@ -127,9 +120,9 @@ export default function MySalesPage() {
                   <TableHead>Serial</TableHead>
                   <TableHead>Campaña</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Puntos</TableHead>
+                  <TableHead className="text-right">Pts</TableHead>
                   <TableHead className="text-right">Bs</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -138,16 +131,14 @@ export default function MySalesPage() {
                   return (
                     <TableRow key={sale.id}>
                       <TableCell className="text-sm">{formatDate(sale.sale_date)}</TableCell>
-                      <TableCell className="text-sm">{sale.products?.name || "—"}</TableCell>
+                      <TableCell className="text-sm font-medium">{sale.products?.name || "—"}</TableCell>
                       <TableCell className="font-mono text-xs">{sale.serial}</TableCell>
-                      <TableCell className="text-xs">{sale.campaigns?.name || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={s.variant}>{s.label}</Badge>
-                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{sale.campaigns?.name || "—"}</TableCell>
+                      <TableCell><Badge variant={s.variant} className="text-[10px]">{s.label}</Badge></TableCell>
                       <TableCell className="text-right">{sale.points}</TableCell>
-                      <TableCell className="text-right">Bs {sale.bonus_bs}</TableCell>
+                      <TableCell className="text-right font-medium">Bs {sale.bonus_bs}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => viewDetail(sale)}>
+                        <Button variant="ghost" size="icon" onClick={() => viewDetail(sale)} className="hover:bg-primary/10">
                           <Eye className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -164,34 +155,34 @@ export default function MySalesPage() {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Detalle de Venta</DialogTitle>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <List className="h-5 w-5 text-primary" />
+              Detalle de Venta
+            </DialogTitle>
           </DialogHeader>
           {selectedSale && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">Producto:</span> {selectedSale.products?.name}</div>
-                <div><span className="text-muted-foreground">Serial:</span> {selectedSale.serial}</div>
-                <div><span className="text-muted-foreground">Fecha:</span> {formatDate(selectedSale.sale_date)}</div>
-                <div><span className="text-muted-foreground">Estado:</span> <Badge variant={statusLabels[selectedSale.status]?.variant}>{statusLabels[selectedSale.status]?.label}</Badge></div>
-                <div><span className="text-muted-foreground">Puntos:</span> {selectedSale.points}</div>
-                <div><span className="text-muted-foreground">Bono:</span> Bs {selectedSale.bonus_bs}</div>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm p-4 rounded-lg bg-muted/30 border border-border/50">
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Producto</span><p className="font-medium mt-0.5">{selectedSale.products?.name}</p></div>
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Serial</span><p className="font-mono font-medium mt-0.5">{selectedSale.serial}</p></div>
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Fecha</span><p className="font-medium mt-0.5">{formatDate(selectedSale.sale_date)}</p></div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Estado</span>
+                  <div className="mt-0.5"><Badge variant={statusLabels[selectedSale.status]?.variant} className="text-[10px]">{statusLabels[selectedSale.status]?.label}</Badge></div>
+                </div>
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Puntos</span><p className="font-medium mt-0.5">{selectedSale.points}</p></div>
+                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Bono</span><p className="font-medium mt-0.5">Bs {selectedSale.bonus_bs}</p></div>
               </div>
               {attachments && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Fotos adjuntas</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: "TAG", url: attachments.tag_url },
-                      { label: "Póliza", url: attachments.poliza_url },
-                      { label: "Nota", url: attachments.nota_url },
-                    ].map((att) => (
-                      <div key={att.label} className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{att.label}</p>
-                        <img
-                          src={getImageUrl(att.url)}
-                          alt={att.label}
-                          className="rounded border border-border w-full aspect-square object-cover"
-                        />
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fotos Adjuntas</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[{ label: "TAG", url: attachments.tag_url }, { label: "Póliza", url: attachments.poliza_url }, { label: "Nota", url: attachments.nota_url }].map((att) => (
+                      <div key={att.label} className="space-y-1.5">
+                        <p className="text-[11px] text-muted-foreground font-medium">{att.label}</p>
+                        <a href={getImageUrl(att.url)} target="_blank" rel="noopener noreferrer">
+                          <img src={getImageUrl(att.url)} alt={att.label} className="rounded-lg border border-border w-full aspect-square object-cover hover:opacity-80 transition-opacity cursor-zoom-in shadow-sm" />
+                        </a>
                       </div>
                     ))}
                   </div>
