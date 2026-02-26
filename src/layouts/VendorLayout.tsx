@@ -5,6 +5,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
@@ -34,21 +35,33 @@ function VendorSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
+        {/* Brand header */}
         <div className="p-4 border-b border-sidebar-border">
           {!collapsed ? (
-            <div>
-              <h2 className="text-lg font-bold text-sidebar-primary">SKYWORTH</h2>
-              <p className="text-[10px] text-sidebar-foreground/60">Bono Vendedor El Sueño del Hincha</p>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center shadow-gold">
+                <span className="text-sm font-bold text-primary-foreground font-display">S</span>
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-sidebar-primary font-display tracking-wide">SKYWORTH</h2>
+                <p className="text-[10px] text-sidebar-foreground/50 leading-none">Bono Vendedor</p>
+              </div>
             </div>
           ) : (
             <div className="flex justify-center">
-              <span className="text-lg font-bold text-sidebar-primary">S</span>
+              <div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center shadow-gold">
+                <span className="text-sm font-bold text-primary-foreground font-display">S</span>
+              </div>
             </div>
           )}
         </div>
+
         <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 px-4 mb-1">
+            Menú
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="px-2 space-y-0.5">
               {vendorNav.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
@@ -56,12 +69,14 @@ function VendorSidebar() {
                       to={item.url}
                       end={item.end}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 px-3 py-2 rounded-md transition-colors hover:bg-sidebar-accent ${
-                          isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : ""
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all duration-200 ${
+                          isActive
+                            ? "bg-primary/10 text-primary font-semibold border border-primary/20 shadow-sm"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         }`
                       }
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -71,18 +86,21 @@ function VendorSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-3">
+
+      <SidebarFooter className="border-t border-sidebar-border p-3 space-y-2">
         {!collapsed && user && (
-          <p className="text-xs text-sidebar-foreground/60 truncate mb-2">{user.email}</p>
+          <div className="px-2 py-1.5 rounded-md bg-sidebar-accent/50">
+            <p className="text-[11px] text-sidebar-foreground/60 truncate">{user.email}</p>
+          </div>
         )}
         <Button
           variant="ghost"
           size={collapsed ? "icon" : "sm"}
-          className="w-full text-sidebar-foreground hover:text-destructive hover:bg-destructive/10"
+          className="w-full text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
           onClick={signOut}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && <span className="ml-2">Cerrar sesión</span>}
+          {!collapsed && <span className="ml-2 text-[13px]">Cerrar sesión</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>
@@ -116,20 +134,22 @@ export default function VendorLayout() {
       <div className="min-h-screen flex w-full">
         <VendorSidebar />
         <div className="flex-1 flex flex-col">
-          <header className="h-14 flex items-center border-b border-border px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-            <SidebarTrigger className="mr-4" />
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-primary">SKYWORTH</span>
-              <span className="text-xs text-muted-foreground">Bono Vendedor</span>
+          <header className="h-14 flex items-center border-b border-border/50 px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
+            <SidebarTrigger className="mr-4 text-muted-foreground hover:text-foreground transition-colors" />
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
+              <span className="text-[11px] text-muted-foreground font-medium">Bono Vendedor</span>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
             {isPending ? (
               <Card className="max-w-lg mx-auto mt-12 border-warning/30 bg-warning/5">
                 <CardContent className="p-8 text-center space-y-4">
-                  <AlertTriangle className="h-12 w-12 text-warning mx-auto" />
-                  <h2 className="text-xl font-bold">Cuenta pendiente de aprobación</h2>
-                  <p className="text-muted-foreground">
+                  <div className="w-14 h-14 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="h-7 w-7 text-warning" />
+                  </div>
+                  <h2 className="text-xl font-bold font-display">Cuenta pendiente de aprobación</h2>
+                  <p className="text-muted-foreground text-sm">
                     Tu registro está siendo revisado por un administrador. 
                     Una vez aprobado, podrás registrar ventas y acceder a todas las funciones.
                   </p>

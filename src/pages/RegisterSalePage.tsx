@@ -379,44 +379,57 @@ export default function RegisterSalePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Registrar Venta</h1>
-        <p className="text-sm text-muted-foreground">Completa el formulario para registrar una nueva venta</p>
+        <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+          <Upload className="h-6 w-6 text-primary" />
+          Registrar Venta
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Completa el formulario para registrar una nueva venta</p>
         {selectedCampaignData?.ai_date_validation && (
-          <Badge variant="outline" className="mt-2 gap-1">
+          <Badge variant="outline" className="mt-2 gap-1 text-[11px]">
             <Brain className="h-3 w-3" /> Validación IA de fecha activa
           </Badge>
         )}
         {selectedCampaignData && !isCampaignRegistrationOpen(selectedCampaignData) && (
-          <div className="mt-2 p-3 rounded-lg border border-warning/50 bg-warning/10 text-sm">
-            <AlertTriangle className="h-4 w-4 inline mr-1 text-warning" />
-            {!selectedCampaignData.registration_enabled
-              ? "El registro está deshabilitado para esta campaña."
-              : selectedCampaignData.registration_open_at && new Date(selectedCampaignData.registration_open_at) > new Date()
-                ? `El registro abre el ${new Date(selectedCampaignData.registration_open_at).toLocaleString("es-BO")}.`
-                : "El periodo de registro para esta campaña ha finalizado."}
+          <div className="mt-3 p-3 rounded-lg border border-warning/50 bg-warning/10 text-sm flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+            <span>
+              {!selectedCampaignData.registration_enabled
+                ? "El registro está deshabilitado para esta campaña."
+                : selectedCampaignData.registration_open_at && new Date(selectedCampaignData.registration_open_at) > new Date()
+                  ? `El registro abre el ${new Date(selectedCampaignData.registration_open_at).toLocaleString("es-BO")}.`
+                  : "El periodo de registro para esta campaña ha finalizado."}
+            </span>
           </div>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Campaign */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">1. Campaña</CardTitle></CardHeader>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">1</span>
+              Campaña
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
               <SelectTrigger><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
               <SelectContent>
-                {campaigns.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
+                {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </CardContent>
         </Card>
 
         {/* Product */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">2. Producto</CardTitle></CardHeader>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">2</span>
+              Producto
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Select value={selectedProduct} onValueChange={setSelectedProduct}>
               <SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
@@ -432,8 +445,13 @@ export default function RegisterSalePage() {
         </Card>
 
         {/* Serial */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">3. Serial</CardTitle></CardHeader>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">3</span>
+              Serial
+            </CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <Input
               placeholder="Ingresa el número de serial"
@@ -441,9 +459,9 @@ export default function RegisterSalePage() {
               onChange={(e) => setSerial(e.target.value.trim())}
             />
             {serialValidation.status !== "idle" && (
-              <div className={`flex items-center gap-2 text-sm ${
-                serialValidation.status === "ok" ? "text-success" :
-                serialValidation.status === "error" ? "text-destructive" : "text-muted-foreground"
+              <div className={`flex items-center gap-2 text-sm p-2 rounded-md ${
+                serialValidation.status === "ok" ? "text-success bg-success/10" :
+                serialValidation.status === "error" ? "text-destructive bg-destructive/10" : "text-muted-foreground bg-muted/30"
               }`}>
                 {serialValidation.status === "checking" && <Loader2 className="h-4 w-4 animate-spin" />}
                 {serialValidation.status === "ok" && <CheckCircle2 className="h-4 w-4" />}
@@ -455,19 +473,32 @@ export default function RegisterSalePage() {
         </Card>
 
         {/* Date */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">4. Fecha de Venta</CardTitle></CardHeader>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">4</span>
+              Fecha de Venta
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
             {saleDate && !isWithinCurrentWeek(saleDate) && (
-              <p className="text-sm text-destructive mt-2">La fecha debe estar dentro de la semana en curso (Lun–Dom)</p>
+              <p className="text-sm text-destructive mt-2 flex items-center gap-1">
+                <XCircle className="h-3.5 w-3.5" />
+                La fecha debe estar dentro de la semana en curso (Lun–Dom)
+              </p>
             )}
           </CardContent>
         </Card>
 
         {/* Photos */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">5. Fotos (obligatorias)</CardTitle></CardHeader>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">5</span>
+              Fotos (obligatorias)
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <FileInput label="Foto TAG" file={tagFile} onFile={setTagFile} id="tag" />
@@ -478,7 +509,7 @@ export default function RegisterSalePage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+        <Button type="submit" className="w-full" size="lg" variant="premium" disabled={submitting}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Registrar Venta
         </Button>
