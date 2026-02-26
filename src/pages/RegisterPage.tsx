@@ -16,12 +16,13 @@ function useRegistrationStatus() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [message, setMessage] = useState("");
+  const [requireApproval, setRequireApproval] = useState(false);
 
   useEffect(() => {
     const check = async () => {
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("name, registration_enabled, registration_open_at, registration_close_at")
+        .select("name, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -34,9 +35,9 @@ function useRegistrationStatus() {
       }
 
       setCampaignName(campaign.name);
+      setRequireApproval(campaign.require_vendor_approval ?? false);
       const now = new Date();
 
-      // Check scheduled open/close dates
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
         setAllowed(false);
         const openDate = new Date(campaign.registration_open_at).toLocaleString("es-BO", { dateStyle: "long", timeStyle: "short" });
@@ -50,7 +51,6 @@ function useRegistrationStatus() {
         return;
       }
 
-      // Check manual toggle
       if (!campaign.registration_enabled) {
         setAllowed(false);
         setMessage("El registro de vendedores está temporalmente cerrado.");
@@ -62,13 +62,13 @@ function useRegistrationStatus() {
     check();
   }, []);
 
-  return { allowed, campaignName, message };
+  return { allowed, campaignName, message, requireApproval };
 }
 
 export default function RegisterPage() {
   const { user, loading: authLoading } = useAuth();
   const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, message } = useRegistrationStatus();
+  const { allowed, campaignName, message, requireApproval } = useRegistrationStatus();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -89,10 +89,13 @@ export default function RegisterPage() {
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <CheckCircle2 className="h-16 w-16 text-success mx-auto" />
-            <h2 className="text-2xl font-bold">¡Registro enviado!</h2>
+            <h2 className="text-2xl font-bold">
+              {requireApproval ? "¡Registro enviado!" : "¡Registro exitoso!"}
+            </h2>
             <p className="text-muted-foreground">
-              Tu cuenta está pendiente de aprobación por un administrador. 
-              Te notificaremos cuando tu cuenta esté activa.
+              {requireApproval
+                ? "Tu cuenta está pendiente de aprobación por un administrador. Te notificaremos cuando tu cuenta esté activa."
+                : "Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión."}
             </p>
             <Button asChild variant="outline">
               <Link to="/login">Ir a Iniciar Sesión</Link>
@@ -187,8 +190,8 @@ export default function RegisterPage() {
             phone,
             city,
             store_name: storeName || null,
-            pending_approval: true,
-            is_active: false,
+            pending_approval: requireApproval,
+            is_active: !requireApproval,
           })
           .eq("id", existingVendor.id);
       } else {
@@ -199,8 +202,8 @@ export default function RegisterPage() {
           phone: phone || null,
           city,
           store_name: storeName || null,
-          pending_approval: true,
-          is_active: false,
+          pending_approval: requireApproval,
+          is_active: !requireApproval,
         });
       }
 
@@ -210,7 +213,9 @@ export default function RegisterPage() {
         city,
       });
 
-      await supabase.auth.signOut();
+      if (requireApproval) {
+        await supabase.auth.signOut();
+      }
       setSuccess(true);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
