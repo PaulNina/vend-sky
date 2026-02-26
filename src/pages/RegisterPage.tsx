@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,12 +9,66 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
+
+function useRegistrationStatus() {
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [campaignName, setCampaignName] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const check = async () => {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("name, registration_enabled, registration_open_at, registration_close_at")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!campaign) {
+        setAllowed(false);
+        setMessage("No hay campañas activas en este momento.");
+        return;
+      }
+
+      setCampaignName(campaign.name);
+      const now = new Date();
+
+      // Check scheduled open/close dates
+      if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
+        setAllowed(false);
+        const openDate = new Date(campaign.registration_open_at).toLocaleString("es-BO", { dateStyle: "long", timeStyle: "short" });
+        setMessage(`El registro abre el ${openDate}.`);
+        return;
+      }
+
+      if (campaign.registration_close_at && new Date(campaign.registration_close_at) <= now) {
+        setAllowed(false);
+        setMessage("El periodo de registro ha finalizado.");
+        return;
+      }
+
+      // Check manual toggle
+      if (!campaign.registration_enabled) {
+        setAllowed(false);
+        setMessage("El registro de vendedores está temporalmente cerrado.");
+        return;
+      }
+
+      setAllowed(true);
+    };
+    check();
+  }, []);
+
+  return { allowed, campaignName, message };
+}
 
 export default function RegisterPage() {
   const { user, loading: authLoading } = useAuth();
   const { cityNames: CITIES } = useCities();
+  const { allowed, campaignName, message } = useRegistrationStatus();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -48,6 +102,34 @@ export default function RegisterPage() {
     );
   }
 
+  // Registration closed screen
+  if (allowed === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-4">
+            <Lock className="h-16 w-16 text-muted-foreground mx-auto" />
+            <h2 className="text-2xl font-bold">Registro no disponible</h2>
+            {campaignName && <p className="text-sm font-medium text-primary">{campaignName}</p>}
+            <p className="text-muted-foreground">{message}</p>
+            <Button asChild variant="outline">
+              <Link to="/login">Ir a Iniciar Sesión</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Still loading status
+  if (allowed === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!acceptTerms) {
@@ -70,7 +152,6 @@ export default function RegisterPage() {
         return;
       }
 
-      // Check phone duplicates
       if (phone) {
         const { data: phoneVendor } = await supabase
           .from("vendors")
@@ -85,7 +166,6 @@ export default function RegisterPage() {
         }
       }
 
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -98,7 +178,6 @@ export default function RegisterPage() {
       const userId = authData.user.id;
 
       if (existingVendor && !existingVendor.user_id) {
-        // Link to existing cloned vendor
         await supabase
           .from("vendors")
           .update({
@@ -112,7 +191,6 @@ export default function RegisterPage() {
           })
           .eq("id", existingVendor.id);
       } else {
-        // Create new vendor
         await supabase.from("vendors").insert({
           user_id: userId,
           full_name: fullName,
@@ -125,14 +203,12 @@ export default function RegisterPage() {
         });
       }
 
-      // Assign vendedor role
       await supabase.from("user_roles").insert({
         user_id: userId,
         role: "vendedor" as any,
         city,
       });
 
-      // Sign out so they can't access anything until approved
       await supabase.auth.signOut();
       setSuccess(true);
     } catch (error: any) {
@@ -161,22 +237,18 @@ export default function RegisterPage() {
                 <Label>Nombre completo *</Label>
                 <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="Juan Pérez" />
               </div>
-
               <div className="space-y-2">
                 <Label>Correo electrónico *</Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="tu@email.com" autoComplete="email" />
               </div>
-
               <div className="space-y-2">
                 <Label>Contraseña *</Label>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" minLength={6} autoComplete="new-password" />
               </div>
-
               <div className="space-y-2">
                 <Label>Teléfono *</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+591 7XXXXXXX" />
               </div>
-
               <div className="space-y-2">
                 <Label>Ciudad *</Label>
                 <Select value={city} onValueChange={setCity} required>
@@ -188,24 +260,20 @@ export default function RegisterPage() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Nombre de tienda</Label>
                 <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Mi Tienda (opcional)" />
               </div>
-
               <div className="flex items-start gap-2">
                 <Checkbox id="terms" checked={acceptTerms} onCheckedChange={(v) => setAcceptTerms(v === true)} />
                 <label htmlFor="terms" className="text-sm text-muted-foreground leading-tight cursor-pointer">
                   Acepto los términos, condiciones y política de privacidad del programa Bono Vendedor SKYWORTH.
                 </label>
               </div>
-
               <Button type="submit" className="w-full" disabled={loading || !city}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Registrarme
               </Button>
-
               <p className="text-center text-sm text-muted-foreground">
                 ¿Ya tienes cuenta?{" "}
                 <Link to="/login" className="text-primary hover:underline">Ingresar</Link>
