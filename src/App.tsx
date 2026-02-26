@@ -36,12 +36,10 @@ import ReviewsPage from "@/pages/admin/ReviewsPage";
 import AuditPage from "@/pages/admin/AuditPage";
 import EmailRecipientsPage from "@/pages/admin/EmailRecipientsPage";
 import UsersRolesPage from "@/pages/admin/UsersRolesPage";
+import ConfigurationPage from "@/pages/admin/ConfigurationPage";
+import MetricsPage from "@/pages/admin/MetricsPage";
 
 const queryClient = new QueryClient();
-
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="text-muted-foreground">{title} — Próximamente</div>
-);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -89,10 +87,10 @@ const App = () => (
               <Route path="/admin/restringidos" element={<RestrictedPage />} />
               <Route path="/admin/revisiones" element={<ReviewsPage />} />
               <Route path="/admin/auditoria" element={<AuditPage />} />
-              <Route path="/admin/metricas" element={<Placeholder title="Métricas" />} />
+              <Route path="/admin/metricas" element={<MetricsPage />} />
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
-              <Route path="/admin/configuracion" element={<Placeholder title="Configuración" />} />
+              <Route path="/admin/configuracion" element={<ConfigurationPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
