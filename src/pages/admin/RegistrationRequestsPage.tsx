@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 
 interface PendingVendor {
   id: string;
+  user_id: string;
   full_name: string;
   email: string | null;
   phone: string | null;
@@ -33,7 +34,7 @@ export default function RegistrationRequestsPage() {
     setLoading(true);
     const { data } = await supabase
       .from("vendors")
-      .select("id, full_name, email, phone, city, store_name, created_at")
+      .select("id, user_id, full_name, email, phone, city, store_name, created_at")
       .eq("pending_approval", true)
       .order("created_at", { ascending: true });
     setVendors(data || []);
@@ -44,6 +45,22 @@ export default function RegistrationRequestsPage() {
 
   const handleApprove = async (vendor: PendingVendor) => {
     setProcessing(vendor.id);
+
+    const { data: existingRole } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", vendor.user_id)
+      .eq("role", "vendedor")
+      .maybeSingle();
+
+    if (!existingRole) {
+      await supabase.from("user_roles").insert({
+        user_id: vendor.user_id,
+        role: "vendedor" as any,
+        city: vendor.city,
+      });
+    }
+
     const { error } = await supabase
       .from("vendors")
       .update({ pending_approval: false, is_active: true })
