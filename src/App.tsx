@@ -23,8 +23,8 @@ import RegisterSalePage from "@/pages/RegisterSalePage";
 import MySalesPage from "@/pages/MySalesPage";
 import RankingPage from "@/pages/RankingPage";
 
-// Admin pages
 import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
+import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 
 const queryClient = new QueryClient();
 
@@ -68,7 +68,7 @@ const App = () => (
                 </RequireAuth>
               }
             >
-              <Route path="/admin" element={<Placeholder title="Dashboard Admin" />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/campanias" element={<Placeholder title="Campañas" />} />
               <Route path="/admin/solicitudes-registro" element={<RegistrationRequestsPage />} />
               <Route path="/admin/vendedores" element={<Placeholder title="Vendedores" />} />
