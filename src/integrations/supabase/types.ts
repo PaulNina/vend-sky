@@ -44,6 +44,7 @@ export type Database = {
           registration_close_at: string | null
           registration_enabled: boolean
           registration_open_at: string | null
+          require_vendor_approval: boolean
           start_date: string
           subtitle: string | null
         }
@@ -58,6 +59,7 @@ export type Database = {
           registration_close_at?: string | null
           registration_enabled?: boolean
           registration_open_at?: string | null
+          require_vendor_approval?: boolean
           start_date: string
           subtitle?: string | null
         }
@@ -72,6 +74,7 @@ export type Database = {
           registration_close_at?: string | null
           registration_enabled?: boolean
           registration_open_at?: string | null
+          require_vendor_approval?: boolean
           start_date?: string
           subtitle?: string | null
         }
