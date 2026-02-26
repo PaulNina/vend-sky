@@ -1,161 +1,126 @@
 
 
-# Bono Vendedor – El Sueño del Hincha – SKYWORTH
+## Analysis of Missing Features
 
-## Visión General
-Aplicación web full-stack para gestionar campañas de bonos para vendedores SKYWORTH Bolivia. Los vendedores registran ventas semanales con respaldos fotográficos, que son revisadas por encargados de ciudad, auditadas por supervisores, y administradas centralmente. El sistema calcula unidades, montos en Bs y puntos para rankings.
+After reviewing the entire codebase, here is what exists and what needs to be built:
 
----
+### Already Complete
+- Landing page, Register, Login, Reset Password
+- Vendor portal: Dashboard, Register Sale, My Sales, Ranking, Profile
+- Admin modules: Campaigns, Registration Requests, Vendors, Products, Serials, Restricted, Reviews, Audit, Email Recipients, Users/Roles, Dashboard
+- Edge functions: weekly-close, weekly-report, seed-demo-data
+- Guards, layouts, role-based routing
+- Serial validation in real-time
+- Weekly time rules in RegisterSalePage
 
-## Fase 1: Fundación – Base de datos, autenticación y tema visual
-
-### Diseño visual (tema SKYWORTH)
-- Tema oscuro con fondo `#0a1628`, contenedores/tarjetas verde oscuro `#0d2818`, bordes verdes `#1a4d2e`
-- Botones primarios naranja `#f59e0b`, badges de estado con colores semáforo
-- Sidebar lateral con íconos y navegación por rol
-- Tipografía clara, tablas con bordes sutiles y paginación
-
-### Base de datos (Supabase)
-- **campaigns**: nombre, subtítulo, fechas inicio/fin, activa, registro habilitado, validación IA ON/OFF, modo de puntos
-- **vendors**: datos del vendedor, ciudad, tienda, activo/inactivo (vinculado a auth.users)
-- **vendor_blocks**: bloqueos temporales con fecha inicio/fin y motivo
-- **products**: modelo, nombre, pulgadas, puntos por venta, bono Bs por venta, activo
-- **serials**: serial, producto, estado (disponible/usado/bloqueado), referencia a venta
-- **restricted_serials**: seriales bloqueados con motivo y campaña origen
-- **sales**: campaña, vendedor, producto, serial, fecha venta, semana, estado, puntos, bono Bs, ciudad
-- **sale_attachments**: URLs de fotos (TAG, Póliza, Nota de Venta)
-- **reviews**: decisión del revisor con motivo obligatorio
-- **supervisor_audits**: auditorías aleatorias con acción y motivo
-- **user_roles**: roles separados (vendedor, revisor_ciudad, supervisor, admin)
-- **report_recipients**: destinatarios de email por ciudad
-
-### Autenticación y roles (RLS)
-- Login con email/contraseña y recuperación de contraseña
-- 4 roles: VENDEDOR, REVISOR_CIUDAD, SUPERVISOR, ADMIN
-- RLS estricto: vendedor ve solo sus datos, revisor solo su ciudad, supervisor/admin todo
-- Redirección automática al portal correspondiente según rol
+### What's Missing
 
 ---
 
-## Fase 2: Portal del Vendedor
+### 1. AI Date Validation Edge Function + Integration in RegisterSalePage
 
-### Mi Panel (Dashboard personal)
-- Tarjetas resumen: Unidades aprobadas, Bs aprobados, Puntos acumulados, Pendientes, Rechazados
-- Contador regresivo al cierre semanal (Domingo 23:59 hora Bolivia)
-- Selector de campaña activa
+The campaign has a toggle `ai_date_validation` but no backend or frontend integration exists.
 
-### Registrar Venta (formulario guiado)
-- Paso 1: Seleccionar producto (dropdown con modelo y pulgadas)
-- Paso 2: Ingresar serial → **validación en tiempo real**: existe, no usado, no restringido, modelo coincide. Feedback visual inmediato (✅ OK / ❌ Bloqueado + motivo)
-- Paso 3: Fecha de venta (por defecto hoy, validar que cae en semana en curso Lun-Dom)
-- Paso 4: Cargar 3 fotos obligatorias (TAG, Póliza, Nota de Venta) con preview
-- Bloqueo si el vendedor está inactivo o tiene bloqueo vigente
-- Bloqueo si el registro de la campaña está deshabilitado
-
-### Mis Ventas (historial)
-- Tabla con filtros: fecha, semana, estado (Pendiente/Aprobado/Rechazado/Cerrado)
-- Detalle de cada venta con imágenes y estado de revisión
-- Paginación
-
-### Ranking
-- Tabs: General / Top 3 / Por Ciudad
-- Top 3 en tarjetas destacadas con posición, nombre, tienda, ciudad y puntos
-- Lista completa con posición, incluyendo vendedores con 0 puntos
-- Filtro por campaña
+**Plan:**
+- Create edge function `supabase/functions/validate-sale-date/index.ts` that:
+  - Receives a sale attachment image (nota or poliza URL)
+  - Calls Lovable AI (Gemini Flash) with vision to extract dates from the image
+  - Returns `{ date_detected: string | null, confidence: number, matches_week: boolean }`
+- Add columns to `sales` table: `ai_date_detected` (text, nullable), `ai_date_confidence` (numeric, nullable)
+- In `RegisterSalePage.tsx`, after uploading nota/poliza:
+  - Check if the selected campaign has `ai_date_validation = true`
+  - If yes, call the edge function with the uploaded image
+  - If date doesn't match current week, block submission with clear error message
+  - Store AI results in the sale record
+- Add `verify_jwt = false` for the new function in `config.toml`
 
 ---
 
-## Fase 3: Portal del Revisor de Ciudad
+### 2. Configuration Page (`/admin/configuracion`)
 
-### Cola de Pendientes
-- Lista filtrable por semana y estado
-- Contador de pendientes y alerta de cierre (lunes 23:59)
-
-### Vista de detalle de venta
-- Visor de imágenes (TAG / Póliza / Nota de Venta) ampliable
-- Panel de validaciones: estado del serial, restricciones, resultado IA (si aplica)
-- Datos del vendedor, producto, serial, fecha
-
-### Acciones de revisión
-- Botón **Aprobar** → confirmar
-- Botón **Rechazar** → motivo obligatorio (textarea)
-- Al aprobar: actualizar puntos y bono del vendedor, marcar serial como "usado"
-
-### Cierre semanal
-- Alerta visual de registros que se cerrarán el lunes 23:59
-- Después del cierre: registros pendientes pasan a "CERRADO" automáticamente
+Currently a placeholder. Build a real settings page with:
+- System-wide settings display (active campaign summary, current week info)
+- Quick links to manage campaigns, products, serials
+- Toggle for AI date validation per campaign (already exists in CampaignsPage but a summary view here)
+- Storage bucket status
+- Cron job status summary (weekly-close, weekly-report)
 
 ---
 
-## Fase 4: Portal del Supervisor
+### 3. Metrics Page (`/admin/metricas`)
 
-### Auditoría aleatoria
-- Sistema de muestreo configurable (% o N registros/día) de aprobaciones recientes
-- Lista de registros muestreados con detalle completo
-- Acciones: **OK** (confirmar aprobación) / **Revertir** (rechazar con motivo obligatorio)
-
-### Métricas por revisor
-- Tabla: revisor, aprobados, rechazados, reversados, tasa de reversión
-- Filtro por periodo y ciudad
+Currently a placeholder. Build with:
+- Weekly breakdown table: week number, date range, units, Bs, accumulated
+- City-level summary with vendor count, units, Bs
+- Export to Excel button
+- Campaign and period filters
 
 ---
 
-## Fase 5: Panel de Administración
+### 4. RegisterSalePage - Vendor Blocking Check
 
-### Gestión de Campañas
-- CRUD de campañas: nombre, subtítulo, fecha inicio/fin, activa, registro habilitado
-- Toggle de validación IA por campaña
-- Configuración de regla de puntos y correos por ciudad
-
-### Gestión de Productos
-- CRUD: modelo, nombre, pulgadas, puntos por venta, bono Bs por venta, activo/inactivo
-- Tabla con filtros por estado y pulgadas (replicando diseño existente)
-
-### Gestión de Seriales
-- Importar CSV masivo de seriales
-- Tabla con búsqueda, filtro por estado (Disponible/Usado/Bloqueado)
-- Contadores: Total, Disponibles, Usados
-- Botón "Descargar datos" y "Descargar Plantilla"
-
-### Seriales Restringidos
-- Importar CSV de seriales bloqueados con motivo y campaña origen
-- Tabla con búsqueda y filtros
-
-### Gestión de Usuarios y Roles
-- Asignar roles: revisor por ciudad, supervisores
-- Activar/desactivar vendedores (switch en tiempo real)
-- Gestionar bloqueos temporales por vendedor
-
-### Reportes y Exportación
-- Export Excel por campaña, por ciudad, por rango de fechas
-- Dashboard gerencial: unidades y Bs aprobados por ciudad, top 5 productos por ciudad
-- Estados globales: pendientes, aprobados, rechazados
+The `VendorLayout` blocks the entire outlet when pending/inactive, but `RegisterSalePage` should also independently check:
+- `pending_approval` or `!is_active` status and show an inline block message
+- Campaign registration_enabled check (partially exists)
 
 ---
 
-## Fase 6: Automatizaciones y Validación IA
+### 5. Sale Attachments Storage Bucket - Make Public for Image Viewing
 
-### Reporte semanal automático (email)
-- Edge function + cron: cada martes 09:00 hora Bolivia (13:00 UTC)
-- Genera tabla por ciudad: #Semana, Unidades, Monto Bs, Acumulado
-- Envía email a destinatarios configurados por ciudad con resumen y adjunto Excel/CSV
-
-### Cierre semanal automático
-- Cron lunes 23:59 hora Bolivia: cerrar registros pendientes de semana anterior
-- Cambiar estado a "CERRADO" (solo editable por admin/supervisor)
-
-### Validación IA de fecha (opcional por campaña)
-- Edge function que usa Lovable AI con modelo de visión para OCR de Nota de Venta/Póliza
-- Extraer fecha del documento, comparar con semana en curso
-- Si no coincide → bloquear registro con error claro
-- Si baja confianza → permitir enviar a revisión con bandera "requiere verificación manual"
+The `sale-attachments` bucket is currently NOT public, but `getPublicUrl()` is used everywhere. Images will fail to load. Need to either:
+- Make the bucket public via migration, OR
+- Use signed URLs instead of public URLs
 
 ---
 
-## Datos Demo
-- 3-5 vendedores por ciudad (La Paz, Cochabamba, Santa Cruz)
-- ~10 productos SKYWORTH reales (E5500H, E6600H, G6600H, Q6600H, Q7500G, etc.)
-- ~50 seriales de ejemplo
-- 2 campañas: "El Sueño del Hincha" y "Bono Vendedor El Sueño del Hincha"
-- Ventas de ejemplo en distintos estados
+### 6. Weekly-Report Email Integration
+
+The `weekly-report` edge function generates data but doesn't send emails. It needs Resend or similar integration. Since this requires an API key, we'll structure it to be ready and prompt the user.
+
+---
+
+### 7. config.toml Missing Function Entries
+
+`weekly-close` and `weekly-report` are not in `config.toml`. Only `seed-demo-data` is listed. Need to add entries with `verify_jwt = false`.
+
+---
+
+## Implementation Plan (ordered by priority)
+
+### Step 1: Database Migration
+- Add `ai_date_detected` (text, nullable) and `ai_date_confidence` (numeric, nullable) columns to `sales` table
+- Make `sale-attachments` bucket public so images display correctly
+
+### Step 2: AI Date Validation Edge Function
+- Create `supabase/functions/validate-sale-date/index.ts`
+- Uses Lovable AI (Gemini Flash) with vision capability to extract dates from sale receipt images
+- Returns detected date, confidence, and whether it matches the current week
+- Update `config.toml` with all 4 edge functions
+
+### Step 3: Update RegisterSalePage
+- After image upload, if campaign.ai_date_validation is true, call validate-sale-date
+- Show validation results (detected date, confidence)
+- Block if date doesn't match current week
+- Save AI results to sale record
+
+### Step 4: Build Configuration Page
+- System status overview
+- Campaign summary cards
+- Quick-action links
+- Cron job info display
+
+### Step 5: Build Metrics Page
+- Weekly breakdown table with accumulations
+- City summary with vendor counts
+- Campaign/period filters
+- Excel export
+
+### Step 6: Fix config.toml
+- Add entries for `weekly-close`, `weekly-report`, and `validate-sale-date` with `verify_jwt = false`
+
+### Technical Notes
+- AI integration uses Lovable AI Gateway (LOVABLE_API_KEY already configured)
+- Model: `google/gemini-2.5-flash` for vision/OCR date extraction (cost-effective, supports images)
+- The edge function will receive the image path from storage, generate a signed URL, and pass it to the AI model
+- No new secrets needed; LOVABLE_API_KEY is already available
 
