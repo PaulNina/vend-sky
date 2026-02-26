@@ -10,7 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 
-type PeriodType = "week" | "month" | "year" | "all";
+type PeriodType = "day" | "week" | "month" | "year" | "all";
 
 interface CityData {
   city: string;
@@ -86,6 +86,7 @@ export default function AdminDashboardPage() {
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (period) {
+      case "day": { const today = format(now, "yyyy-MM-dd"); return { start: today, end: today }; }
       case "week": return { start: format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"), end: format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd") };
       case "month": return { start: format(startOfMonth(now), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
       case "year": return { start: format(startOfYear(now), "yyyy-MM-dd"), end: format(endOfYear(now), "yyyy-MM-dd") };
@@ -164,6 +165,7 @@ export default function AdminDashboardPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todo</SelectItem>
+              <SelectItem value="day">Hoy</SelectItem>
               <SelectItem value="week">Esta semana</SelectItem>
               <SelectItem value="month">Este mes</SelectItem>
               <SelectItem value="year">Este año</SelectItem>
