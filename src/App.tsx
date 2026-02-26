@@ -8,6 +8,9 @@ import LoginPage from "@/pages/LoginPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AppLayout from "@/layouts/AppLayout";
 import VendorDashboard from "@/pages/VendorDashboard";
+import RegisterSalePage from "@/pages/RegisterSalePage";
+import MySalesPage from "@/pages/MySalesPage";
+import RankingPage from "@/pages/RankingPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,10 +27,9 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<VendorDashboard />} />
-              {/* Vendor routes */}
-              <Route path="/registrar-venta" element={<div className="text-muted-foreground">Registrar Venta — Próximamente</div>} />
-              <Route path="/mis-ventas" element={<div className="text-muted-foreground">Mis Ventas — Próximamente</div>} />
-              <Route path="/ranking" element={<div className="text-muted-foreground">Ranking — Próximamente</div>} />
+              <Route path="/registrar-venta" element={<RegisterSalePage />} />
+              <Route path="/mis-ventas" element={<MySalesPage />} />
+              <Route path="/ranking" element={<RankingPage />} />
               {/* Revisor routes */}
               <Route path="/revisor/pendientes" element={<div className="text-muted-foreground">Pendientes — Próximamente</div>} />
               {/* Supervisor routes */}
