@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useCities } from "@/hooks/useCities";
 
-const CITIES = ["La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro", "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija"];
+
 
 interface Recipient {
   id: string;
@@ -22,6 +23,7 @@ interface Recipient {
 }
 
 export default function EmailRecipientsPage() {
+  const { cityNames: CITIES } = useCities();
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);

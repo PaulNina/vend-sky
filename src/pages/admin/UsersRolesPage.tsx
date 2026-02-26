@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useCities } from "@/hooks/useCities";
 
 const ROLES: { value: string; label: string }[] = [
   { value: "vendedor", label: "Vendedor" },
@@ -18,7 +19,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: "admin", label: "Administrador" },
 ];
 
-const CITIES = ["La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro", "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija"];
+
 
 interface UserRole {
   id: string;
@@ -29,6 +30,7 @@ interface UserRole {
 }
 
 export default function UsersRolesPage() {
+  const { cityNames: CITIES } = useCities();
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState(false);

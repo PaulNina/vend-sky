@@ -10,14 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2 } from "lucide-react";
-
-const CITIES = [
-  "La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro",
-  "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija",
-];
+import { useCities } from "@/hooks/useCities";
 
 export default function RegisterPage() {
   const { user, loading: authLoading } = useAuth();
+  const { cityNames: CITIES } = useCities();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
