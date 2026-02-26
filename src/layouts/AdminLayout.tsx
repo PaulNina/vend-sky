@@ -35,6 +35,7 @@ const adminNav = [
   { title: "Configuración", url: "/admin/configuracion", icon: Settings },
 ];
 
+
 function AdminSidebar() {
   const { signOut, user } = useAuth();
   const { state } = useSidebar();
