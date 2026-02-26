@@ -25,6 +25,8 @@ interface Campaign {
   name: string;
   registration_enabled: boolean;
   ai_date_validation: boolean;
+  registration_open_at: string | null;
+  registration_close_at: string | null;
 }
 
 type SerialValidation = {
@@ -149,7 +151,7 @@ export default function RegisterSalePage() {
   const loadData = async () => {
     if (!user) return;
     const [campaignsRes, productsRes, vendorRes] = await Promise.all([
-      supabase.from("campaigns").select("id, name, registration_enabled, ai_date_validation").eq("is_active", true),
+      supabase.from("campaigns").select("id, name, registration_enabled, ai_date_validation, registration_open_at, registration_close_at").eq("is_active", true),
       supabase.from("products").select("*").eq("is_active", true).order("name"),
       supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
     ]);
@@ -230,9 +232,22 @@ export default function RegisterSalePage() {
       return;
     }
     const campaign = campaigns.find((c) => c.id === selectedCampaign);
-    if (campaign && !campaign.registration_enabled) {
-      toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
-      return;
+    if (campaign) {
+      // Check manual toggle
+      if (!campaign.registration_enabled) {
+        toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
+        return;
+      }
+      // Check scheduled window
+      const now = new Date();
+      if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
+        toast({ title: "Error", description: `El registro abre el ${new Date(campaign.registration_open_at).toLocaleString("es-BO")}.`, variant: "destructive" });
+        return;
+      }
+      if (campaign.registration_close_at && new Date(campaign.registration_close_at) < now) {
+        toast({ title: "Error", description: "El periodo de registro para esta campaña ha finalizado.", variant: "destructive" });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -353,6 +368,14 @@ export default function RegisterSalePage() {
 
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
 
+  const isCampaignRegistrationOpen = (c: Campaign) => {
+    if (!c.registration_enabled) return false;
+    const now = new Date();
+    if (c.registration_open_at && new Date(c.registration_open_at) > now) return false;
+    if (c.registration_close_at && new Date(c.registration_close_at) < now) return false;
+    return true;
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
@@ -362,6 +385,16 @@ export default function RegisterSalePage() {
           <Badge variant="outline" className="mt-2 gap-1">
             <Brain className="h-3 w-3" /> Validación IA de fecha activa
           </Badge>
+        )}
+        {selectedCampaignData && !isCampaignRegistrationOpen(selectedCampaignData) && (
+          <div className="mt-2 p-3 rounded-lg border border-warning/50 bg-warning/10 text-sm">
+            <AlertTriangle className="h-4 w-4 inline mr-1 text-warning" />
+            {!selectedCampaignData.registration_enabled
+              ? "El registro está deshabilitado para esta campaña."
+              : selectedCampaignData.registration_open_at && new Date(selectedCampaignData.registration_open_at) > new Date()
+                ? `El registro abre el ${new Date(selectedCampaignData.registration_open_at).toLocaleString("es-BO")}.`
+                : "El periodo de registro para esta campaña ha finalizado."}
+          </div>
         )}
       </div>
 

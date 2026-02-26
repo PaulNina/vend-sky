@@ -21,11 +21,14 @@ interface Campaign {
   registration_enabled: boolean;
   ai_date_validation: boolean;
   points_mode: string;
+  registration_open_at: string | null;
+  registration_close_at: string | null;
 }
 
 const empty: Omit<Campaign, "id"> = {
   name: "", subtitle: "", start_date: "", end_date: "",
   is_active: true, registration_enabled: true, ai_date_validation: false, points_mode: "product",
+  registration_open_at: null, registration_close_at: null,
 };
 
 export default function CampaignsPage() {
@@ -46,7 +49,7 @@ export default function CampaignsPage() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm(empty); setDialog(true); };
-  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode }); setDialog(true); };
+  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at }); setDialog(true); };
 
   const save = async () => {
     if (!form.name || !form.start_date || !form.end_date) {
@@ -106,8 +109,21 @@ export default function CampaignsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">{fmtDate(c.start_date)} — {fmtDate(c.end_date)}</TableCell>
-                    <TableCell><Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Activa" : "Inactiva"}</Badge></TableCell>
-                    <TableCell><Badge variant={c.registration_enabled ? "default" : "outline"}>{c.registration_enabled ? "Abierto" : "Cerrado"}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Activa" : "Inactiva"}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={c.registration_enabled ? "default" : "outline"}>{c.registration_enabled ? "Abierto" : "Cerrado"}</Badge>
+                        {(c.registration_open_at || c.registration_close_at) && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.registration_open_at && `Abre: ${new Date(c.registration_open_at).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" })}`}
+                            {c.registration_open_at && c.registration_close_at && " · "}
+                            {c.registration_close_at && `Cierra: ${new Date(c.registration_close_at).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" })}`}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{c.ai_date_validation ? <Badge>ON</Badge> : <Badge variant="outline">OFF</Badge>}</TableCell>
                     <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button></TableCell>
                   </TableRow>
@@ -129,7 +145,27 @@ export default function CampaignsPage() {
               <div className="space-y-2"><Label>Fecha fin *</Label><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></div>
             </div>
             <div className="flex items-center justify-between"><Label>Campaña activa</Label><Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} /></div>
-            <div className="flex items-center justify-between"><Label>Registro habilitado</Label><Switch checked={form.registration_enabled} onCheckedChange={(v) => setForm({ ...form, registration_enabled: v })} /></div>
+            <div className="flex items-center justify-between"><Label>Registro habilitado (manual)</Label><Switch checked={form.registration_enabled} onCheckedChange={(v) => setForm({ ...form, registration_enabled: v })} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Registro abre en (opcional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.registration_open_at ? form.registration_open_at.slice(0, 16) : ""}
+                  onChange={(e) => setForm({ ...form, registration_open_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                />
+                <p className="text-xs text-muted-foreground">Si se establece, el registro se abre automáticamente en esta fecha/hora</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Registro cierra en (opcional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.registration_close_at ? form.registration_close_at.slice(0, 16) : ""}
+                  onChange={(e) => setForm({ ...form, registration_close_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                />
+                <p className="text-xs text-muted-foreground">Si se establece, el registro se cierra automáticamente en esta fecha/hora</p>
+              </div>
+            </div>
             <div className="flex items-center justify-between"><Label>Validación IA de fecha</Label><Switch checked={form.ai_date_validation} onCheckedChange={(v) => setForm({ ...form, ai_date_validation: v })} /></div>
           </div>
           <DialogFooter>
