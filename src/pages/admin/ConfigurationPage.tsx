@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
-  Loader2, Settings, Package, ShieldCheck, BarChart3, Users, Calendar,
-  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save
+  Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
+  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -96,7 +96,6 @@ export default function ConfigurationPage() {
     setSavingKey(true);
     const trimmed = geminiKey.trim();
     if (!trimmed) {
-      // Delete the key
       await supabase.from("app_settings").delete().eq("key", "gemini_api_key");
       setGeminiKeyExists(false);
       setGeminiKey("");
@@ -141,95 +140,99 @@ export default function ConfigurationPage() {
     { label: "Seriales Disponibles", href: "/admin/seriales", icon: ShieldCheck, count: counts.serials },
     { label: "Vendedores Activos", href: "/admin/vendedores", icon: Users, count: counts.vendors },
     { label: "Métricas", href: "/admin/metricas", icon: BarChart3 },
-    { label: "Correos por Ciudad", href: "/admin/correos-ciudad", icon: Settings, count: counts.recipients },
+    { label: "Correos por Ciudad", href: "/admin/correos-ciudad", icon: Mail, count: counts.recipients },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-5xl">
+      {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold">Configuración del Sistema</h1>
-        <p className="text-sm text-muted-foreground">Estado general y accesos rápidos</p>
+        <h1 className="text-2xl font-bold font-display tracking-tight">Configuración del Sistema</h1>
+        <p className="text-sm text-muted-foreground mt-1">Estado general, accesos rápidos y ajustes del sistema</p>
       </div>
 
-      {/* Current Week */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            Semana en Curso (Bolivia)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-lg font-semibold">
-            {format(monday, "d MMM", { locale: es })} — {format(sunday, "d MMM yyyy", { locale: es })}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Hoy: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })} (BOT UTC-4)
-          </p>
+      {/* Current Week - hero-style */}
+      <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-card to-primary/5">
+        <CardContent className="py-5 px-6 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl gradient-gold flex items-center justify-center shadow-gold shrink-0">
+            <Clock className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Semana en Curso (Bolivia)</p>
+            <p className="text-lg font-bold font-display mt-0.5">
+              {format(monday, "d MMM", { locale: es })} — {format(sunday, "d MMM yyyy", { locale: es })}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Hoy: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })} (BOT UTC-4)
+            </p>
+          </div>
         </CardContent>
       </Card>
 
       {/* Campaign Cards */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Campañas</h2>
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold font-display flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-primary" />
+          Campañas
+        </h2>
         {campaigns.map((c) => (
-          <Card key={c.id}>
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <Card key={c.id} className="hover:border-primary/20 transition-colors">
+            <CardContent className="py-4 px-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{c.name}</h3>
-                    <Badge variant={c.is_active ? "default" : "secondary"}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-[15px]">{c.name}</h3>
+                    <Badge variant={c.is_active ? "default" : "secondary"} className="text-[10px]">
                       {c.is_active ? "Activa" : "Inactiva"}
                     </Badge>
                     {c.registration_enabled && (
-                      <Badge variant="outline" className="text-success border-success">
+                      <Badge variant="outline" className="text-success border-success/40 bg-success/5 text-[10px]">
                         Registro abierto
                       </Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {format(new Date(c.start_date), "d MMM yyyy", { locale: es })} — {format(new Date(c.end_date), "d MMM yyyy", { locale: es })}
                     {" · "}Modo: {c.points_mode}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Validación IA</span>
-                    <Switch
-                      checked={c.ai_date_validation}
-                      onCheckedChange={() => toggleAiValidation(c.id, c.ai_date_validation)}
-                    />
-                  </div>
+                <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
+                  <Brain className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-medium">Validación IA</span>
+                  <Switch
+                    checked={c.ai_date_validation}
+                    onCheckedChange={() => toggleAiValidation(c.id, c.ai_date_validation)}
+                  />
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </section>
 
       {/* Cities Management */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 font-display">
             <MapPin className="h-4 w-4 text-primary" />
             Ciudades Habilitadas
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-xs text-muted-foreground mb-4">
             Las ciudades deshabilitadas no aparecerán en los formularios de registro ni de ventas.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {cities.map((city) => (
               <div
                 key={city.id}
-                className={`flex items-center justify-between p-3 rounded-lg border ${
-                  city.is_active ? "bg-primary/5 border-primary/20" : "bg-muted/50 border-muted"
+                className={`flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 ${
+                  city.is_active
+                    ? "bg-success/5 border-success/20 hover:border-success/40"
+                    : "bg-muted/30 border-border/50 hover:border-border"
                 }`}
               >
-                <span className={`text-sm font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
+                <span className={`text-[13px] font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
                   {city.name}
                 </span>
                 <Switch
@@ -248,13 +251,13 @@ export default function ConfigurationPage() {
       {/* Gemini API Key */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 font-display">
             <Key className="h-4 w-4 text-primary" />
             API Key de Google Gemini
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Configura tu propia API key de Google Gemini para la validación IA de fechas. Si no se configura, se usará Lovable AI como respaldo.
           </p>
           <div className="flex gap-2">
@@ -269,18 +272,18 @@ export default function ConfigurationPage() {
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button onClick={saveGeminiKey} disabled={savingKey} size="sm">
+            <Button onClick={saveGeminiKey} disabled={savingKey} size="sm" variant="premium">
               {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
               Guardar
             </Button>
           </div>
           {geminiKeyExists && (
-            <Badge variant="outline" className="text-success border-success">
+            <Badge variant="outline" className="text-success border-success/40 bg-success/5">
               API Key configurada
             </Badge>
           )}
@@ -288,49 +291,57 @@ export default function ConfigurationPage() {
       </Card>
 
       {/* Quick Links */}
-      <div>
-        <h2 className="text-lg font-semibold mb-3">Accesos Rápidos</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <section>
+        <h2 className="text-base font-semibold font-display mb-3 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          Accesos Rápidos
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {quickLinks.map((link) => (
             <Link key={link.href} to={link.href}>
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                <CardContent className="pt-4 pb-4 flex items-center justify-between">
+              <Card className="hover:border-primary/30 hover:bg-card/80 transition-all duration-200 cursor-pointer group">
+                <CardContent className="py-3.5 px-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <link.icon className="h-5 w-5 text-primary" />
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <link.icon className="h-4 w-4 text-primary" />
+                    </div>
                     <div>
-                      <p className="font-medium text-sm">{link.label}</p>
+                      <p className="font-medium text-[13px]">{link.label}</p>
                       {link.count !== undefined && (
-                        <p className="text-xs text-muted-foreground">{link.count} registros</p>
+                        <p className="text-[11px] text-muted-foreground">{link.count} registros</p>
                       )}
                     </div>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </CardContent>
               </Card>
             </Link>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* Cron Jobs Info */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Tareas Programadas (Cron)</CardTitle>
+          <CardTitle className="text-base font-display flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            Tareas Programadas (Cron)
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+        <CardContent className="space-y-2.5">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
             <div>
-              <p className="font-medium text-sm">Cierre Semanal</p>
-              <p className="text-xs text-muted-foreground">Lunes 23:59 BOT — Cierra ventas pendientes de la semana anterior</p>
+              <p className="font-medium text-[13px]">Cierre Semanal</p>
+              <p className="text-[11px] text-muted-foreground">Lunes 23:59 BOT — Cierra ventas pendientes de la semana anterior</p>
             </div>
-            <Badge variant="outline">weekly-close</Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">weekly-close</Badge>
           </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
             <div>
-              <p className="font-medium text-sm">Reporte Semanal</p>
-              <p className="text-xs text-muted-foreground">Martes 09:00 BOT — Genera resumen semanal por ciudad</p>
+              <p className="font-medium text-[13px]">Reporte Semanal</p>
+              <p className="text-[11px] text-muted-foreground">Martes 09:00 BOT — Genera resumen semanal por ciudad</p>
             </div>
-            <Badge variant="outline">weekly-report</Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">weekly-report</Badge>
           </div>
         </CardContent>
       </Card>
