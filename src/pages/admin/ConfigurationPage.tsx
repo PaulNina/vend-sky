@@ -9,11 +9,12 @@ import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
   Loader2, Settings, Package, ShieldCheck, BarChart3, Users, Calendar,
-  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, FolderTree
+  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCities, type City } from "@/hooks/useCities";
+import CityGroupsSection from "@/components/admin/CityGroupsSection";
 
 interface CampaignFull {
   id: string;
@@ -141,7 +142,6 @@ export default function ConfigurationPage() {
     { label: "Vendedores Activos", href: "/admin/vendedores", icon: Users, count: counts.vendors },
     { label: "Métricas", href: "/admin/metricas", icon: BarChart3 },
     { label: "Correos por Ciudad", href: "/admin/correos-ciudad", icon: Settings, count: counts.recipients },
-    { label: "Grupos de Ciudades", href: "/admin/grupos-ciudades", icon: FolderTree },
   ];
 
   return (
@@ -241,6 +241,9 @@ export default function ConfigurationPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* City Groups */}
+      <CityGroupsSection />
 
       {/* Gemini API Key */}
       <Card>
