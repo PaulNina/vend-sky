@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
   Loader2, Settings, Package, ShieldCheck, BarChart3, Users, Calendar,
-  Clock, Brain, ArrowRight, MapPin
+  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -30,18 +31,23 @@ export default function ConfigurationPage() {
   const [counts, setCounts] = useState({ products: 0, serials: 0, vendors: 0, recipients: 0 });
   const [loading, setLoading] = useState(true);
   const { cities, reload: reloadCities } = useCities(false);
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiKeyExists, setGeminiKeyExists] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const [campRes, prodCount, serialCount, vendorCount, recipientCount] = await Promise.all([
+    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes] = await Promise.all([
       supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("serials").select("id", { count: "exact", head: true }).eq("status", "available"),
       supabase.from("vendors").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("report_recipients").select("id", { count: "exact", head: true }),
+      supabase.from("app_settings").select("value").eq("key", "gemini_api_key").maybeSingle(),
     ]);
     setCampaigns(campRes.data || []);
     setCounts({
@@ -50,6 +56,10 @@ export default function ConfigurationPage() {
       vendors: vendorCount.count || 0,
       recipients: recipientCount.count || 0,
     });
+    if (settingRes.data?.value) {
+      setGeminiKeyExists(true);
+      setGeminiKey(settingRes.data.value);
+    }
     setLoading(false);
   };
 
@@ -79,6 +89,29 @@ export default function ConfigurationPage() {
       reloadCities();
       toast({ title: "Actualizado", description: `${city.name} ${!city.is_active ? "habilitada" : "deshabilitada"}` });
     }
+  };
+
+  const saveGeminiKey = async () => {
+    setSavingKey(true);
+    const trimmed = geminiKey.trim();
+    if (!trimmed) {
+      // Delete the key
+      await supabase.from("app_settings").delete().eq("key", "gemini_api_key");
+      setGeminiKeyExists(false);
+      setGeminiKey("");
+      toast({ title: "API Key eliminada", description: "Se usará Lovable AI como respaldo" });
+    } else {
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert({ key: "gemini_api_key", value: trimmed, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        setGeminiKeyExists(true);
+        toast({ title: "Guardado", description: "API Key de Gemini actualizada" });
+      }
+    }
+    setSavingKey(false);
   };
 
   // Current Bolivia week info
@@ -205,6 +238,48 @@ export default function ConfigurationPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Gemini API Key */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Key className="h-4 w-4 text-primary" />
+            API Key de Google Gemini
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Configura tu propia API key de Google Gemini para la validación IA de fechas. Si no se configura, se usará Lovable AI como respaldo.
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button onClick={saveGeminiKey} disabled={savingKey} size="sm">
+              {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+              Guardar
+            </Button>
+          </div>
+          {geminiKeyExists && (
+            <Badge variant="outline" className="text-success border-success">
+              API Key configurada
+            </Badge>
+          )}
         </CardContent>
       </Card>
 
