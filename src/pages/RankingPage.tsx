@@ -29,7 +29,11 @@ const podiumIcons = [
   { icon: Award, color: "text-amber-600", bg: "bg-amber-600/10 border-amber-600/30" },
 ];
 
-const cities = ["Todas", "La Paz", "Cochabamba", "Santa Cruz"];
+const ALL_CITIES = [
+  "La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro",
+  "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija",
+];
+const cities = ["Todas", ...ALL_CITIES];
 
 export default function RankingPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -67,10 +71,12 @@ export default function RankingPage() {
     : ranking.filter((r) => r.city === cityFilter);
 
   const top3 = filteredRanking.slice(0, 3);
-  const cityGroups = cities.filter((c) => c !== "Todas").map((city) => ({
-    city,
-    entries: ranking.filter((r) => r.city === city),
-  }));
+  const cityGroups = ALL_CITIES
+    .map((city) => ({
+      city,
+      entries: ranking.filter((r) => r.city === city),
+    }))
+    .filter((g) => g.entries.length > 0);
 
   return (
     <div className="space-y-6">
