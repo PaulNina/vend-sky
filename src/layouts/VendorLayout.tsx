@@ -13,7 +13,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, AlertTriangle, UserCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,7 @@ const vendorNav = [
   { title: "Registrar Venta", url: "/v/registrar-venta", icon: PlusCircle },
   { title: "Mis Ventas", url: "/v/mis-ventas", icon: List },
   { title: "Ranking", url: "/v/ranking", icon: Trophy },
+  { title: "Mi Perfil", url: "/v/perfil", icon: UserCircle },
 ];
 
 function VendorSidebar() {

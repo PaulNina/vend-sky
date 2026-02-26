@@ -9,7 +9,7 @@ export default function LandingPage() {
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-primary">SKYWORTH</h1>
-          <p className="text-[10px] text-muted-foreground">Bono Vendedor — El Sueño del Hincha</p>
+          <p className="text-[10px] text-muted-foreground">Bono Vendedor El Sueño del Hincha</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" asChild>
