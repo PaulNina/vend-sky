@@ -1,21 +1,53 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LayoutDashboard, Package, Trophy, Clock, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
 
 export default function VendorDashboard() {
   const { user } = useAuth();
   const [countdown, setCountdown] = useState("");
+  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const loadStats = async () => {
+      const { data: vendor } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!vendor) return;
+
+      const { data: sales } = await supabase
+        .from("sales")
+        .select("status, points, bonus_bs")
+        .eq("vendor_id", vendor.id);
+
+      if (sales) {
+        setStats({
+          approved: sales.filter(s => s.status === 'approved').length,
+          bonusBs: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + Number(s.bonus_bs), 0),
+          points: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + s.points, 0),
+          pending: sales.filter(s => s.status === 'pending').length,
+          rejected: sales.filter(s => s.status === 'rejected').length,
+        });
+      }
+    };
+
+    loadStats();
+  }, [user]);
 
   useEffect(() => {
     const updateCountdown = () => {
       const now = new Date();
-      // Calculate next Sunday 23:59:59 Bolivia time (UTC-4)
       const boliviaOffset = -4 * 60;
       const utcNow = now.getTime() + now.getTimezoneOffset() * 60000;
       const boliviaNow = new Date(utcNow + boliviaOffset * 60000);
       
-      const dayOfWeek = boliviaNow.getDay(); // 0=Sun
+      const dayOfWeek = boliviaNow.getDay();
       const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
       
       const target = new Date(boliviaNow);
@@ -41,12 +73,12 @@ export default function VendorDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const stats = [
-    { label: "Unidades Aprobadas", value: "0", icon: Package, color: "text-success" },
-    { label: "Bono Bs Aprobado", value: "Bs 0", icon: LayoutDashboard, color: "text-primary" },
-    { label: "Puntos Acumulados", value: "0", icon: Trophy, color: "text-warning" },
-    { label: "Pendientes", value: "0", icon: Clock, color: "text-muted-foreground" },
-    { label: "Rechazados", value: "0", icon: XCircle, color: "text-destructive" },
+  const statCards = [
+    { label: "Unidades Aprobadas", value: String(stats.approved), icon: Package, color: "text-success" },
+    { label: "Bono Bs Aprobado", value: `Bs ${stats.bonusBs}`, icon: LayoutDashboard, color: "text-primary" },
+    { label: "Puntos Acumulados", value: String(stats.points), icon: Trophy, color: "text-warning" },
+    { label: "Pendientes", value: String(stats.pending), icon: Clock, color: "text-muted-foreground" },
+    { label: "Rechazados", value: String(stats.rejected), icon: XCircle, color: "text-destructive" },
   ];
 
   return (
@@ -68,7 +100,7 @@ export default function VendorDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <Card key={stat.label}>
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs font-medium text-muted-foreground">
@@ -89,7 +121,8 @@ export default function VendorDashboard() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            Registra tus ventas semanales antes del cierre del domingo. Cada venta aprobada acumula puntos y bonos en Bs.
+            Registra tus ventas semanales antes del cierre del domingo a las 23:59 (hora Bolivia). 
+            Cada venta aprobada acumula puntos y bonos en Bs según el producto vendido.
           </p>
         </CardContent>
       </Card>
