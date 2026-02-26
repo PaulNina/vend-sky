@@ -49,7 +49,7 @@ const App = () => (
             {/* Vendor (protected) */}
             <Route
               element={
-                <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                <RequireAuth allowedRoles={["vendedor"]}>
                   <VendorLayout />
                 </RequireAuth>
               }

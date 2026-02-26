@@ -18,10 +18,11 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "forgot">("login");
 
   if (authLoading) return null;
-  // Redirect based on role
   if (user) {
-    const isAdmin = roles.includes("admin") || roles.includes("supervisor") || roles.includes("revisor_ciudad");
-    return <Navigate to={isAdmin ? "/admin" : "/v"} replace />;
+    if (roles.includes("admin")) return <Navigate to="/admin" replace />;
+    if (roles.includes("supervisor")) return <Navigate to="/admin/auditoria" replace />;
+    if (roles.includes("revisor_ciudad")) return <Navigate to="/admin/revisiones" replace />;
+    return <Navigate to="/v" replace />;
   }
 
   const handleLogin = async (e: React.FormEvent) => {
