@@ -137,11 +137,23 @@ function getBoliviaWeek(dateStr: string) {
   };
 }
 
-function isWithinCurrentWeek(dateStr: string) {
+function getBoliviaNow() {
   const now = new Date();
   const boliviaOffset = -4 * 60;
   const utcNow = now.getTime() + now.getTimezoneOffset() * 60000;
-  const boliviaNow = new Date(utcNow + boliviaOffset * 60000);
+  return new Date(utcNow + boliviaOffset * 60000);
+}
+
+function getCurrentWeekBounds() {
+  const boliviaNow = getBoliviaNow();
+  const todayStr = boliviaNow.toISOString().split("T")[0];
+  const week = getBoliviaWeek(todayStr);
+  // max date is today (can't register future sales)
+  return { min: week.week_start, max: todayStr };
+}
+
+function isWithinCurrentWeek(dateStr: string) {
+  const boliviaNow = getBoliviaNow();
   const currentWeek = getBoliviaWeek(boliviaNow.toISOString().split("T")[0]);
   const inputWeek = getBoliviaWeek(dateStr);
   return inputWeek.week_start === currentWeek.week_start;
@@ -403,6 +415,7 @@ export default function RegisterSalePage() {
 
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
   const detectedProduct = products.find((p) => p.id === selectedProduct);
+  const weekBounds = getCurrentWeekBounds();
 
   const completedSteps = [
     !!selectedCampaign,
@@ -554,11 +567,11 @@ export default function RegisterSalePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="text-sm" />
+            <Input type="date" value={saleDate} min={weekBounds.min} max={weekBounds.max} onChange={(e) => setSaleDate(e.target.value)} className="text-sm" />
             {saleDate && !isWithinCurrentWeek(saleDate) && (
               <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                 <XCircle className="h-3.5 w-3.5 shrink-0" />
-                La fecha debe estar dentro de la semana en curso (Lun–Dom)
+                La fecha debe estar entre {weekBounds.min} y {weekBounds.max}
               </p>
             )}
           </CardContent>
