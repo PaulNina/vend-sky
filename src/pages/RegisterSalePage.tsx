@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, XCircle, Upload, ImageIcon, Brain, AlertTriangle, Package } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Upload, ImageIcon, Brain, AlertTriangle, Package, Camera, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Product {
   id: string;
@@ -43,27 +44,52 @@ type AiValidation = {
 
 // --- Subcomponents ---
 
-function FileInput({ label, file, onFile, id }: { label: string; file: File | null; onFile: (f: File) => void; id: string }) {
+function FileInput({ label, file, onFile, onClear, id, isMobile }: { label: string; file: File | null; onFile: (f: File) => void; onClear: () => void; id: string; isMobile: boolean }) {
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label} *</Label>
-      <label
-        htmlFor={id}
-        className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
-      >
-        {file ? (
-          <div className="flex items-center gap-2 text-sm">
-            <ImageIcon className="h-4 w-4 text-success" />
-            <span className="text-foreground truncate max-w-[200px]">{file.name}</span>
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className="text-xs font-medium">{label} *</Label>
+      {preview ? (
+        <div className="relative group rounded-lg overflow-hidden border border-border aspect-square">
+          <img src={preview} alt={label} className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); onClear(); }}
+            className="absolute top-1 right-1 bg-background/80 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity sm:opacity-100"
+          >
+            <X className="h-3.5 w-3.5 text-destructive" />
+          </button>
+          <div className="absolute bottom-0 inset-x-0 bg-background/70 backdrop-blur-sm py-1 px-2">
+            <p className="text-[10px] text-foreground truncate">{file?.name}</p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-muted-foreground">
-            <Upload className="h-6 w-6" />
-            <span className="text-xs">Subir imagen</span>
+        </div>
+      ) : (
+        <label
+          htmlFor={id}
+          className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg aspect-square cursor-pointer hover:border-primary/50 active:border-primary transition-colors"
+        >
+          <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+            {isMobile ? <Camera className="h-6 w-6" /> : <Upload className="h-5 w-5" />}
+            <span className="text-[10px] text-center leading-tight">{isMobile ? "Tomar foto" : "Subir imagen"}</span>
           </div>
-        )}
-      </label>
-      <input id={id} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        </label>
+      )}
+      <input
+        id={id}
+        type="file"
+        accept="image/*"
+        capture={isMobile ? "environment" : undefined}
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+      />
     </div>
   );
 }
@@ -134,6 +160,7 @@ function isCampaignRegistrationOpen(c: Campaign) {
 export default function RegisterSalePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -167,7 +194,6 @@ export default function RegisterSalePage() {
 
     if (campaignsRes.data) {
       setCampaigns(campaignsRes.data);
-      // Auto-select campaign: prefer one with registration open, otherwise first
       const openCampaigns = campaignsRes.data.filter(isCampaignRegistrationOpen);
       if (openCampaigns.length >= 1) {
         setSelectedCampaign(openCampaigns[0].id);
@@ -230,7 +256,6 @@ export default function RegisterSalePage() {
         setSelectedProduct("");
         return;
       }
-      // Auto-detect product from serial
       if (serialData.product_id) {
         setSelectedProduct(serialData.product_id);
         setProductAutoDetected(true);
@@ -364,7 +389,7 @@ export default function RegisterSalePage() {
 
   if (vendorBlocked) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto px-2">
         <Card className="border-destructive/50">
           <CardContent className="pt-6 text-center space-y-3">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
@@ -379,21 +404,43 @@ export default function RegisterSalePage() {
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
   const detectedProduct = products.find((p) => p.id === selectedProduct);
 
+  const completedSteps = [
+    !!selectedCampaign,
+    serialValidation.status === "ok",
+    !!selectedProduct,
+    !!saleDate && isWithinCurrentWeek(saleDate),
+    !!tagFile && !!polizaFile && !!notaFile,
+  ];
+  const progress = completedSteps.filter(Boolean).length;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 pb-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
-          <Upload className="h-6 w-6 text-primary" />
+        <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+          <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           Registrar Venta
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Completa el formulario para registrar una nueva venta</p>
-        {selectedCampaignData?.ai_date_validation && (
-          <Badge variant="outline" className="mt-2 gap-1 text-[11px]">
-            <Brain className="h-3 w-3" /> Validación IA de fecha activa
-          </Badge>
-        )}
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Completa los 5 pasos para registrar tu venta</p>
+
+        {/* Progress indicator */}
+        <div className="flex items-center gap-1.5 mt-3">
+          {completedSteps.map((done, i) => (
+            <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${done ? "bg-primary" : "bg-muted"}`} />
+          ))}
+          <span className="text-[10px] text-muted-foreground ml-1">{progress}/5</span>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-2">
+          {selectedCampaignData?.ai_date_validation && (
+            <Badge variant="outline" className="gap-1 text-[10px]">
+              <Brain className="h-3 w-3" /> Validación IA activa
+            </Badge>
+          )}
+        </div>
+
         {selectedCampaignData && !isCampaignRegistrationOpen(selectedCampaignData) && (
-          <div className="mt-3 p-3 rounded-lg border border-warning/50 bg-warning/10 text-sm flex items-start gap-2">
+          <div className="mt-2 p-2.5 rounded-lg border border-warning/50 bg-warning/10 text-xs sm:text-sm flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
             <span>
               {!selectedCampaignData.registration_enabled
@@ -406,24 +453,24 @@ export default function RegisterSalePage() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Step 1: Campaign (auto-selected) */}
+      <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+        {/* Step 1: Campaign */}
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">1</span>
+          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
+              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[0] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>1</span>
               Campaña
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {campaigns.length <= 1 && selectedCampaign ? (
-              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-success" />
-                <span className="font-medium">{selectedCampaignData?.name}</span>
+              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-xs sm:text-sm">
+                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                <span className="font-medium truncate">{selectedCampaignData?.name}</span>
               </div>
             ) : (
               <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-                <SelectTrigger><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
+                <SelectTrigger className="text-xs sm:text-sm"><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
                 <SelectContent>
                   {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
@@ -432,55 +479,55 @@ export default function RegisterSalePage() {
           </CardContent>
         </Card>
 
-        {/* Step 2: Serial (moved before Product) */}
+        {/* Step 2: Serial */}
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">2</span>
+          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
+              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[1] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>2</span>
               Serial
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-2">
             <Input
               placeholder="Ingresa el número de serial"
               value={serial}
               onChange={(e) => setSerial(e.target.value.trim())}
+              className="text-sm"
             />
             {serialValidation.status !== "idle" && (
-              <div className={`flex items-center gap-2 text-sm p-2 rounded-md ${
+              <div className={`flex items-center gap-2 text-xs sm:text-sm p-2 rounded-md ${
                 serialValidation.status === "ok" ? "text-success bg-success/10" :
                 serialValidation.status === "error" ? "text-destructive bg-destructive/10" : "text-muted-foreground bg-muted/30"
               }`}>
-                {serialValidation.status === "checking" && <Loader2 className="h-4 w-4 animate-spin" />}
-                {serialValidation.status === "ok" && <CheckCircle2 className="h-4 w-4" />}
-                {serialValidation.status === "error" && <XCircle className="h-4 w-4" />}
-                {serialValidation.message}
+                {serialValidation.status === "checking" && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                {serialValidation.status === "ok" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                {serialValidation.status === "error" && <XCircle className="h-3.5 w-3.5 shrink-0" />}
+                <span>{serialValidation.message}</span>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Step 3: Product (auto-detected or fallback dropdown) */}
+        {/* Step 3: Product (auto-detected) */}
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">3</span>
+          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
+              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[2] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>3</span>
               Producto
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {productAutoDetected && detectedProduct ? (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-success/10 border border-success/30 text-sm">
-                <Package className="h-4 w-4 text-success" />
-                <div>
-                  <span className="font-medium text-foreground">{detectedProduct.name}</span>
-                  <span className="text-muted-foreground ml-2">— {detectedProduct.points_value} pts / Bs {detectedProduct.bonus_bs_value}</span>
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-success/10 border border-success/30 text-xs sm:text-sm">
+                <Package className="h-4 w-4 text-success shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-medium text-foreground block truncate">{detectedProduct.name}</span>
+                  <span className="text-muted-foreground text-[10px] sm:text-xs">{detectedProduct.points_value} pts / Bs {detectedProduct.bonus_bs_value}</span>
                 </div>
               </div>
             ) : serialValidation.status === "ok" && !productAutoDetected ? (
-              // Serial valid but no product_id — fallback to manual select
               <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
+                <SelectTrigger className="text-xs sm:text-sm"><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -490,9 +537,9 @@ export default function RegisterSalePage() {
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                El producto se detectará automáticamente al ingresar un serial válido
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <Package className="h-4 w-4 shrink-0" />
+                Se detectará automáticamente al ingresar un serial válido
               </p>
             )}
           </CardContent>
@@ -500,17 +547,17 @@ export default function RegisterSalePage() {
 
         {/* Step 4: Date */}
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">4</span>
+          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
+              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[3] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>4</span>
               Fecha de Venta
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} className="text-sm" />
             {saleDate && !isWithinCurrentWeek(saleDate) && (
-              <p className="text-sm text-destructive mt-2 flex items-center gap-1">
-                <XCircle className="h-3.5 w-3.5" />
+              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                <XCircle className="h-3.5 w-3.5 shrink-0" />
                 La fecha debe estar dentro de la semana en curso (Lun–Dom)
               </p>
             )}
@@ -519,23 +566,23 @@ export default function RegisterSalePage() {
 
         {/* Step 5: Photos */}
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md gradient-gold flex items-center justify-center text-[11px] font-bold text-primary-foreground">5</span>
+          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
+              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[4] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>5</span>
               Fotos (obligatorias)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <FileInput label="Foto TAG" file={tagFile} onFile={setTagFile} id="tag" />
-              <FileInput label="Foto Póliza" file={polizaFile} onFile={setPolizaFile} id="poliza" />
-              <FileInput label="Foto Nota de Venta" file={notaFile} onFile={setNotaFile} id="nota" />
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <FileInput label="TAG" file={tagFile} onFile={setTagFile} onClear={() => setTagFile(null)} id="tag" isMobile={isMobile} />
+              <FileInput label="Póliza" file={polizaFile} onFile={setPolizaFile} onClear={() => setPolizaFile(null)} id="poliza" isMobile={isMobile} />
+              <FileInput label="Nota de Venta" file={notaFile} onFile={setNotaFile} onClear={() => setNotaFile(null)} id="nota" isMobile={isMobile} />
             </div>
             <AiValidationBadge ai={aiValidation} />
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" size="lg" variant="premium" disabled={submitting}>
+        <Button type="submit" className="w-full" size="lg" variant="premium" disabled={submitting || progress < 5}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Registrar Venta
         </Button>
