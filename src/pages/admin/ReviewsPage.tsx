@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, Eye, Download, ClipboardCheck, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Eye, Download, ClipboardCheck, AlertTriangle, ChevronLeft, ChevronRight, Keyboard } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface PendingSale {
   id: string;
@@ -33,6 +34,7 @@ interface Attachment { tag_url: string; poliza_url: string; nota_url: string; }
 
 export default function ReviewsPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [sales, setSales] = useState<PendingSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState("all");
@@ -42,6 +44,7 @@ export default function ReviewsPage() {
   const [attachments, setAttachments] = useState<Attachment | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -61,12 +64,37 @@ export default function ReviewsPage() {
 
   useEffect(() => { load(); }, [statusFilter, cityFilter]);
 
-  const viewDetail = async (sale: PendingSale) => {
+  const viewDetail = async (sale: PendingSale, index?: number) => {
     setDetailSale(sale);
     setRejectReason("");
+    if (index !== undefined) setCurrentIndex(index);
     const { data } = await supabase.from("sale_attachments").select("tag_url, poliza_url, nota_url").eq("sale_id", sale.id).maybeSingle();
     setAttachments(data);
   };
+
+  const navigateReview = useCallback(async (direction: "prev" | "next") => {
+    if (!detailSale) return;
+    const newIndex = direction === "next" ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex < 0 || newIndex >= sales.length) return;
+    await viewDetail(sales[newIndex], newIndex);
+  }, [detailSale, currentIndex, sales]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!detailSale) return;
+    const handler = (e: KeyboardEvent) => {
+      // Don't capture when typing in textarea
+      if (e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); navigateReview("prev"); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); navigateReview("next"); }
+      else if (e.key === "a" && !e.metaKey && !e.ctrlKey && detailSale.status === "pending") {
+        e.preventDefault();
+        handleDecision("approved");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [detailSale, navigateReview, currentIndex]);
 
   const getImageUrl = (path: string) => supabase.storage.from("sale-attachments").getPublicUrl(path).data.publicUrl;
 
@@ -87,10 +115,21 @@ export default function ReviewsPage() {
       reason: decision === "rejected" ? rejectReason : "Aprobado",
     });
 
-    toast({ title: decision === "approved" ? "Venta aprobada" : "Venta rechazada" });
-    setDetailSale(null);
+    toast({ title: decision === "approved" ? "✓ Venta aprobada" : "✗ Venta rechazada" });
+
+    // Auto-advance to next pending sale
+    const remainingSales = sales.filter((s, i) => i !== currentIndex);
+    setSales(remainingSales);
+
+    if (remainingSales.length > 0 && statusFilter === "pending") {
+      const nextIdx = Math.min(currentIndex, remainingSales.length - 1);
+      setCurrentIndex(nextIdx);
+      await viewDetail(remainingSales[nextIdx], nextIdx);
+    } else {
+      setDetailSale(null);
+      load();
+    }
     setProcessing(false);
-    load();
   };
 
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
@@ -105,54 +144,73 @@ export default function ReviewsPage() {
   const pendingCount = sales.filter((s) => s.status === "pending").length;
   const flaggedCount = sales.filter((s) => s.ai_flag).length;
 
+  // Mobile card view for sales list
+  const SaleCard = ({ sale, index }: { sale: PendingSale; index: number }) => (
+    <div
+      onClick={() => viewDetail(sale, index)}
+      className={`p-3 border-b border-border last:border-0 active:bg-muted/50 cursor-pointer ${sale.ai_flag ? "bg-warning/5" : ""}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-sm truncate">{sale.vendors?.full_name}</p>
+          <p className="text-[11px] text-muted-foreground">{sale.vendors?.store_name} · {sale.city}</p>
+        </div>
+        <Badge
+          variant={sale.status === "approved" ? "default" : sale.status === "rejected" ? "destructive" : "secondary"}
+          className="text-[10px] shrink-0"
+        >
+          {sale.status === "pending" ? "Pendiente" : sale.status === "approved" ? "Aprobado" : "Rechazado"}
+        </Badge>
+      </div>
+      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+        <span>{fmtDate(sale.sale_date)}</span>
+        <span className="font-mono">{sale.serial}</span>
+        <span>{sale.products?.name}</span>
+        {sale.ai_flag && <AlertTriangle className="h-3 w-3 text-warning" />}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-4 sm:space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
-            <ClipboardCheck className="h-6 w-6 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             Revisiones
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Aprobación y rechazo de ventas registradas</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Aprueba o rechaza ventas · Usa ← → para navegar</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleExport} className="self-start sm:self-auto">
-          <Download className="h-4 w-4 mr-1.5" />Exportar Excel
+          <Download className="h-4 w-4 mr-1.5" />Excel
         </Button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total</p>
-            <p className="text-xl font-bold font-display mt-0.5">{sales.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:border-warning/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Pendientes</p>
-            <p className="text-xl font-bold font-display mt-0.5 text-warning">{pendingCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:border-success/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
-            <p className="text-xl font-bold font-display mt-0.5 text-success">{sales.filter((s) => s.status === "approved").length}</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:border-destructive/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Rechazadas</p>
-            <p className="text-xl font-bold font-display mt-0.5 text-destructive">{sales.filter((s) => s.status === "rejected").length}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
+          <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{sales.length}</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
+          <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Pendientes</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-warning">{pendingCount}</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
+          <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{sales.filter((s) => s.status === "approved").length}</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
+          <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Rechazadas</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{sales.filter((s) => s.status === "rejected").length}</p>
+        </CardContent></Card>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[130px] sm:w-[160px] text-xs sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="pending">Pendientes</SelectItem>
@@ -161,25 +219,39 @@ export default function ReviewsPage() {
           </SelectContent>
         </Select>
         <Select value={cityFilter} onValueChange={setCityFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[140px] sm:w-[180px] text-xs sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las ciudades</SelectItem>
             {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         {flaggedCount > 0 && (
-          <Badge variant="outline" className="text-warning border-warning/40 bg-warning/5 gap-1">
-            <AlertTriangle className="h-3 w-3" />{flaggedCount} con alerta IA
+          <Badge variant="outline" className="text-warning border-warning/40 bg-warning/5 gap-1 text-[10px] sm:text-xs">
+            <AlertTriangle className="h-3 w-3" />{flaggedCount} alerta IA
           </Badge>
+        )}
+        {pendingCount > 0 && !isMobile && (
+          <Button size="sm" variant="premium" onClick={() => viewDetail(sales[0], 0)} className="ml-auto">
+            <Eye className="h-4 w-4 mr-1.5" />Revisar ({pendingCount})
+          </Button>
         )}
       </div>
 
-      {/* Table */}
+      {/* Sales List */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : isMobile ? (
+            // Mobile: card list
+            <div>
+              {sales.map((s, i) => <SaleCard key={s.id} sale={s} index={i} />)}
+              {sales.length === 0 && (
+                <p className="text-center text-muted-foreground py-12 text-sm">Sin registros</p>
+              )}
+            </div>
           ) : (
+            // Desktop: table
             <Table>
               <TableHeader>
                 <TableRow>
@@ -193,8 +265,8 @@ export default function ReviewsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.map((s) => (
-                  <TableRow key={s.id} className={s.ai_flag ? "bg-warning/5" : ""}>
+                {sales.map((s, i) => (
+                  <TableRow key={s.id} className={`cursor-pointer hover:bg-muted/50 ${s.ai_flag ? "bg-warning/5" : ""}`} onClick={() => viewDetail(s, i)}>
                     <TableCell className="text-sm">{fmtDate(s.sale_date)}</TableCell>
                     <TableCell>
                       <div>
@@ -214,7 +286,7 @@ export default function ReviewsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => viewDetail(s)} className="hover:bg-primary/10">
+                      <Button variant="ghost" size="icon" className="hover:bg-primary/10">
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -235,40 +307,53 @@ export default function ReviewsPage() {
 
       {/* Detail / Review Dialog */}
       <Dialog open={!!detailSale} onOpenChange={(open) => !open && setDetailSale(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5 text-primary" />
-              Revisión de Venta
-            </DialogTitle>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="font-display flex items-center gap-2 text-base sm:text-lg">
+                <ClipboardCheck className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                Revisión de Venta
+              </DialogTitle>
+              {/* Navigation counter */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={currentIndex === 0} onClick={() => navigateReview("prev")}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="font-mono tabular-nums">{currentIndex + 1}/{sales.length}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={currentIndex >= sales.length - 1} onClick={() => navigateReview("next")}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </DialogHeader>
           {detailSale && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Sale info grid */}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm p-4 rounded-lg bg-muted/30 border border-border/50">
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Vendedor</span><p className="font-medium mt-0.5">{detailSale.vendors?.full_name}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Ciudad</span><p className="font-medium mt-0.5">{detailSale.city}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Producto</span><p className="font-medium mt-0.5">{detailSale.products?.name}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Serial</span><p className="font-mono font-medium mt-0.5">{detailSale.serial}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Fecha Venta</span><p className="font-medium mt-0.5">{fmtDate(detailSale.sale_date)}</p></div>
-                <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Bono</span><p className="font-medium mt-0.5">Bs {detailSale.bonus_bs} · {detailSale.points} pts</p></div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 text-sm p-3 rounded-lg bg-muted/30 border border-border/50">
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Vendedor</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{detailSale.vendors?.full_name}</p></div>
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Tienda</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{detailSale.vendors?.store_name || "—"}</p></div>
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Ciudad</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{detailSale.city}</p></div>
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Producto</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{detailSale.products?.name}</p></div>
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Serial</span><p className="font-mono font-medium mt-0.5 text-xs sm:text-sm">{detailSale.serial}</p></div>
+                <div><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Fecha</span><p className="font-medium mt-0.5 text-xs sm:text-sm">{fmtDate(detailSale.sale_date)}</p></div>
+                <div className="col-span-2 sm:col-span-1"><span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bono / Puntos</span><p className="font-medium mt-0.5 text-xs sm:text-sm">Bs {detailSale.bonus_bs} · {detailSale.points} pts</p></div>
               </div>
 
               {detailSale.ai_flag && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 text-warning text-sm">
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-warning/10 border border-warning/30 text-warning text-xs sm:text-sm">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>Esta venta fue marcada por la validación IA de fechas</span>
+                  <span>Marcada por validación IA de fechas</span>
                 </div>
               )}
 
               {/* Attachments */}
               {attachments && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respaldos Fotográficos</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[{ label: "TAG", url: attachments.tag_url }, { label: "Póliza", url: attachments.poliza_url }, { label: "Nota de Venta", url: attachments.nota_url }].map((att) => (
-                      <div key={att.label} className="space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground font-medium">{att.label}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fotos</p>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {[{ label: "TAG", url: attachments.tag_url }, { label: "Póliza", url: attachments.poliza_url }, { label: "Nota", url: attachments.nota_url }].map((att) => (
+                      <div key={att.label} className="space-y-1">
+                        <p className="text-[10px] text-muted-foreground font-medium">{att.label}</p>
                         <a href={getImageUrl(att.url)} target="_blank" rel="noopener noreferrer">
                           <img src={getImageUrl(att.url)} alt={att.label} className="rounded-lg border border-border w-full aspect-square object-cover hover:opacity-80 transition-opacity cursor-zoom-in shadow-sm" />
                         </a>
@@ -280,21 +365,39 @@ export default function ReviewsPage() {
 
               {/* Decision area */}
               {detailSale.status === "pending" && (
-                <div className="space-y-4 pt-3 border-t border-border">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider">Motivo (obligatorio para rechazo)</Label>
-                    <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Motivo de rechazo..." className="min-h-[80px]" />
+                <div className="space-y-3 pt-3 border-t border-border">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wider">Motivo (obligatorio para rechazo)</Label>
+                    <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Motivo de rechazo..." className="min-h-[70px] text-sm" />
                   </div>
-                  <div className="flex gap-3">
-                    <Button onClick={() => handleDecision("approved")} disabled={processing} className="flex-1" variant="premium">
-                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
+                  <div className="flex gap-2 sm:gap-3">
+                    <Button onClick={() => handleDecision("approved")} disabled={processing} className="flex-1" variant="premium" size={isMobile ? "default" : "lg"}>
+                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
                       Aprobar
                     </Button>
-                    <Button variant="destructive" onClick={() => handleDecision("rejected")} disabled={processing} className="flex-1">
-                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <XCircle className="h-4 w-4 mr-1.5" />}
+                    <Button variant="destructive" onClick={() => handleDecision("rejected")} disabled={processing} className="flex-1" size={isMobile ? "default" : "lg"}>
+                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
                       Rechazar
                     </Button>
                   </div>
+                  {!isMobile && (
+                    <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                      <Keyboard className="h-3 w-3" />
+                      <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] font-mono">A</kbd> aprobar ·
+                      <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] font-mono">←</kbd>
+                      <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] font-mono">→</kbd> navegar
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Already reviewed badge */}
+              {detailSale.status !== "pending" && (
+                <div className={`flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium ${
+                  detailSale.status === "approved" ? "bg-success/10 border-success/30 text-success" : "bg-destructive/10 border-destructive/30 text-destructive"
+                }`}>
+                  {detailSale.status === "approved" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                  {detailSale.status === "approved" ? "Venta aprobada" : "Venta rechazada"}
                 </div>
               )}
             </div>
