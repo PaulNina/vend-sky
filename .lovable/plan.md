@@ -6,37 +6,21 @@ This is a large feature set spanning database changes, new pages, edge functions
 
 ---
 
-### Phase 1: Database Schema + Campaign Date Validation
+### ✅ Phase 1: Database Schema + Campaign Date Validation (COMPLETED)
 
-**Database migrations:**
+**Database migrations:** ✅
+1. Added QR columns to `vendors` (qr_url, qr_uploaded_at, qr_expires_at)
+2. Created `commission_payment_status` enum
+3. Created `commission_payments` table with RLS
+4. Created `notifications` table with RLS
+5. Created `email_templates` table with RLS
+6. Created storage buckets: `vendor-qr`, `payment-proofs` (private)
 
-1. Add QR columns to `vendors`:
-   - `qr_url text null`
-   - `qr_uploaded_at timestamptz null`
-   - `qr_expires_at timestamptz null`
-
-2. Create `commission_payment_status` enum: `'pending', 'paid'`
-
-3. Create `commission_payments` table:
-   - `id uuid pk`, `campaign_id uuid FK`, `vendor_id uuid FK`, `period_start date`, `period_end date`, `units int default 0`, `amount_bs numeric default 0`, `status commission_payment_status default 'pending'`, `paid_at timestamptz null`, `paid_by uuid null`, `payment_proof_url text null`, `payment_note text null`, `created_at timestamptz default now()`
-   - Unique constraint on `(campaign_id, vendor_id, period_start, period_end)`
-   - RLS: admin full access, vendors read own
-
-4. Create `notifications` table:
-   - `id uuid pk`, `user_id uuid`, `title text`, `body text`, `type text`, `read boolean default false`, `data jsonb null`, `created_at timestamptz default now()`
-   - RLS: users read/update own
-
-5. Create `email_templates` table:
-   - `id uuid pk`, `key text unique`, `subject text`, `body_html text`, `is_active boolean default true`, `from_name text null`, `reply_to text null`, `updated_at timestamptz default now()`
-   - RLS: admin only
-
-6. Create storage buckets: `vendor-qr` (private), `payment-proofs` (private)
-
-**Code change -- RegisterSalePage.tsx:**
-- Fetch campaign `start_date` and `end_date` along with existing fields
-- Add validation: sale date must fall within `[campaign.start_date, campaign.end_date]`
-- Update `min`/`max` on date input to intersect current week bounds with campaign date range
-- Show clear error message "La venta está fuera del periodo de campaña" when applicable
+**Code change -- RegisterSalePage.tsx:** ✅
+- Added `start_date`/`end_date` to Campaign interface and fetch
+- Intersects week bounds with campaign date range for min/max on date input
+- Validates sale date falls within campaign range on submit
+- Shows clear error "La venta está fuera del periodo de campaña"
 
 ---
 
@@ -95,12 +79,7 @@ This is a large feature set spanning database changes, new pages, edge functions
 
 ### Implementation Order
 
-Given the scope, I recommend implementing in this order across multiple messages:
-
-1. **Phase 1** -- DB migrations + campaign date validation in RegisterSalePage (foundation)
+1. ✅ **Phase 1** -- DB migrations + campaign date validation in RegisterSalePage (foundation)
 2. **Phase 2** -- Commissions page + settlement edge function (core business value)
 3. **Phase 3** -- QR upload for vendors + admin view
 4. **Phase 4** -- Notifications + email templates
-
-Shall I proceed with Phase 1?
-

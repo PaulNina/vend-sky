@@ -151,6 +151,135 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_payments: {
+        Row: {
+          amount_bs: number
+          campaign_id: string
+          created_at: string
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          payment_note: string | null
+          payment_proof_url: string | null
+          period_end: string
+          period_start: string
+          status: Database["public"]["Enums"]["commission_payment_status"]
+          units: number
+          vendor_id: string
+        }
+        Insert: {
+          amount_bs?: number
+          campaign_id: string
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_note?: string | null
+          payment_proof_url?: string | null
+          period_end: string
+          period_start: string
+          status?: Database["public"]["Enums"]["commission_payment_status"]
+          units?: number
+          vendor_id: string
+        }
+        Update: {
+          amount_bs?: number
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_note?: string | null
+          payment_proof_url?: string | null
+          period_end?: string
+          period_start?: string
+          status?: Database["public"]["Enums"]["commission_payment_status"]
+          units?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_payments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_payments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          from_name: string | null
+          id: string
+          is_active: boolean
+          key: string
+          reply_to: string | null
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body_html?: string
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          reply_to?: string | null
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          from_name?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          reply_to?: string | null
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          data: Json | null
+          id: string
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          read?: boolean
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           bonus_bs_value: number
@@ -566,6 +695,9 @@ export type Database = {
           is_active: boolean
           pending_approval: boolean
           phone: string | null
+          qr_expires_at: string | null
+          qr_uploaded_at: string | null
+          qr_url: string | null
           store_name: string | null
           talla_polera: string | null
           user_id: string
@@ -579,6 +711,9 @@ export type Database = {
           is_active?: boolean
           pending_approval?: boolean
           phone?: string | null
+          qr_expires_at?: string | null
+          qr_uploaded_at?: string | null
+          qr_url?: string | null
           store_name?: string | null
           talla_polera?: string | null
           user_id: string
@@ -592,6 +727,9 @@ export type Database = {
           is_active?: boolean
           pending_approval?: boolean
           phone?: string | null
+          qr_expires_at?: string | null
+          qr_uploaded_at?: string | null
+          qr_url?: string | null
           store_name?: string | null
           talla_polera?: string | null
           user_id?: string
@@ -659,6 +797,7 @@ export type Database = {
     Enums: {
       app_role: "vendedor" | "revisor_ciudad" | "supervisor" | "admin"
       audit_action: "ok" | "revert"
+      commission_payment_status: "pending" | "paid"
       review_decision: "approved" | "rejected"
       sale_status: "pending" | "approved" | "rejected" | "closed"
       serial_status: "available" | "used" | "blocked"
@@ -791,6 +930,7 @@ export const Constants = {
     Enums: {
       app_role: ["vendedor", "revisor_ciudad", "supervisor", "admin"],
       audit_action: ["ok", "revert"],
+      commission_payment_status: ["pending", "paid"],
       review_decision: ["approved", "rejected"],
       sale_status: ["pending", "approved", "rejected", "closed"],
       serial_status: ["available", "used", "blocked"],

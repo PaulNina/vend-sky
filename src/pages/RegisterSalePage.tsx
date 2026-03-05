@@ -24,6 +24,8 @@ interface Product {
 interface Campaign {
   id: string;
   name: string;
+  start_date: string;
+  end_date: string;
   registration_enabled: boolean;
   ai_date_validation: boolean;
   registration_open_at: string | null;
@@ -199,7 +201,7 @@ export default function RegisterSalePage() {
   const loadData = async () => {
     if (!user) return;
     const [campaignsRes, productsRes, vendorRes] = await Promise.all([
-      supabase.from("campaigns").select("id, name, registration_enabled, ai_date_validation, registration_open_at, registration_close_at").eq("is_active", true),
+      supabase.from("campaigns").select("id, name, start_date, end_date, registration_enabled, ai_date_validation, registration_open_at, registration_close_at").eq("is_active", true),
       supabase.from("products").select("*").eq("is_active", true).order("name"),
       supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
     ]);
@@ -304,6 +306,11 @@ export default function RegisterSalePage() {
       return;
     }
     const campaign = campaigns.find((c) => c.id === selectedCampaign);
+    // Campaign date range validation
+    if (campaign && (saleDate < campaign.start_date || saleDate > campaign.end_date)) {
+      toast({ title: "Error", description: "La venta está fuera del periodo de campaña.", variant: "destructive" });
+      return;
+    }
     if (campaign) {
       if (!campaign.registration_enabled) {
         toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
@@ -415,13 +422,23 @@ export default function RegisterSalePage() {
 
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
   const detectedProduct = products.find((p) => p.id === selectedProduct);
-  const weekBounds = getCurrentWeekBounds();
+  const rawWeekBounds = getCurrentWeekBounds();
+
+  // Intersect week bounds with campaign date range
+  const weekBounds = (() => {
+    if (!selectedCampaignData) return rawWeekBounds;
+    const min = rawWeekBounds.min > selectedCampaignData.start_date ? rawWeekBounds.min : selectedCampaignData.start_date;
+    const max = rawWeekBounds.max < selectedCampaignData.end_date ? rawWeekBounds.max : selectedCampaignData.end_date;
+    return { min, max };
+  })();
+
+  const isSaleDateOutsideCampaign = selectedCampaignData && saleDate && (saleDate < selectedCampaignData.start_date || saleDate > selectedCampaignData.end_date);
 
   const completedSteps = [
     !!selectedCampaign,
     serialValidation.status === "ok",
     !!selectedProduct,
-    !!saleDate && isWithinCurrentWeek(saleDate),
+    !!saleDate && isWithinCurrentWeek(saleDate) && !isSaleDateOutsideCampaign,
     !!tagFile && !!polizaFile && !!notaFile,
   ];
   const progress = completedSteps.filter(Boolean).length;
@@ -571,7 +588,13 @@ export default function RegisterSalePage() {
             {saleDate && !isWithinCurrentWeek(saleDate) && (
               <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                 <XCircle className="h-3.5 w-3.5 shrink-0" />
-                La fecha debe estar entre {weekBounds.min} y {weekBounds.max}
+                La fecha debe estar dentro de la semana en curso (Lun–Dom)
+              </p>
+            )}
+            {saleDate && isWithinCurrentWeek(saleDate) && isSaleDateOutsideCampaign && (
+              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                <XCircle className="h-3.5 w-3.5 shrink-0" />
+                La venta está fuera del periodo de campaña ({selectedCampaignData?.start_date} a {selectedCampaignData?.end_date})
               </p>
             )}
           </CardContent>
