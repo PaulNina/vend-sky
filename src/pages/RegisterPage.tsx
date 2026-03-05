@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ function useRegistrationStatus() {
 
 export default function RegisterPage() {
   const { user, loading: authLoading, refreshRoles } = useAuth();
+  const navigate = useNavigate();
   const { cityNames: CITIES } = useCities();
   const { allowed, campaignName, message, requireApproval } = useRegistrationStatus();
   const [fullName, setFullName] = useState("");
@@ -212,13 +213,14 @@ export default function RegisterPage() {
           role: "vendedor" as any,
           city,
         });
-        // Refresh roles in AuthContext so RequireAuth sees the new role
         await refreshRoles();
+        // Navigate directly — no success screen needed
+        navigate("/v", { replace: true });
+        return;
       }
 
-      if (requireApproval) {
-        await supabase.auth.signOut();
-      }
+      // Approval required — sign out and show success
+      await supabase.auth.signOut();
       setSuccess(true);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
