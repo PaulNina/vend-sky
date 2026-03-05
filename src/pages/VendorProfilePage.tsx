@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, UserCircle, Store, Shirt, MapPin, Phone, Mail, Pencil, Save, X } from "lucide-react";
+import { Loader2, UserCircle, Store, Shirt, MapPin, Phone, Mail, Pencil, Save, X, QrCode, Upload, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface VendorData {
   id: string;
   full_name: string; email: string | null; phone: string | null;
   city: string; store_name: string | null; talla_polera: string | null;
   is_active: boolean; pending_approval: boolean;
+  qr_url: string | null; qr_uploaded_at: string | null; qr_expires_at: string | null;
 }
 
 interface StoreHistory {
@@ -44,7 +45,7 @@ export default function VendorProfilePage() {
     const load = async () => {
       const { data: v } = await supabase
         .from("vendors")
-        .select("id, full_name, email, phone, city, store_name, talla_polera, is_active, pending_approval")
+        .select("id, full_name, email, phone, city, store_name, talla_polera, is_active, pending_approval, qr_url, qr_uploaded_at, qr_expires_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -215,6 +216,9 @@ export default function VendorProfilePage() {
         </CardContent>
       </Card>
 
+      {/* QR de Cobro */}
+      <QrSection vendor={vendor} onUpdate={(updated) => setVendor(updated)} userId={user?.id || ""} />
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-display">Historial de Cambios de Tienda</CardTitle>
@@ -247,5 +251,128 @@ export default function VendorProfilePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// --- QR Section Component ---
+
+function QrSection({ vendor, onUpdate, userId }: { vendor: VendorData; onUpdate: (v: VendorData) => void; userId: string }) {
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  const isExpired = vendor.qr_expires_at ? new Date(vendor.qr_expires_at) < new Date() : false;
+  const expiryDate = vendor.qr_expires_at
+    ? new Date(vendor.qr_expires_at).toLocaleDateString("es-BO", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+
+  useEffect(() => {
+    if (!vendor.qr_url) { setPreviewUrl(null); return; }
+    setLoadingPreview(true);
+    supabase.storage.from("vendor-qr").createSignedUrl(vendor.qr_url, 300).then(({ data }) => {
+      setPreviewUrl(data?.signedUrl || null);
+      setLoadingPreview(false);
+    });
+  }, [vendor.qr_url]);
+
+  const handleUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Error", description: "Solo se permiten imágenes (jpg, png).", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${userId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("vendor-qr").upload(path, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const now = new Date();
+      const expiresAt = new Date(now);
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+      const { error: updateErr } = await supabase
+        .from("vendors")
+        .update({
+          qr_url: path,
+          qr_uploaded_at: now.toISOString(),
+          qr_expires_at: expiresAt.toISOString(),
+        })
+        .eq("id", vendor.id);
+
+      if (updateErr) throw updateErr;
+
+      onUpdate({
+        ...vendor,
+        qr_url: path,
+        qr_uploaded_at: now.toISOString(),
+        qr_expires_at: expiresAt.toISOString(),
+      });
+      toast({ title: "QR actualizado", description: `Vigente hasta ${expiresAt.toLocaleDateString("es-BO")}.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-display flex items-center gap-2">
+          <QrCode className="h-4 w-4 text-primary" />
+          Mi QR de Cobro
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {vendor.qr_url ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Badge variant={isExpired ? "destructive" : "default"}>
+                {isExpired ? "Vencido" : "Vigente"}
+              </Badge>
+              {expiryDate && (
+                <span className="text-xs text-muted-foreground">
+                  {isExpired ? "Venció el" : "Vence el"} {expiryDate}
+                </span>
+              )}
+            </div>
+            {loadingPreview ? (
+              <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            ) : previewUrl ? (
+              <img src={previewUrl} alt="Mi QR" className="w-48 h-48 object-contain rounded-lg border border-border mx-auto" />
+            ) : null}
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-1.5">Reemplazar QR</Label>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png"
+                disabled={uploading}
+                onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="text-center space-y-3 py-4">
+            <QrCode className="h-10 w-10 text-muted-foreground mx-auto" />
+            <p className="text-sm text-muted-foreground">Aún no has subido tu QR de cobro.</p>
+            <p className="text-xs text-muted-foreground">Tu QR será válido por 1 año desde la fecha de carga.</p>
+            <div>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png"
+                disabled={uploading}
+                onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+              />
+            </div>
+          </div>
+        )}
+        {uploading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Subiendo QR...
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Eye, Pencil, Download } from "lucide-react";
+import { Loader2, Eye, Pencil, Download, QrCode } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -25,6 +25,8 @@ interface Vendor {
   pending_approval: boolean;
   talla_polera: string | null;
   created_at: string;
+  qr_url: string | null;
+  qr_expires_at: string | null;
 }
 
 interface StoreHistory {
@@ -47,6 +49,9 @@ export default function VendorsPage() {
   const [editForm, setEditForm] = useState({ talla_polera: "", store_name: "", storeObs: "" });
   const [storeHistory, setStoreHistory] = useState<StoreHistory[]>([]);
   const [saving, setSaving] = useState(false);
+  const [qrDialog, setQrDialog] = useState(false);
+  const [qrSignedUrl, setQrSignedUrl] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -132,7 +137,7 @@ export default function VendorsPage() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Nombre</TableHead><TableHead>Email</TableHead><TableHead>Teléfono</TableHead>
-                <TableHead>Ciudad</TableHead><TableHead>Tienda</TableHead><TableHead>Talla</TableHead><TableHead>Estado</TableHead><TableHead></TableHead>
+                <TableHead>Ciudad</TableHead><TableHead>Tienda</TableHead><TableHead>Talla</TableHead><TableHead>QR</TableHead><TableHead>Estado</TableHead><TableHead></TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {vendors.map((v) => (
@@ -143,6 +148,22 @@ export default function VendorsPage() {
                     <TableCell><Badge variant="outline">{v.city}</Badge></TableCell>
                     <TableCell className="text-sm">{v.store_name || "—"}</TableCell>
                     <TableCell className="text-sm">{v.talla_polera || "—"}</TableCell>
+                    <TableCell>
+                      {v.qr_url ? (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 gap-1" onClick={async () => {
+                          setQrLoading(true);
+                          setQrDialog(true);
+                          const { data } = await supabase.storage.from("vendor-qr").createSignedUrl(v.qr_url!, 300);
+                          setQrSignedUrl(data?.signedUrl || null);
+                          setQrLoading(false);
+                        }}>
+                          <QrCode className="h-3.5 w-3.5" />
+                          <Badge variant={v.qr_expires_at && new Date(v.qr_expires_at) < new Date() ? "destructive" : "default"} className="text-[9px] px-1">
+                            {v.qr_expires_at && new Date(v.qr_expires_at) < new Date() ? "Venc." : "OK"}
+                          </Badge>
+                        </Button>
+                      ) : <span className="text-xs text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell>
                       {v.pending_approval ? <Badge variant="secondary">Pendiente</Badge> : v.is_active ? <Badge>Activo</Badge> : <Badge variant="destructive">Inactivo</Badge>}
                     </TableCell>
@@ -193,6 +214,20 @@ export default function VendorsPage() {
             <Button variant="outline" onClick={() => setEditVendor(null)}>Cancelar</Button>
             <Button onClick={saveVendor} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Guardar</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Dialog */}
+      <Dialog open={qrDialog} onOpenChange={setQrDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>QR de Cobro</DialogTitle></DialogHeader>
+          {qrLoading ? (
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : qrSignedUrl ? (
+            <img src={qrSignedUrl} alt="QR de cobro" className="w-full rounded-lg" />
+          ) : (
+            <p className="text-sm text-muted-foreground text-center p-4">No se pudo cargar el QR</p>
+          )}
         </DialogContent>
       </Dialog>
     </div>
