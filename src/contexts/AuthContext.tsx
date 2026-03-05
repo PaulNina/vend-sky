@@ -81,14 +81,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         // For token refreshes, just update session/user without re-fetching roles
-        if (_event === 'TOKEN_REFRESHED' && newSession?.user) {
+      if (_event === 'TOKEN_REFRESHED' && newSession?.user) {
           setSession(newSession);
           setUser(newSession.user);
           return;
         }
-        // For sign in/out events, do the full processing
-        if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        if (_event === 'SIGNED_OUT') {
           handleSession(newSession);
+        }
+        // Defer SIGNED_IN to allow registration code to finish inserting roles
+        if (_event === 'SIGNED_IN') {
+          setTimeout(() => handleSession(newSession), 500);
         }
       }
     );
