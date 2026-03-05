@@ -1,41 +1,27 @@
 
 
-## Plan: Remove "Pending Approval" Flow
+## Plan: Fix email display and edge function auth in Users & Roles
 
-The user wants to eliminate the entire vendor approval gate. All registered vendors should get immediate access without admin review.
+### Problem 1: No emails shown
+The `user_profiles` table is empty (`[]`). The UI merges `user_roles` with `user_profiles` to get emails, but no existing users have a `user_profiles` row.
 
-### Changes
+**Fix (two-pronged):**
+1. **DB migration**: Backfill `user_profiles` from `vendors` table (which has `email`, `full_name`, `user_id` for all vendors). Also insert the admin user profile from their JWT email.
+2. **UI fallback**: In `UsersRolesPage.tsx`, also query `vendors` table as a secondary source for email/name data when `user_profiles` is missing. This ensures emails show even if `user_profiles` isn't populated for some users.
 
-**1. `src/components/guards/RequireAuth.tsx`**
-- Remove the `roles.length === 0` block that shows "Cuenta pendiente de aprobación". Instead, if a user has no roles, redirect to `/login` (simple fallback).
+### Problem 2: Edge functions return 401 "Invalid JWT"
+Both `admin-reset-password` and `admin-delete-user` have `verify_jwt = true` in `config.toml` and use `callerClient.auth.getUser()` internally. The `verify_jwt = true` setting fails with ES256 JWTs from Lovable Cloud.
 
-**2. `src/layouts/VendorLayout.tsx`**
-- Remove the `vendorStatus` state, the `pending_approval` query, and the `isPending` card block. Always render `<Outlet />`.
+**Fix:**
+- Set `verify_jwt = false` for both functions in `config.toml` (consistent with all other edge functions)
+- Replace `callerClient.auth.getUser()` with `getClaims(token)` pattern (same as `run-system-processes` and `generate-settlement`)
+- Extract `userId` from `claimsData.claims.sub` instead of `caller.id`
 
-**3. `src/pages/RegisterPage.tsx`**
-- Remove `requireApproval` logic. Always set `pending_approval: false` and `is_active: true` on vendor insert/update. Always insert the `vendedor` role immediately. Success message always says "¡Registro exitoso!" / "Tu cuenta ha sido creada exitosamente."
+### Files to change
 
-**4. `src/pages/RegisterSalePage.tsx`**
-- Remove the `pending_approval` check that blocks vendor from registering sales (lines ~228-230). Keep only the `is_active` check.
-
-**5. `src/pages/admin/AdminDashboardPage.tsx`**
-- Remove `pendingApprovals` state, the query for `pending_approval: true`, and the badge showing "X solicitudes".
-
-**6. `src/pages/admin/VendorsPage.tsx`**
-- Remove `pending_approval` from the interface, export, stats counter, and badge display. Show only Active/Inactive.
-
-**7. `src/pages/VendorProfilePage.tsx`**
-- Remove `pending_approval` from the interface and query. Badge shows only Active/Inactive.
-
-**8. `src/pages/admin/CampaignsPage.tsx`**
-- Remove `require_vendor_approval` from the form interface, default values, and any UI toggle for it.
-
-**9. `src/layouts/AdminLayout.tsx`**
-- Remove the "Solicitudes" nav item (`/admin/solicitudes-registro`).
-
-**10. `src/App.tsx`**
-- Remove the route for `RegistrationRequestsPage` and its import.
-
-**11. `src/pages/admin/RegistrationRequestsPage.tsx`**
-- Delete the file (no longer needed).
+1. **New migration** -- `INSERT INTO user_profiles ... SELECT FROM vendors` to backfill existing users
+2. **`src/pages/admin/UsersRolesPage.tsx`** -- Also fetch `vendors` table as fallback email source alongside `user_profiles`
+3. **`supabase/config.toml`** -- Set `verify_jwt = false` for `admin-reset-password` and `admin-delete-user`
+4. **`supabase/functions/admin-delete-user/index.ts`** -- Replace `getUser()` with `getClaims(token)` pattern
+5. **`supabase/functions/admin-reset-password/index.ts`** -- Replace `getUser()` with `getClaims(token)` pattern
 
