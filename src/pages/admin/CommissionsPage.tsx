@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, DollarSign, Download, CheckCircle2, QrCode, ChevronDown, ChevronUp, Upload } from "lucide-react";
+import { Loader2, DollarSign, Download, CheckCircle2, QrCode, ChevronDown, ChevronUp, Upload, Eye, ExternalLink } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -95,6 +95,12 @@ export default function CommissionsPage() {
   const [qrDialog, setQrDialog] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+
+  // Proof preview dialog
+  const [proofDialog, setProofDialog] = useState(false);
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofLoading, setProofLoading] = useState(false);
+  const [proofContext, setProofContext] = useState<{ name: string; amount: number } | null>(null);
 
   useEffect(() => {
     supabase
@@ -293,6 +299,17 @@ export default function CommissionsPage() {
     const { data } = await supabase.storage.from("vendor-qr").createSignedUrl(row.qr_url, 300);
     setQrUrl(data?.signedUrl || null);
     setQrLoading(false);
+  };
+
+  const openProof = async (row: CommissionRow) => {
+    if (!row.payment_proof_url) return;
+    setProofLoading(true);
+    setProofContext({ name: row.full_name, amount: row.amount_bs });
+    setProofDialog(true);
+    setProofUrl(null);
+    const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(row.payment_proof_url, 300);
+    setProofUrl(data?.signedUrl || null);
+    setProofLoading(false);
   };
 
   // Weekly breakdown computation
@@ -514,6 +531,11 @@ export default function CommissionsPage() {
                         <QrCode className="h-3.5 w-3.5 mr-1" /> QR
                       </Button>
                     )}
+                    {r.payment_proof_url && (
+                      <Button size="sm" variant="ghost" onClick={() => openProof(r)}>
+                        <Eye className="h-3.5 w-3.5 mr-1" /> Comprobante
+                      </Button>
+                    )}
                     {showWeekly && (
                       <Button size="sm" variant="ghost" onClick={() => loadWeeklyBreakdown(r.vendor_id)}>
                         {expandedVendor === r.vendor_id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -585,11 +607,8 @@ export default function CommissionsPage() {
                             </Button>
                           )}
                           {r.payment_proof_url && (
-                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={async () => {
-                              const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(r.payment_proof_url!, 300);
-                              if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                            }}>
-                              Comprobante
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openProof(r)}>
+                              <Eye className="h-3.5 w-3.5 mr-1" /> Comprobante
                             </Button>
                           )}
                           {showWeekly && (
@@ -680,6 +699,43 @@ export default function CommissionsPage() {
           ) : (
             <p className="text-sm text-muted-foreground text-center p-4">No se pudo cargar el QR</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Proof Preview Dialog */}
+      <Dialog open={proofDialog} onOpenChange={setProofDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Comprobante de Pago
+            </DialogTitle>
+            {proofContext && (
+              <p className="text-sm text-muted-foreground">
+                {proofContext.name} — <span className="font-semibold text-primary">Bs {fmtBs(proofContext.amount)}</span>
+              </p>
+            )}
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            {proofLoading ? (
+              <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : proofUrl ? (
+              proofUrl.match(/\.pdf/i) ? (
+                <iframe src={proofUrl} className="w-full h-[70vh] rounded-lg border" title="Comprobante PDF" />
+              ) : (
+                <img src={proofUrl} alt="Comprobante de pago" className="w-full rounded-lg object-contain max-h-[70vh]" />
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground text-center p-8">No se pudo cargar el comprobante</p>
+            )}
+          </div>
+          <DialogFooter>
+            {proofUrl && (
+              <Button variant="outline" size="sm" onClick={() => window.open(proofUrl!, "_blank")}>
+                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir en pestaña nueva
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
