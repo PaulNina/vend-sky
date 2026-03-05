@@ -142,8 +142,11 @@ export default function ConfigurationPage() {
     if (!selectedCampaign || selectedCampaign.status !== "active") return;
     const key = `system_run_${selectedCampaign.id}_${new Date().toISOString().split("T")[0]}`;
     if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-    runSystemProcesses(true);
+
+    (async () => {
+      const ok = await runSystemProcesses(true);
+      if (ok) sessionStorage.setItem(key, "1");
+    })();
   }, [selectedCampaignId]);
 
   const saveConfig = async () => {
@@ -244,27 +247,66 @@ export default function ConfigurationPage() {
     setGeneratingPeriods(false);
   };
 
-  const runSystemProcesses = async (silent = false) => {
-    if (!selectedCampaign) return;
+  const getValidAccessToken = async (): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    let token = session?.access_token ?? null;
+    if (!token) return null;
+
+    const { error: userErr } = await supabase.auth.getUser(token);
+    if (!userErr) return token;
+
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr || !refreshed.session?.access_token) return null;
+
+    token = refreshed.session.access_token;
+    const { error: refreshedUserErr } = await supabase.auth.getUser(token);
+    if (refreshedUserErr) return null;
+
+    return token;
+  };
+
+  const runSystemProcesses = async (silent = false): Promise<boolean> => {
+    if (!selectedCampaign) return false;
     setRunningSystem(true);
+
     try {
+      const token = await getValidAccessToken();
+      if (!token) {
+        if (!silent) {
+          toast({
+            title: "Sesión expirada",
+            description: "Inicia sesión nuevamente para ejecutar procesos del sistema.",
+            variant: "destructive",
+          });
+        }
+        return false;
+      }
+
       const { data, error } = await supabase.functions.invoke("run-system-processes", {
+        headers: { Authorization: `Bearer ${token}` },
         body: { campaign_id: selectedCampaign.id },
       });
+
       if (error) throw error;
+
       if (!silent) {
         toast({
           title: "Procesos ejecutados",
           description: `${data.periods_closed} periodos cerrados, ${data.settlements_generated} liquidaciones generadas.`,
         });
       }
+
       if (data.periods_closed > 0) {
         await loadPeriods(selectedCampaign.id);
       }
+
+      return true;
     } catch (err: any) {
       if (!silent) toast({ title: "Error", description: err.message, variant: "destructive" });
+      return false;
+    } finally {
+      setRunningSystem(false);
     }
-    setRunningSystem(false);
   };
 
   const closeCampaign = async () => {
