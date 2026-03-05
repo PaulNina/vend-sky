@@ -238,6 +238,21 @@ export default function CommissionsPage() {
         .eq("id", payingRow.id);
 
       if (error) throw error;
+
+      // Send notification to vendor
+      const campaign = campaigns.find((c) => c.id === selectedCampaign);
+      supabase.functions.invoke("notify-payment", {
+        body: {
+          commission_payment_id: payingRow.id,
+          vendor_id: payingRow.vendor_id,
+          vendor_name: payingRow.full_name,
+          campaign_name: campaign?.name || "",
+          period_start: periodStart,
+          period_end: periodEnd,
+          amount_bs: payingRow.amount_bs,
+        },
+      }).catch((e) => console.error("Notify error:", e));
+
       toast({ title: "Pago registrado", description: `${payingRow.full_name} marcado como pagado.` });
       setPayDialog(false);
       loadData();

@@ -14,10 +14,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, AlertTriangle, UserCircle } from "lucide-react";
+import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, AlertTriangle, UserCircle, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const vendorNav = [
   { title: "Mi Panel", url: "/v", icon: LayoutDashboard, end: true },
@@ -110,6 +117,8 @@ function VendorSidebar() {
 export default function VendorLayout() {
   const { user } = useAuth();
   const [vendorStatus, setVendorStatus] = useState<{ pending: boolean; active: boolean } | null>(null);
+  const [notifications, setNotifications] = useState<{ id: string; title: string; body: string; read: boolean; created_at: string }[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -125,21 +134,103 @@ export default function VendorLayout() {
           setVendorStatus({ pending: true, active: false });
         }
       });
+
+    // Load notifications
+    const loadNotifications = async () => {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, title, body, read, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setNotifications(data || []);
+      setUnreadCount((data || []).filter((n) => !n.read).length);
+    };
+    loadNotifications();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel("vendor-notifications")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload) => {
+        const n = payload.new as any;
+        setNotifications((prev) => [{ id: n.id, title: n.title, body: n.body, read: n.read, created_at: n.created_at }, ...prev].slice(0, 10));
+        setUnreadCount((prev) => prev + 1);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  const markAllRead = async () => {
+    if (!user || unreadCount === 0) return;
+    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
   const isPending = vendorStatus?.pending || !vendorStatus?.active;
+
+  const timeAgo = (d: string) => {
+    const diff = Date.now() - new Date(d).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "ahora";
+    if (mins < 60) return `hace ${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `hace ${hrs}h`;
+    return `hace ${Math.floor(hrs / 24)}d`;
+  };
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <VendorSidebar />
         <div className="flex-1 flex flex-col">
-          <header className="h-12 sm:h-14 flex items-center border-b border-border/50 px-3 sm:px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
-            <SidebarTrigger className="mr-3 sm:mr-4 text-muted-foreground hover:text-foreground transition-colors" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
+          <header className="h-12 sm:h-14 flex items-center justify-between border-b border-border/50 px-3 sm:px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center">
+              <SidebarTrigger className="mr-3 sm:mr-4 text-muted-foreground hover:text-foreground transition-colors" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
+              </div>
             </div>
+
+            {/* Notification Bell */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center font-bold">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <div className="flex items-center justify-between px-3 py-2 border-b">
+                  <span className="text-sm font-medium">Notificaciones</span>
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={markAllRead}>
+                      Marcar leídas
+                    </Button>
+                  )}
+                </div>
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">Sin notificaciones</div>
+                ) : (
+                  notifications.map((n) => (
+                    <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 px-3 py-2 cursor-default">
+                      <div className="flex items-center gap-2 w-full">
+                        {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                        <span className={`text-xs font-medium truncate flex-1 ${n.read ? "text-muted-foreground" : ""}`}>{n.title}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(n.created_at)}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 pl-3.5">{n.body}</p>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </header>
           <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-auto">
             {isPending ? (
