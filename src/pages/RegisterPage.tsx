@@ -205,6 +205,14 @@ export default function RegisterPage() {
         role: "vendedor" as any,
         city,
       });
+
+      // Insert user_profiles for admin visibility
+      await supabase.from("user_profiles").insert({
+        user_id: userId,
+        email,
+        full_name: fullName,
+      } as any);
+
       await refreshRoles();
       navigate("/v", { replace: true });
     } catch (error: any) {
