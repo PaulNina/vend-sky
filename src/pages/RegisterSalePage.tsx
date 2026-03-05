@@ -33,6 +33,13 @@ interface Campaign {
   status: string;
 }
 
+interface OpenPeriod {
+  id: string;
+  period_start: string;
+  period_end: string;
+  period_number: number;
+}
+
 type SerialValidation = {
   status: "idle" | "checking" | "ok" | "error";
   message: string;
@@ -126,20 +133,6 @@ function AiValidationBadge({ ai }: { ai: AiValidation }) {
 
 // --- Helper Functions ---
 
-function getBoliviaWeek(dateStr: string) {
-  const date = new Date(dateStr + "T12:00:00-04:00");
-  const day = date.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return {
-    week_start: monday.toISOString().split("T")[0],
-    week_end: sunday.toISOString().split("T")[0],
-  };
-}
-
 function getBoliviaNow() {
   const now = new Date();
   const boliviaOffset = -4 * 60;
@@ -147,19 +140,8 @@ function getBoliviaNow() {
   return new Date(utcNow + boliviaOffset * 60000);
 }
 
-function getCurrentWeekBounds() {
-  const boliviaNow = getBoliviaNow();
-  const todayStr = boliviaNow.toISOString().split("T")[0];
-  const week = getBoliviaWeek(todayStr);
-  // max date is today (can't register future sales)
-  return { min: week.week_start, max: todayStr };
-}
-
-function isWithinCurrentWeek(dateStr: string) {
-  const boliviaNow = getBoliviaNow();
-  const currentWeek = getBoliviaWeek(boliviaNow.toISOString().split("T")[0]);
-  const inputWeek = getBoliviaWeek(dateStr);
-  return inputWeek.week_start === currentWeek.week_start;
+function getBoliviaTodayStr() {
+  return getBoliviaNow().toISOString().split("T")[0];
 }
 
 function isCampaignRegistrationOpen(c: Campaign) {
@@ -184,7 +166,7 @@ export default function RegisterSalePage() {
   const [productAutoDetected, setProductAutoDetected] = useState(false);
   const [serial, setSerial] = useState("");
   const [serialValidation, setSerialValidation] = useState<SerialValidation>({ status: "idle", message: "" });
-  const [saleDate, setSaleDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [saleDate, setSaleDate] = useState(() => getBoliviaTodayStr());
   const [tagFile, setTagFile] = useState<File | null>(null);
   const [polizaFile, setPolizaFile] = useState<File | null>(null);
   const [notaFile, setNotaFile] = useState<File | null>(null);
@@ -194,11 +176,33 @@ export default function RegisterSalePage() {
   const [vendorBlocked, setVendorBlocked] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [aiValidation, setAiValidation] = useState<AiValidation>({ status: "idle", message: "" });
+  const [openPeriod, setOpenPeriod] = useState<OpenPeriod | null>(null);
+  const [loadingPeriod, setLoadingPeriod] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     loadData();
   }, [user]);
+
+  // Fetch the current open period when campaign changes
+  useEffect(() => {
+    if (!selectedCampaign) {
+      setOpenPeriod(null);
+      return;
+    }
+    (async () => {
+      setLoadingPeriod(true);
+      const { data } = await supabase
+        .from("campaign_periods")
+        .select("id, period_start, period_end, period_number")
+        .eq("campaign_id", selectedCampaign)
+        .eq("status", "open")
+        .order("period_number", { ascending: true })
+        .limit(1);
+      setOpenPeriod(data && data.length > 0 ? data[0] : null);
+      setLoadingPeriod(false);
+    })();
+  }, [selectedCampaign]);
 
   const loadData = async () => {
     if (!user) return;
@@ -292,6 +296,23 @@ export default function RegisterSalePage() {
     return path;
   };
 
+  // Compute date bounds from open period
+  const todayStr = getBoliviaTodayStr();
+  const dateBounds = (() => {
+    if (!openPeriod) return null;
+    const min = openPeriod.period_start;
+    // Max is the lesser of period_end and today (no future dates)
+    const max = openPeriod.period_end < todayStr ? openPeriod.period_end : todayStr;
+    // If min > max, the period hasn't started yet or is fully in the future
+    if (min > max) return null;
+    return { min, max };
+  })();
+
+  const isDateValid = (dateStr: string) => {
+    if (!dateBounds) return false;
+    return dateStr >= dateBounds.min && dateStr <= dateBounds.max;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -303,16 +324,15 @@ export default function RegisterSalePage() {
       toast({ title: "Error", description: "El serial no pasó la validación.", variant: "destructive" });
       return;
     }
-    if (!isWithinCurrentWeek(saleDate)) {
-      toast({ title: "Error", description: "La fecha de venta debe estar dentro de la semana en curso (Lun–Dom).", variant: "destructive" });
+    if (!openPeriod) {
+      toast({ title: "Error", description: "No hay periodo abierto para esta campaña.", variant: "destructive" });
+      return;
+    }
+    if (!isDateValid(saleDate)) {
+      toast({ title: "Error", description: `La fecha debe estar entre ${openPeriod.period_start} y ${dateBounds?.max || todayStr}.`, variant: "destructive" });
       return;
     }
     const campaign = campaigns.find((c) => c.id === selectedCampaign);
-    // Campaign date range validation
-    if (campaign && (saleDate < campaign.start_date || saleDate > campaign.end_date)) {
-      toast({ title: "Error", description: "La venta está fuera del periodo de campaña.", variant: "destructive" });
-      return;
-    }
     if (campaign) {
       if (!campaign.registration_enabled) {
         toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
@@ -338,7 +358,9 @@ export default function RegisterSalePage() {
       ]);
 
       const product = products.find((p) => p.id === selectedProduct);
-      const week = getBoliviaWeek(saleDate);
+      // Derive week_start/week_end from the open period
+      const week_start = openPeriod.period_start;
+      const week_end = openPeriod.period_end;
 
       let aiDateDetected: string | null = null;
       let aiDateConfidence: number | null = null;
@@ -348,7 +370,7 @@ export default function RegisterSalePage() {
         setAiValidation({ status: "validating", message: "Analizando fecha en la imagen con IA..." });
         try {
           const { data: fnData, error: fnError } = await supabase.functions.invoke("validate-sale-date", {
-            body: { image_path: notaPath, week_start: week.week_start, week_end: week.week_end },
+            body: { image_path: notaPath, week_start, week_end },
           });
           if (fnError) throw fnError;
           aiDateDetected = fnData?.date_detected || null;
@@ -357,7 +379,7 @@ export default function RegisterSalePage() {
             setAiValidation({ status: "warning", message: "No se pudo detectar la fecha en la imagen. La venta será marcada para revisión." });
             aiFlag = true;
           } else if (!fnData?.matches_week) {
-            setAiValidation({ status: "error", message: `La fecha detectada (${fnData.date_detected}) no corresponde a la semana actual. Venta bloqueada.`, date_detected: fnData.date_detected, confidence: fnData.confidence });
+            setAiValidation({ status: "error", message: `La fecha detectada (${fnData.date_detected}) no corresponde al periodo actual. Venta bloqueada.`, date_detected: fnData.date_detected, confidence: fnData.confidence });
             setSubmitting(false);
             return;
           } else {
@@ -378,8 +400,8 @@ export default function RegisterSalePage() {
           product_id: selectedProduct,
           serial,
           sale_date: saleDate,
-          week_start: week.week_start,
-          week_end: week.week_end,
+          week_start,
+          week_end,
           points: product?.points_value || 0,
           bonus_bs: product?.bonus_bs_value || 0,
           city: vendorCity,
@@ -424,23 +446,12 @@ export default function RegisterSalePage() {
 
   const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
   const detectedProduct = products.find((p) => p.id === selectedProduct);
-  const rawWeekBounds = getCurrentWeekBounds();
-
-  // Intersect week bounds with campaign date range
-  const weekBounds = (() => {
-    if (!selectedCampaignData) return rawWeekBounds;
-    const min = rawWeekBounds.min > selectedCampaignData.start_date ? rawWeekBounds.min : selectedCampaignData.start_date;
-    const max = rawWeekBounds.max < selectedCampaignData.end_date ? rawWeekBounds.max : selectedCampaignData.end_date;
-    return { min, max };
-  })();
-
-  const isSaleDateOutsideCampaign = selectedCampaignData && saleDate && (saleDate < selectedCampaignData.start_date || saleDate > selectedCampaignData.end_date);
 
   const completedSteps = [
     !!selectedCampaign,
     serialValidation.status === "ok",
     !!selectedProduct,
-    !!saleDate && isWithinCurrentWeek(saleDate) && !isSaleDateOutsideCampaign,
+    !!saleDate && isDateValid(saleDate),
     !!tagFile && !!polizaFile && !!notaFile,
   ];
   const progress = completedSteps.filter(Boolean).length;
@@ -586,18 +597,35 @@ export default function RegisterSalePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <Input type="date" value={saleDate} min={weekBounds.min} max={weekBounds.max} onChange={(e) => setSaleDate(e.target.value)} className="text-sm" />
-            {saleDate && !isWithinCurrentWeek(saleDate) && (
-              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-                <XCircle className="h-3.5 w-3.5 shrink-0" />
-                La fecha debe estar dentro de la semana en curso (Lun–Dom)
-              </p>
-            )}
-            {saleDate && isWithinCurrentWeek(saleDate) && isSaleDateOutsideCampaign && (
-              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-                <XCircle className="h-3.5 w-3.5 shrink-0" />
-                La venta está fuera del periodo de campaña ({selectedCampaignData?.start_date} a {selectedCampaignData?.end_date})
-              </p>
+            {loadingPeriod ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando periodo...
+              </div>
+            ) : !openPeriod ? (
+              <div className="p-2.5 rounded-lg border border-warning/50 bg-warning/10 text-xs sm:text-sm flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                <span>No hay periodo abierto para esta campaña. No se pueden registrar ventas en este momento.</span>
+              </div>
+            ) : (
+              <>
+                <Input
+                  type="date"
+                  value={saleDate}
+                  min={dateBounds?.min}
+                  max={dateBounds?.max}
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  className="text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  Periodo #{openPeriod.period_number}: {openPeriod.period_start} a {openPeriod.period_end}
+                </p>
+                {saleDate && !isDateValid(saleDate) && (
+                  <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    La fecha debe estar dentro del periodo abierto ({dateBounds?.min} a {dateBounds?.max})
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
