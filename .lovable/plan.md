@@ -1,24 +1,24 @@
 
 
-## Plan: Ventana flotante para comprobantes de pago
+## Plan: Pestaña de Backup en Configuración
 
-### Problema actual
-Al hacer clic en "Comprobante", se abre una nueva pestaña del navegador. Esto interrumpe el flujo del operador, que pierde contexto de la tabla.
+### Enfoque
+Agregar un sistema de Tabs a la página de Configuración. La pestaña "General" contendrá todo el contenido actual. La nueva pestaña "Backup" permitirá exportar todos los datos del sistema.
 
-### Solución
-Reemplazar `window.open` con un **Popover** flotante que muestre el comprobante directamente sobre la tabla, sin salir de la página. El operador puede ver la imagen/PDF inline y cerrar con un clic.
+### Cambios en `src/pages/admin/ConfigurationPage.tsx`
 
-### Cambios en `src/pages/admin/CommissionsPage.tsx`
+1. **Envolver el contenido en Tabs** (de Radix/shadcn): Tab "General" con todo lo actual, Tab "Backup" nueva.
 
-1. **Agregar estado para preview flotante**: `proofDialog`, `proofUrl`, `proofLoading`
-2. **Reemplazar el botón "Comprobante"** (linea 588-593): En lugar de `window.open`, abrir un Dialog flotante que muestra la imagen del comprobante
-3. **Agregar un Dialog de preview** al final del componente con:
-   - Imagen del comprobante renderizada inline (`<img>`)
-   - Para PDFs: un `<iframe>` embebido
-   - Botón para abrir en pestaña nueva (como opción secundaria)
-   - Nombre del vendedor y monto en el header para contexto
-4. **Mobile**: En las cards mobile (linea 490-536), agregar el mismo botón de comprobante con la misma lógica flotante (actualmente no se muestra en mobile)
+2. **Tab Backup** incluirá:
+   - Botón "Exportar Todo" que descarga un archivo Excel (.xlsx) con una hoja por cada tabla del sistema
+   - Botones individuales por tabla para exportar solo esa entidad
+   - Contadores de registros por tabla
+   - Tablas a exportar: campaigns, campaign_periods, products, serials, vendors, sales, sale_attachments, reviews, commission_payments, cities, city_groups, city_group_members, report_recipients, restricted_serials, user_profiles, user_roles, app_settings, email_templates, notifications, admin_audit_logs, supervisor_audits, vendor_blocks, vendor_store_history
 
-### Un solo archivo modificado
-- `src/pages/admin/CommissionsPage.tsx`
+3. **Lógica de exportación**: Usar la librería `xlsx` (ya instalada) para generar un archivo multi-hoja. Cada tabla se consulta via Supabase con paginación para superar el límite de 1000 filas (importante para serials con 107k registros).
+
+4. **Función de paginación**: Helper `fetchAllRows(table)` que hace queries en lotes de 1000 hasta traer todos los registros.
+
+### Archivos modificados
+- `src/pages/admin/ConfigurationPage.tsx` — agregar Tabs + lógica de backup
 
