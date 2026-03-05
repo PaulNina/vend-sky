@@ -1,27 +1,22 @@
 
 
-## Plan: Campañas Parametrizables, Comisiones, QR y Notificaciones
+## Fix: Post-Registration Role Race Condition
 
-### ✅ Phase 1: Database Schema + Campaign Date Validation (COMPLETED)
-- Added QR columns to vendors, created commission_payments, notifications, email_templates tables
-- Created storage buckets vendor-qr and payment-proofs (private)
-- Updated RegisterSalePage with campaign date range validation
+**Problem**: When a vendor registers (without approval required), the `onAuthStateChange` SIGNED_IN event fires immediately after `signUp()`, triggering `handleSession` which fetches roles before the role row is inserted. This sets `roles=[]`, causing RequireAuth to show "Cuenta pendiente de aprobación". A refresh fixes it because by then the role exists in the DB.
 
-### ✅ Phase 2: Commissions / Payments Admin Page (COMPLETED)
-- Created `/admin/comisiones` with filters, settlement generation, mark-as-paid, Excel export
-- Created `generate-settlement` edge function
-- Weekly breakdown toggle for REF-style view
+**Root cause timeline**:
+1. `signUp()` completes → `onAuthStateChange('SIGNED_IN')` fires immediately
+2. `handleSession` runs, fetches roles → gets `[]` (role not inserted yet)
+3. RegisterPage continues: inserts vendor, inserts role, calls `refreshRoles()`
+4. `refreshRoles` sets `roles=['vendedor']` but may be overwritten if `handleSession` is still settling
 
-### ✅ Phase 3: Vendor QR Upload + Admin QR View (COMPLETED)
-- VendorProfilePage: QR upload section with 1-year expiry
-- VendorsPage (admin): QR column with status and signed URL viewer
-- CommissionsPage: QR quick-view for payment facilitation
+**Fix (2 files)**:
 
-### ✅ Phase 4: Payment Notification + Email Templates (COMPLETED)
-- Created `notify-payment` edge function (in-app notification + email via Resend)
-- Created `/admin/plantillas-email` for managing email templates
-- Vendor notification bell with realtime updates in VendorLayout header
-- Seeded default templates: PAYMENT_PAID_VENDOR, WEEKLY_CITY_REPORT
-- Wired notify-payment from CommissionsPage on mark-as-paid
+### 1. `src/contexts/AuthContext.tsx`
+- For `SIGNED_IN` events, defer `handleSession` with a short delay (~500ms) so registration code can finish inserting the role before roles are fetched.
+- This is safe because the loading state remains `true` until `handleSession` completes.
 
-All 4 phases are now complete.
+### 2. `src/pages/RegisterPage.tsx`
+- For the non-approval flow: after inserting the role and calling `refreshRoles()`, navigate directly to `/v` instead of showing a success screen with "Ir a Iniciar Sesión". This eliminates the extra navigation step where stale roles could cause issues.
+- Keep the success screen only for the `requireApproval` flow (where the user is signed out anyway).
+
