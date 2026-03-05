@@ -20,6 +20,15 @@ interface Campaign {
   name: string;
   start_date: string;
   end_date: string;
+  status: string;
+}
+
+interface CampaignPeriod {
+  id: string;
+  period_number: number;
+  period_start: string;
+  period_end: string;
+  status: string;
 }
 
 interface CommissionRow {
@@ -60,6 +69,8 @@ export default function CommissionsPage() {
   const isMobile = useIsMobile();
   const { cityNames } = useCities();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignPeriods, setCampaignPeriods] = useState<CampaignPeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState("custom");
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -88,10 +99,10 @@ export default function CommissionsPage() {
   useEffect(() => {
     supabase
       .from("campaigns")
-      .select("id, name, start_date, end_date")
+      .select("id, name, start_date, end_date, status")
       .order("start_date", { ascending: false })
       .then(({ data }) => {
-        setCampaigns(data || []);
+        setCampaigns((data as Campaign[]) || []);
         if (data && data.length > 0) {
           setSelectedCampaign(data[0].id);
           setPeriodStart(data[0].start_date);
@@ -100,12 +111,22 @@ export default function CommissionsPage() {
       });
   }, []);
 
-  // Auto-set period when campaign changes
+  // Load periods when campaign changes
   useEffect(() => {
     const c = campaigns.find((x) => x.id === selectedCampaign);
     if (c) {
       setPeriodStart(c.start_date);
       setPeriodEnd(c.end_date);
+      setSelectedPeriodId("custom");
+      // Load campaign periods
+      supabase
+        .from("campaign_periods")
+        .select("id, period_number, period_start, period_end, status")
+        .eq("campaign_id", c.id)
+        .order("period_number", { ascending: true })
+        .then(({ data }) => {
+          setCampaignPeriods((data as CampaignPeriod[]) || []);
+        });
     }
   }, [selectedCampaign, campaigns]);
 
@@ -181,6 +202,7 @@ export default function CommissionsPage() {
         period_start: periodStart,
         period_end: periodEnd,
         city: selectedCity !== "all" ? selectedCity : null,
+        period_id: selectedPeriodId !== "custom" ? selectedPeriodId : null,
       },
     });
 
@@ -356,13 +378,33 @@ export default function CommissionsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Campaña *</Label>
               <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                 <SelectContent>
                   {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Periodo</Label>
+              <Select value={selectedPeriodId} onValueChange={(v) => {
+                setSelectedPeriodId(v);
+                if (v !== "custom") {
+                  const p = campaignPeriods.find((p) => p.id === v);
+                  if (p) { setPeriodStart(p.period_start); setPeriodEnd(p.period_end); }
+                }
+              }}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="custom">Rango personalizado</SelectItem>
+                  {campaignPeriods.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      #{p.period_number} ({fmtDate(p.period_start)} — {fmtDate(p.period_end)}) {p.status === "closed" ? "✓" : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -378,11 +420,11 @@ export default function CommissionsPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Desde</Label>
-              <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="text-sm" />
+              <Input type="date" value={periodStart} onChange={(e) => { setPeriodStart(e.target.value); setSelectedPeriodId("custom"); }} className="text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Hasta</Label>
-              <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="text-sm" />
+              <Input type="date" value={periodEnd} onChange={(e) => { setPeriodEnd(e.target.value); setSelectedPeriodId("custom"); }} className="text-sm" />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">

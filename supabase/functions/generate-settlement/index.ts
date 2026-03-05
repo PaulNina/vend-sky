@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { campaign_id, period_start, period_end, city } = await req.json();
+    const { campaign_id, period_start, period_end, city, period_id } = await req.json();
 
     if (!campaign_id || !period_start || !period_end) {
       return new Response(
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         // Update existing pending record
         await adminClient
           .from("commission_payments")
-          .update({ units: agg.units, amount_bs: Math.round(agg.amount_bs) })
+          .update({ units: agg.units, amount_bs: Math.round(agg.amount_bs), ...(period_id ? { period_id } : {}) })
           .eq("id", existing.id);
       } else {
         // Insert new
@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
           units: agg.units,
           amount_bs: Math.round(agg.amount_bs),
           status: "pending",
+          ...(period_id ? { period_id } : {}),
         });
       }
       upserted++;

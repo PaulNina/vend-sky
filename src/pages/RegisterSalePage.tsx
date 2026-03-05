@@ -30,6 +30,7 @@ interface Campaign {
   ai_date_validation: boolean;
   registration_open_at: string | null;
   registration_close_at: string | null;
+  status: string;
 }
 
 type SerialValidation = {
@@ -162,6 +163,7 @@ function isWithinCurrentWeek(dateStr: string) {
 }
 
 function isCampaignRegistrationOpen(c: Campaign) {
+  if (c.status === "closed") return false;
   if (!c.registration_enabled) return false;
   const now = new Date();
   if (c.registration_open_at && new Date(c.registration_open_at) > now) return false;
@@ -201,7 +203,7 @@ export default function RegisterSalePage() {
   const loadData = async () => {
     if (!user) return;
     const [campaignsRes, productsRes, vendorRes] = await Promise.all([
-      supabase.from("campaigns").select("id, name, start_date, end_date, registration_enabled, ai_date_validation, registration_open_at, registration_close_at").eq("is_active", true),
+      supabase.from("campaigns").select("id, name, start_date, end_date, registration_enabled, ai_date_validation, registration_open_at, registration_close_at, status").eq("is_active", true),
       supabase.from("products").select("*").eq("is_active", true).order("name"),
       supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
     ]);

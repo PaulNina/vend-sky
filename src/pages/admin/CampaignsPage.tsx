@@ -24,12 +24,16 @@ interface Campaign {
   registration_open_at: string | null;
   registration_close_at: string | null;
   require_vendor_approval: boolean;
+  status: string;
+  closed_at: string | null;
+  close_reason: string | null;
 }
 
 const empty: Omit<Campaign, "id"> = {
   name: "", subtitle: "", start_date: "", end_date: "",
   is_active: true, registration_enabled: true, ai_date_validation: false, points_mode: "product",
   registration_open_at: null, registration_close_at: null, require_vendor_approval: false,
+  status: "active", closed_at: null, close_reason: null,
 };
 
 export default function CampaignsPage() {
@@ -50,7 +54,7 @@ export default function CampaignsPage() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm(empty); setDialog(true); };
-  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, require_vendor_approval: c.require_vendor_approval }); setDialog(true); };
+  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, require_vendor_approval: c.require_vendor_approval, status: c.status, closed_at: c.closed_at, close_reason: c.close_reason }); setDialog(true); };
 
   const save = async () => {
     if (!form.name || !form.start_date || !form.end_date) {
@@ -111,7 +115,13 @@ export default function CampaignsPage() {
                     </TableCell>
                     <TableCell className="text-sm">{fmtDate(c.start_date)} — {fmtDate(c.end_date)}</TableCell>
                     <TableCell>
-                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Activa" : "Inactiva"}</Badge>
+                      {c.status === "active" ? (
+                        <Badge variant="default">Activa</Badge>
+                      ) : c.status === "closed" ? (
+                        <Badge variant="secondary">Cerrada</Badge>
+                      ) : (
+                        <Badge variant="outline">Borrador</Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
