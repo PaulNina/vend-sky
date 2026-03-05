@@ -26,8 +26,18 @@ export default function LoginPage() {
   }
   if (user) {
     if (roles.length === 0) {
-      // User has no roles — let RequireAuth handle the pending screen
-      return <Navigate to="/v" replace />;
+      // User has no roles — sign them out to avoid redirect loop
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <div className="max-w-md w-full text-center space-y-4">
+            <h2 className="text-xl font-bold">Cuenta sin permisos</h2>
+            <p className="text-muted-foreground">Tu cuenta no tiene un rol asignado. Contacta al administrador.</p>
+            <Button variant="outline" onClick={() => { supabase.auth.signOut(); }}>
+              Cerrar sesión
+            </Button>
+          </div>
+        </div>
+      );
     }
     if (roles.includes("admin")) return <Navigate to="/admin" replace />;
     if (roles.includes("supervisor")) return <Navigate to="/admin/auditoria" replace />;
