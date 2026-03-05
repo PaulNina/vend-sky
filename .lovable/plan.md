@@ -1,33 +1,41 @@
 
 
-## Plan: Fix date restrictions and simplify System Status
+## Plan: Remove "Pending Approval" Flow
 
-Two problems identified:
+The user wants to eliminate the entire vendor approval gate. All registered vendors should get immediate access without admin review.
 
-### Problem 1: Date picker blocked in vendor sale registration
+### Changes
 
-The `RegisterSalePage` hardcodes a "current week Mon-Sun" restriction (`getCurrentWeekBounds()` and `isWithinCurrentWeek()`). This ignores the campaign's period configuration. If the campaign uses a different periodicity (e.g., biweekly, monthly), or the current period's dates don't align with the Mon-Sun week, the calendar stays locked.
+**1. `src/components/guards/RequireAuth.tsx`**
+- Remove the `roles.length === 0` block that shows "Cuenta pendiente de aprobación". Instead, if a user has no roles, redirect to `/login` (simple fallback).
 
-**Fix**: Replace the hardcoded week logic with the campaign's **current open period** from `campaign_periods`. The date picker should allow any date within the current open period (intersected with "up to today" to prevent future dates).
+**2. `src/layouts/VendorLayout.tsx`**
+- Remove the `vendorStatus` state, the `pending_approval` query, and the `isPending` card block. Always render `<Outlet />`.
 
-- Fetch `campaign_periods` for the selected campaign where `status = 'open'`, ordered by `period_number`
-- Use the first open period's `period_start` and `period_end` as the allowed date range
-- Remove `getCurrentWeekBounds()`, `isWithinCurrentWeek()`, and `getBoliviaWeek()` helper functions (they enforce old Mon-Sun logic)
-- Keep the `week_start` / `week_end` fields in the sale insert (derive from the open period's dates instead of the old week calculation)
-- If no open period exists, block registration with a message like "No hay periodo abierto para esta campaña"
+**3. `src/pages/RegisterPage.tsx`**
+- Remove `requireApproval` logic. Always set `pending_approval: false` and `is_active: true` on vendor insert/update. Always insert the `vendedor` role immediately. Success message always says "¡Registro exitoso!" / "Tu cuenta ha sido creada exitosamente."
 
-### Problem 2: "Estado del Sistema" panel is confusing
+**4. `src/pages/RegisterSalePage.tsx`**
+- Remove the `pending_approval` check that blocks vendor from registering sales (lines ~228-230). Keep only the `is_active` check.
 
-The user expects periods to close automatically based on the configured periodicity, not via a manual button. The "Estado del Sistema" card with manual "Ejecutar Procesos del Sistema" button is unclear.
+**5. `src/pages/admin/AdminDashboardPage.tsx`**
+- Remove `pendingApprovals` state, the query for `pending_approval: true`, and the badge showing "X solicitudes".
 
-**Fix**: 
-- Remove the "Estado del Sistema" card entirely as a separate section
-- Keep the auto-trigger `useEffect` that runs `run-system-processes` silently on page load (this already auto-closes expired periods)
-- Move the Bolivia time display and a small "Ejecutar manualmente" link/button into the "Periodicidad de Cierre / Liquidación" card as a secondary action, so it's available but not prominent
-- The periods list already shows open/closed status, which is sufficient feedback
+**6. `src/pages/admin/VendorsPage.tsx`**
+- Remove `pending_approval` from the interface, export, stats counter, and badge display. Show only Active/Inactive.
 
-### Files to edit
+**7. `src/pages/VendorProfilePage.tsx`**
+- Remove `pending_approval` from the interface and query. Badge shows only Active/Inactive.
 
-1. **`src/pages/RegisterSalePage.tsx`** — Replace week-based date logic with period-based logic from `campaign_periods`
-2. **`src/pages/admin/ConfigurationPage.tsx`** — Remove "Estado del Sistema" card, move manual trigger into periodicity card
+**8. `src/pages/admin/CampaignsPage.tsx`**
+- Remove `require_vendor_approval` from the form interface, default values, and any UI toggle for it.
+
+**9. `src/layouts/AdminLayout.tsx`**
+- Remove the "Solicitudes" nav item (`/admin/solicitudes-registro`).
+
+**10. `src/App.tsx`**
+- Remove the route for `RegistrationRequestsPage` and its import.
+
+**11. `src/pages/admin/RegistrationRequestsPage.tsx`**
+- Delete the file (no longer needed).
 
