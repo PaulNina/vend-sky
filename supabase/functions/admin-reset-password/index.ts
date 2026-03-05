@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "No autorizado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -24,26 +24,27 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is admin using their JWT
+    // Verify caller using getClaims
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const {
-      data: { user: caller },
-    } = await callerClient.auth.getUser();
-    if (!caller) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "No autorizado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const callerId = claimsData.claims.sub as string;
+
     // Check admin role
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
+      .eq("user_id", callerId)
       .eq("role", "admin")
       .maybeSingle();
 
@@ -76,7 +77,6 @@ Deno.serve(async (req) => {
     const targetEmail = targetUser.user.email;
 
     if (mode === "send_link") {
-      // Generate password recovery link
       const { data: linkData, error: linkError } =
         await adminClient.auth.admin.generateLink({
           type: "recovery",
@@ -90,7 +90,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Try sending via Resend if configured
       const resendKey = Deno.env.get("RESEND_API_KEY");
       if (resendKey && targetEmail) {
         const recoveryLink = linkData.properties?.action_link;
@@ -109,9 +108,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Audit log
       await adminClient.from("admin_audit_logs").insert({
-        admin_user_id: caller.id,
+        admin_user_id: callerId,
         action: "reset_password",
         target_user_id,
         details: { mode: "send_link", email: targetEmail },
@@ -128,7 +126,6 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "set_temp_password") {
-      // Generate a random temporary password
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
       let tempPassword = "";
       for (let i = 0; i < 12; i++) {
@@ -147,9 +144,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Audit log
       await adminClient.from("admin_audit_logs").insert({
-        admin_user_id: caller.id,
+        admin_user_id: callerId,
         action: "reset_password",
         target_user_id,
         details: { mode: "set_temp_password", email: targetEmail },

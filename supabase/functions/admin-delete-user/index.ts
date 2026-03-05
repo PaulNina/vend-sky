@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "No autorizado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -24,19 +24,20 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller
+    // Verify caller using getClaims
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const {
-      data: { user: caller },
-    } = await callerClient.auth.getUser();
-    if (!caller) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "No autorizado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const callerId = claimsData.claims.sub as string;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
+      .eq("user_id", callerId)
       .eq("role", "admin")
       .maybeSingle();
 
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
     }
 
     // Prevent self-deletion
-    if (target_user_id === caller.id) {
+    if (target_user_id === callerId) {
       return new Response(
         JSON.stringify({ error: "No puedes eliminarte a ti mismo" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -73,14 +74,6 @@ Deno.serve(async (req) => {
     }
 
     // Check if user has critical history
-    const [salesResult, reviewsResult, auditsResult, paymentsResult] = await Promise.all([
-      adminClient.from("sales").select("id", { count: "exact", head: true }).eq("vendor_id", target_user_id),
-      adminClient.from("reviews").select("id", { count: "exact", head: true }).eq("reviewer_user_id", target_user_id),
-      adminClient.from("supervisor_audits").select("id", { count: "exact", head: true }).eq("supervisor_user_id", target_user_id),
-      adminClient.from("commission_payments").select("id", { count: "exact", head: true }).eq("vendor_id", target_user_id),
-    ]);
-
-    // Also check sales by vendor user_id (vendor_id in sales references vendors.id, not auth uid)
     const { data: vendorRecord } = await adminClient
       .from("vendors")
       .select("id")
@@ -95,7 +88,6 @@ Deno.serve(async (req) => {
         .eq("vendor_id", vendorRecord.id);
       hasSalesHistory = (count || 0) > 0;
 
-      // Also check commission payments by vendor record id
       const { count: payCount } = await adminClient
         .from("commission_payments")
         .select("id", { count: "exact", head: true })
@@ -103,10 +95,22 @@ Deno.serve(async (req) => {
       if ((payCount || 0) > 0) hasSalesHistory = true;
     }
 
+    const [reviewsResult, auditsResult] = await Promise.all([
+      adminClient.from("reviews").select("id", { count: "exact", head: true }).eq("reviewer_user_id", target_user_id),
+      adminClient.from("supervisor_audits").select("id", { count: "exact", head: true }).eq("supervisor_user_id", target_user_id),
+    ]);
+
     const hasHistory =
       hasSalesHistory ||
       (reviewsResult.count || 0) > 0 ||
       (auditsResult.count || 0) > 0;
+
+    if (mode === "check") {
+      return new Response(
+        JSON.stringify({ has_history: hasHistory }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (mode === "hard" && hasHistory) {
       return new Response(
@@ -119,13 +123,11 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "soft") {
-      // Disable user profile
       await adminClient
         .from("user_profiles")
         .update({ is_disabled: true, updated_at: new Date().toISOString() })
         .eq("user_id", target_user_id);
 
-      // Disable vendor if exists
       if (vendorRecord) {
         await adminClient
           .from("vendors")
@@ -133,14 +135,12 @@ Deno.serve(async (req) => {
           .eq("id", vendorRecord.id);
       }
 
-      // Ban user in auth (prevents login)
       await adminClient.auth.admin.updateUserById(target_user_id, {
-        ban_duration: "876600h", // ~100 years
+        ban_duration: "876600h",
       });
 
-      // Audit log
       await adminClient.from("admin_audit_logs").insert({
-        admin_user_id: caller.id,
+        admin_user_id: callerId,
         action: "disable_user",
         target_user_id,
         details: { mode: "soft", has_history: hasHistory },
@@ -153,18 +153,13 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "hard") {
-      // Delete roles
       await adminClient.from("user_roles").delete().eq("user_id", target_user_id);
-
-      // Delete profile
       await adminClient.from("user_profiles").delete().eq("user_id", target_user_id);
 
-      // Delete vendor record if exists
       if (vendorRecord) {
         await adminClient.from("vendors").delete().eq("id", vendorRecord.id);
       }
 
-      // Delete from auth
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(target_user_id);
       if (deleteError) {
         return new Response(
@@ -173,9 +168,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Audit log
       await adminClient.from("admin_audit_logs").insert({
-        admin_user_id: caller.id,
+        admin_user_id: callerId,
         action: "delete_user",
         target_user_id,
         details: { mode: "hard" },
@@ -183,14 +177,6 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, action: "deleted" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check history for info endpoint
-    if (mode === "check") {
-      return new Response(
-        JSON.stringify({ has_history: hasHistory }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

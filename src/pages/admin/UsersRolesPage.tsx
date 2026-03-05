@@ -71,12 +71,24 @@ export default function UsersRolesPage() {
 
   const load = async () => {
     setLoading(true);
-    const [rolesRes, profilesRes] = await Promise.all([
+    const [rolesRes, profilesRes, vendorsRes] = await Promise.all([
       supabase.from("user_roles").select("*").order("created_at", { ascending: false }),
       supabase.from("user_profiles").select("*") as any,
+      supabase.from("vendors").select("user_id, email, full_name, is_active"),
     ]);
     setRoles(rolesRes.data || []);
-    setProfiles(profilesRes.data || []);
+    // Merge profiles with vendor fallback
+    const profilesList: UserProfile[] = profilesRes.data || [];
+    const profileUserIds = new Set(profilesList.map((p: UserProfile) => p.user_id));
+    const vendorFallbacks: UserProfile[] = (vendorsRes.data || [])
+      .filter((v: any) => !profileUserIds.has(v.user_id) && v.email)
+      .map((v: any) => ({
+        user_id: v.user_id,
+        email: v.email,
+        full_name: v.full_name || null,
+        is_disabled: !v.is_active,
+      }));
+    setProfiles([...profilesList, ...vendorFallbacks]);
     setLoading(false);
   };
 
