@@ -38,7 +38,7 @@ import EmailRecipientsPage from "@/pages/admin/EmailRecipientsPage";
 import UsersRolesPage from "@/pages/admin/UsersRolesPage";
 import ConfigurationPage from "@/pages/admin/ConfigurationPage";
 import MetricsPage from "@/pages/admin/MetricsPage";
-
+import CommissionsPage from "@/pages/admin/CommissionsPage";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +89,7 @@ const App = () => (
               <Route path="/admin/revisiones" element={<ReviewsPage />} />
               <Route path="/admin/auditoria" element={<AuditPage />} />
               <Route path="/admin/metricas" element={<MetricsPage />} />
+              <Route path="/admin/comisiones" element={<CommissionsPage />} />
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
