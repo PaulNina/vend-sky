@@ -27,7 +27,7 @@ import VendorProfilePage from "@/pages/VendorProfilePage";
 // Admin pages
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import CampaignsPage from "@/pages/admin/CampaignsPage";
-import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
+
 import VendorsPage from "@/pages/admin/VendorsPage";
 import ProductsPage from "@/pages/admin/ProductsPage";
 import SerialsPage from "@/pages/admin/SerialsPage";
@@ -82,7 +82,7 @@ const App = () => (
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/campanias" element={<CampaignsPage />} />
-              <Route path="/admin/solicitudes-registro" element={<RegistrationRequestsPage />} />
+              
               <Route path="/admin/vendedores" element={<VendorsPage />} />
               <Route path="/admin/productos-modelos" element={<ProductsPage />} />
               <Route path="/admin/seriales" element={<SerialsPage />} />

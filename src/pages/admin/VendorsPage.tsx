@@ -22,7 +22,6 @@ interface Vendor {
   city: string;
   store_name: string | null;
   is_active: boolean;
-  pending_approval: boolean;
   talla_polera: string | null;
   created_at: string;
   qr_url: string | null;
@@ -105,18 +104,17 @@ export default function VendorsPage() {
     exportToExcel(vendors.map((v) => ({
       Nombre: v.full_name, Email: v.email || "", Teléfono: v.phone || "",
       Ciudad: v.city, Tienda: v.store_name || "", Talla: v.talla_polera || "",
-      Activo: v.is_active ? "Sí" : "No", Pendiente: v.pending_approval ? "Sí" : "No",
+      Activo: v.is_active ? "Sí" : "No",
     })), "vendedores");
   };
 
   // Stats
   const totalActive = vendors.filter((v) => v.is_active).length;
-  const totalPending = vendors.filter((v) => v.pending_approval).length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Vendedores (Kardex)</h1><p className="text-sm text-muted-foreground">{vendors.length} vendedores · {totalActive} activos · {totalPending} pendientes</p></div>
+        <div><h1 className="text-2xl font-bold">Vendedores (Kardex)</h1><p className="text-sm text-muted-foreground">{vendors.length} vendedores · {totalActive} activos</p></div>
         <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
       </div>
 
@@ -165,7 +163,7 @@ export default function VendorsPage() {
                       ) : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
-                      {v.pending_approval ? <Badge variant="secondary">Pendiente</Badge> : v.is_active ? <Badge>Activo</Badge> : <Badge variant="destructive">Inactivo</Badge>}
+                      {v.is_active ? <Badge>Activo</Badge> : <Badge variant="destructive">Inactivo</Badge>}
                     </TableCell>
                     <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(v)}><Pencil className="h-4 w-4" /></Button></TableCell>
                   </TableRow>

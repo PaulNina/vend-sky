@@ -73,7 +73,6 @@ export default function AdminDashboardPage() {
   const [dailyTrend, setDailyTrend] = useState<{ date: string; units: number; bonus: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [vendorCount, setVendorCount] = useState(0);
-  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [pendingSalesCount, setPendingSalesCount] = useState(0);
 
@@ -85,7 +84,6 @@ export default function AdminDashboardPage() {
       }
     });
     supabase.from("vendors").select("id", { count: "exact", head: true }).eq("is_active", true).then(({ count }) => setVendorCount(count || 0));
-    supabase.from("vendors").select("id", { count: "exact", head: true }).eq("pending_approval", true).then(({ count }) => setPendingApprovals(count || 0));
     
     // Recent sales
     supabase.from("sales")
@@ -195,9 +193,6 @@ export default function AdminDashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight">Dashboard Gerencial</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Vista general del programa
-            {pendingApprovals > 0 && (
-              <Badge variant="destructive" className="ml-2 text-[10px]">{pendingApprovals} solicitudes</Badge>
-            )}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">

@@ -1,9 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2, Clock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
@@ -33,24 +30,9 @@ export default function RequireAuth({ children, allowedRoles }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  // User has no roles at all — likely pending approval
+  // User has no roles — redirect to login
   if (roles.length === 0) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center space-y-4">
-            <Clock className="h-16 w-16 text-primary mx-auto" />
-            <h2 className="text-2xl font-bold font-display">Cuenta pendiente de aprobación</h2>
-            <p className="text-muted-foreground">
-              Tu registro está siendo revisado por un administrador. Te notificaremos cuando tu cuenta esté activa.
-            </p>
-            <Button variant="outline" onClick={() => signOut()}>
-              Cerrar sesión
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && allowedRoles.length > 0) {

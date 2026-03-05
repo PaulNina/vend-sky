@@ -14,10 +14,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, AlertTriangle, UserCircle, Bell } from "lucide-react";
+import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, UserCircle, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -116,25 +115,11 @@ function VendorSidebar() {
 
 export default function VendorLayout() {
   const { user } = useAuth();
-  const [vendorStatus, setVendorStatus] = useState<{ pending: boolean; active: boolean } | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; title: string; body: string; read: boolean; created_at: string }[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("vendors")
-      .select("pending_approval, is_active")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setVendorStatus({ pending: data.pending_approval, active: data.is_active });
-        } else {
-          setVendorStatus({ pending: true, active: false });
-        }
-      });
-
     // Load notifications
     const loadNotifications = async () => {
       const { data } = await supabase
@@ -168,7 +153,7 @@ export default function VendorLayout() {
     setUnreadCount(0);
   };
 
-  const isPending = vendorStatus?.pending || !vendorStatus?.active;
+  
 
   const timeAgo = (d: string) => {
     const diff = Date.now() - new Date(d).getTime();
@@ -233,22 +218,7 @@ export default function VendorLayout() {
             </DropdownMenu>
           </header>
           <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-auto">
-            {isPending ? (
-              <Card className="max-w-lg mx-auto mt-12 border-warning/30 bg-warning/5">
-                <CardContent className="p-8 text-center space-y-4">
-                  <div className="w-14 h-14 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto">
-                    <AlertTriangle className="h-7 w-7 text-warning" />
-                  </div>
-                  <h2 className="text-xl font-bold font-display">Cuenta pendiente de aprobación</h2>
-                  <p className="text-muted-foreground text-sm">
-                    Tu registro está siendo revisado por un administrador. 
-                    Una vez aprobado, podrás registrar ventas y acceder a todas las funciones.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Outlet />
-            )}
+            <Outlet />
           </main>
         </div>
       </div>

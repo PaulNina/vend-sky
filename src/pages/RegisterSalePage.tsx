@@ -209,7 +209,7 @@ export default function RegisterSalePage() {
     const [campaignsRes, productsRes, vendorRes] = await Promise.all([
       supabase.from("campaigns").select("id, name, start_date, end_date, registration_enabled, ai_date_validation, registration_open_at, registration_close_at, status").eq("is_active", true),
       supabase.from("products").select("*").eq("is_active", true).order("name"),
-      supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
+      supabase.from("vendors").select("id, city, is_active").eq("user_id", user.id).single(),
     ]);
 
     if (campaignsRes.data) {
@@ -225,10 +225,7 @@ export default function RegisterSalePage() {
     if (vendorRes.data) {
       setVendorId(vendorRes.data.id);
       setVendorCity(vendorRes.data.city);
-      if (vendorRes.data.pending_approval) {
-        setVendorBlocked(true);
-        setBlockReason("Tu cuenta está pendiente de aprobación.");
-      } else if (!vendorRes.data.is_active) {
+      if (!vendorRes.data.is_active) {
         setVendorBlocked(true);
         setBlockReason("Tu cuenta está inactiva. Contacta al administrador.");
       }
