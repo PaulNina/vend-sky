@@ -23,7 +23,6 @@ interface Campaign {
   points_mode: string;
   registration_open_at: string | null;
   registration_close_at: string | null;
-  require_vendor_approval: boolean;
   status: string;
   closed_at: string | null;
   close_reason: string | null;
@@ -32,7 +31,7 @@ interface Campaign {
 const empty: Omit<Campaign, "id"> = {
   name: "", subtitle: "", start_date: "", end_date: "",
   is_active: true, registration_enabled: true, ai_date_validation: false, points_mode: "product",
-  registration_open_at: null, registration_close_at: null, require_vendor_approval: false,
+  registration_open_at: null, registration_close_at: null,
   status: "active", closed_at: null, close_reason: null,
 };
 
@@ -54,7 +53,7 @@ export default function CampaignsPage() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm(empty); setDialog(true); };
-  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, require_vendor_approval: c.require_vendor_approval, status: c.status, closed_at: c.closed_at, close_reason: c.close_reason }); setDialog(true); };
+  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, status: c.status, closed_at: c.closed_at, close_reason: c.close_reason }); setDialog(true); };
 
   const save = async () => {
     if (!form.name || !form.start_date || !form.end_date) {
@@ -177,8 +176,6 @@ export default function CampaignsPage() {
                 <p className="text-xs text-muted-foreground">Si se establece, el registro se cierra automáticamente en esta fecha/hora</p>
               </div>
             </div>
-            <div className="flex items-center justify-between"><Label>Requerir aprobación de vendedores</Label><Switch checked={form.require_vendor_approval ?? false} onCheckedChange={(v) => setForm({ ...form, require_vendor_approval: v })} /></div>
-            <p className="text-xs text-muted-foreground -mt-2 ml-1">Si está desactivado, los vendedores se registran y acceden inmediatamente. Si está activado, requieren aprobación manual.</p>
             <div className="flex items-center justify-between"><Label>Validación IA de fecha</Label><Switch checked={form.ai_date_validation} onCheckedChange={(v) => setForm({ ...form, ai_date_validation: v })} /></div>
           </div>
           <DialogFooter>

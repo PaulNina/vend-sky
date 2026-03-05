@@ -22,7 +22,7 @@ import {
 const adminNav = [
   { title: "Dashboard", url: "/admin", icon: BarChart3, end: true },
   { title: "Campañas", url: "/admin/campanias", icon: Target },
-  { title: "Solicitudes", url: "/admin/solicitudes-registro", icon: UserPlus },
+  
   { title: "Vendedores", url: "/admin/vendedores", icon: Users },
   { title: "Productos", url: "/admin/productos-modelos", icon: Package },
   { title: "Seriales", url: "/admin/seriales", icon: Hash },

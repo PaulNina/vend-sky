@@ -16,13 +16,11 @@ function useRegistrationStatus() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [message, setMessage] = useState("");
-  const [requireApproval, setRequireApproval] = useState(false);
-
   useEffect(() => {
     const check = async () => {
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("name, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
+        .select("name, registration_enabled, registration_open_at, registration_close_at")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -35,7 +33,6 @@ function useRegistrationStatus() {
       }
 
       setCampaignName(campaign.name);
-      setRequireApproval(campaign.require_vendor_approval ?? false);
       const now = new Date();
 
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
@@ -62,14 +59,14 @@ function useRegistrationStatus() {
     check();
   }, []);
 
-  return { allowed, campaignName, message, requireApproval };
+  return { allowed, campaignName, message };
 }
 
 export default function RegisterPage() {
   const { user, loading: authLoading, refreshRoles } = useAuth();
   const navigate = useNavigate();
   const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, message, requireApproval } = useRegistrationStatus();
+  const { allowed, campaignName, message } = useRegistrationStatus();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -89,13 +86,9 @@ export default function RegisterPage() {
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <CheckCircle2 className="h-16 w-16 text-success mx-auto" />
-            <h2 className="text-2xl font-bold">
-              {requireApproval ? "¡Registro enviado!" : "¡Registro exitoso!"}
-            </h2>
+            <h2 className="text-2xl font-bold">¡Registro exitoso!</h2>
             <p className="text-muted-foreground">
-              {requireApproval
-                ? "Tu cuenta está pendiente de aprobación por un administrador. Te notificaremos cuando tu cuenta esté activa."
-                : "Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión."}
+              Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión.
             </p>
             <Button asChild variant="outline">
               <Link to="/login">Ir a Iniciar Sesión</Link>
@@ -190,8 +183,8 @@ export default function RegisterPage() {
             phone,
             city,
             store_name: storeName || null,
-            pending_approval: requireApproval,
-            is_active: !requireApproval,
+            pending_approval: false,
+            is_active: true,
           })
           .eq("id", existingVendor.id);
       } else {
@@ -202,26 +195,18 @@ export default function RegisterPage() {
           phone: phone || null,
           city,
           store_name: storeName || null,
-          pending_approval: requireApproval,
-          is_active: !requireApproval,
+          pending_approval: false,
+          is_active: true,
         });
       }
 
-      if (!requireApproval) {
-        await supabase.from("user_roles").insert({
-          user_id: userId,
-          role: "vendedor" as any,
-          city,
-        });
-        await refreshRoles();
-        // Navigate directly — no success screen needed
-        navigate("/v", { replace: true });
-        return;
-      }
-
-      // Approval required — sign out and show success
-      await supabase.auth.signOut();
-      setSuccess(true);
+      await supabase.from("user_roles").insert({
+        user_id: userId,
+        role: "vendedor" as any,
+        city,
+      });
+      await refreshRoles();
+      navigate("/v", { replace: true });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {

@@ -15,7 +15,7 @@ interface VendorData {
   id: string;
   full_name: string; email: string | null; phone: string | null;
   city: string; store_name: string | null; talla_polera: string | null;
-  is_active: boolean; pending_approval: boolean;
+  is_active: boolean;
   qr_url: string | null; qr_uploaded_at: string | null; qr_expires_at: string | null;
 }
 
@@ -45,7 +45,7 @@ export default function VendorProfilePage() {
     const load = async () => {
       const { data: v } = await supabase
         .from("vendors")
-        .select("id, full_name, email, phone, city, store_name, talla_polera, is_active, pending_approval, qr_url, qr_uploaded_at, qr_expires_at")
+        .select("id, full_name, email, phone, city, store_name, talla_polera, is_active, qr_url, qr_uploaded_at, qr_expires_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -137,7 +137,7 @@ export default function VendorProfilePage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display">Datos del Vendedor</CardTitle>
             <Badge variant={vendor.is_active ? "default" : "secondary"} className="text-[10px]">
-              {vendor.pending_approval ? "Pendiente" : vendor.is_active ? "Activo" : "Inactivo"}
+              {vendor.is_active ? "Activo" : "Inactivo"}
             </Badge>
           </div>
         </CardHeader>
