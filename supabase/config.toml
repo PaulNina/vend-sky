@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.validate-sale-date]
 verify_jwt = false
+
+[functions.run-system-processes]
+verify_jwt = false
+
+[functions.generate-settlement]
+verify_jwt = false

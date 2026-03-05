@@ -32,50 +32,133 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_periods: {
+        Row: {
+          campaign_id: string
+          closed_at: string | null
+          closed_by: string | null
+          id: string
+          period_end: string
+          period_number: number
+          period_start: string
+          report_generated_at: string | null
+          report_sent_at: string | null
+          settlement_generated_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          id?: string
+          period_end: string
+          period_number: number
+          period_start: string
+          report_generated_at?: string | null
+          report_sent_at?: string | null
+          settlement_generated_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          id?: string
+          period_end?: string
+          period_number?: number
+          period_start?: string
+          report_generated_at?: string | null
+          report_sent_at?: string | null
+          settlement_generated_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_periods_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           ai_date_validation: boolean
+          anchor_date: string | null
+          auto_periods_enabled: boolean
+          close_reason: string | null
+          close_time_local: string
+          closed_at: string | null
           created_at: string
+          custom_days: number | null
           end_date: string
+          enforce_sales_within_campaign: boolean
           id: string
           is_active: boolean
           name: string
+          period_mode: string
           points_mode: string
           registration_close_at: string | null
           registration_enabled: boolean
           registration_open_at: string | null
+          report_on_close: boolean
+          report_recipients_mode: string
           require_vendor_approval: boolean
           start_date: string
+          status: string
           subtitle: string | null
         }
         Insert: {
           ai_date_validation?: boolean
+          anchor_date?: string | null
+          auto_periods_enabled?: boolean
+          close_reason?: string | null
+          close_time_local?: string
+          closed_at?: string | null
           created_at?: string
+          custom_days?: number | null
           end_date: string
+          enforce_sales_within_campaign?: boolean
           id?: string
           is_active?: boolean
           name: string
+          period_mode?: string
           points_mode?: string
           registration_close_at?: string | null
           registration_enabled?: boolean
           registration_open_at?: string | null
+          report_on_close?: boolean
+          report_recipients_mode?: string
           require_vendor_approval?: boolean
           start_date: string
+          status?: string
           subtitle?: string | null
         }
         Update: {
           ai_date_validation?: boolean
+          anchor_date?: string | null
+          auto_periods_enabled?: boolean
+          close_reason?: string | null
+          close_time_local?: string
+          closed_at?: string | null
           created_at?: string
+          custom_days?: number | null
           end_date?: string
+          enforce_sales_within_campaign?: boolean
           id?: string
           is_active?: boolean
           name?: string
+          period_mode?: string
           points_mode?: string
           registration_close_at?: string | null
           registration_enabled?: boolean
           registration_open_at?: string | null
+          report_on_close?: boolean
+          report_recipients_mode?: string
           require_vendor_approval?: boolean
           start_date?: string
+          status?: string
           subtitle?: string | null
         }
         Relationships: []
@@ -162,6 +245,7 @@ export type Database = {
           payment_note: string | null
           payment_proof_url: string | null
           period_end: string
+          period_id: string | null
           period_start: string
           status: Database["public"]["Enums"]["commission_payment_status"]
           units: number
@@ -177,6 +261,7 @@ export type Database = {
           payment_note?: string | null
           payment_proof_url?: string | null
           period_end: string
+          period_id?: string | null
           period_start: string
           status?: Database["public"]["Enums"]["commission_payment_status"]
           units?: number
@@ -192,6 +277,7 @@ export type Database = {
           payment_note?: string | null
           payment_proof_url?: string | null
           period_end?: string
+          period_id?: string | null
           period_start?: string
           status?: Database["public"]["Enums"]["commission_payment_status"]
           units?: number
@@ -203,6 +289,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_payments_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_periods"
             referencedColumns: ["id"]
           },
           {

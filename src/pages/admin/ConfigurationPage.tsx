@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
   Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
-  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap
+  Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap,
+  Play, AlertTriangle, CheckCircle2, Settings, XCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -25,10 +29,35 @@ interface CampaignFull {
   registration_enabled: boolean;
   ai_date_validation: boolean;
   points_mode: string;
+  status: string;
+  period_mode: string;
+  custom_days: number | null;
+  anchor_date: string | null;
+  close_time_local: string;
+  report_on_close: boolean;
+  report_recipients_mode: string;
+  auto_periods_enabled: boolean;
+  closed_at: string | null;
+  close_reason: string | null;
+}
+
+interface CampaignPeriod {
+  id: string;
+  campaign_id: string;
+  period_number: number;
+  period_start: string;
+  period_end: string;
+  status: string;
+  closed_at: string | null;
+  settlement_generated_at: string | null;
+  report_generated_at: string | null;
+  report_sent_at: string | null;
 }
 
 export default function ConfigurationPage() {
   const [campaigns, setCampaigns] = useState<CampaignFull[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [periods, setPeriods] = useState<CampaignPeriod[]>([]);
   const [counts, setCounts] = useState({ products: 0, serials: 0, vendors: 0, recipients: 0 });
   const [loading, setLoading] = useState(true);
   const { cities, reload: reloadCities } = useCities(false);
@@ -36,10 +65,21 @@ export default function ConfigurationPage() {
   const [geminiKeyExists, setGeminiKeyExists] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [generatingPeriods, setGeneratingPeriods] = useState(false);
+  const [runningSystem, setRunningSystem] = useState(false);
+  const [closeDialog, setCloseDialog] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
+  const [closingCampaign, setClosingCampaign] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Period config form
+  const [periodMode, setPeriodMode] = useState("WEEKLY");
+  const [customDays, setCustomDays] = useState<number>(14);
+  const [anchorDate, setAnchorDate] = useState("");
+  const [closeTime, setCloseTime] = useState("23:59");
+  const [reportOnClose, setReportOnClose] = useState(true);
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes] = await Promise.all([
@@ -50,7 +90,8 @@ export default function ConfigurationPage() {
       supabase.from("report_recipients").select("id", { count: "exact", head: true }),
       supabase.from("app_settings").select("value").eq("key", "gemini_api_key").maybeSingle(),
     ]);
-    setCampaigns(campRes.data || []);
+    const camps = (campRes.data || []) as CampaignFull[];
+    setCampaigns(camps);
     setCounts({
       products: prodCount.count || 0,
       serials: serialCount.count || 0,
@@ -61,35 +102,203 @@ export default function ConfigurationPage() {
       setGeminiKeyExists(true);
       setGeminiKey(settingRes.data.value);
     }
+    // Auto-select first active campaign
+    const active = camps.find((c) => c.status === "active") || camps[0];
+    if (active) {
+      setSelectedCampaignId(active.id);
+      syncConfigForm(active);
+    }
     setLoading(false);
   };
 
-  const toggleAiValidation = async (campaignId: string, currentValue: boolean) => {
+  const syncConfigForm = (c: CampaignFull) => {
+    setPeriodMode(c.period_mode || "WEEKLY");
+    setCustomDays(c.custom_days || 14);
+    setAnchorDate(c.anchor_date || c.start_date);
+    setCloseTime(c.close_time_local || "23:59");
+    setReportOnClose(c.report_on_close ?? true);
+  };
+
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
+
+  useEffect(() => {
+    if (selectedCampaign) {
+      syncConfigForm(selectedCampaign);
+      loadPeriods(selectedCampaign.id);
+    }
+  }, [selectedCampaignId]);
+
+  const loadPeriods = async (campaignId: string) => {
+    const { data } = await supabase
+      .from("campaign_periods")
+      .select("*")
+      .eq("campaign_id", campaignId)
+      .order("period_number", { ascending: true });
+    setPeriods((data || []) as CampaignPeriod[]);
+  };
+
+  // Auto-trigger system runner once per session per campaign per day
+  useEffect(() => {
+    if (!selectedCampaign || selectedCampaign.status !== "active") return;
+    const key = `system_run_${selectedCampaign.id}_${new Date().toISOString().split("T")[0]}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    runSystemProcesses(true);
+  }, [selectedCampaignId]);
+
+  const saveConfig = async () => {
+    if (!selectedCampaign) return;
+    setSavingConfig(true);
     const { error } = await supabase
       .from("campaigns")
-      .update({ ai_date_validation: !currentValue })
-      .eq("id", campaignId);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+      .update({
+        period_mode: periodMode,
+        custom_days: periodMode === "CUSTOM_DAYS" ? customDays : null,
+        anchor_date: anchorDate,
+        close_time_local: closeTime,
+        report_on_close: reportOnClose,
+      })
+      .eq("id", selectedCampaign.id);
+
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else {
+      toast({ title: "Configuración guardada" });
       setCampaigns((prev) =>
-        prev.map((c) => (c.id === campaignId ? { ...c, ai_date_validation: !currentValue } : c))
+        prev.map((c) =>
+          c.id === selectedCampaign.id
+            ? { ...c, period_mode: periodMode, custom_days: periodMode === "CUSTOM_DAYS" ? customDays : null, anchor_date: anchorDate, close_time_local: closeTime, report_on_close: reportOnClose }
+            : c
+        )
       );
-      toast({ title: "Actualizado", description: `Validación IA ${!currentValue ? "activada" : "desactivada"}` });
     }
+    setSavingConfig(false);
+  };
+
+  const generatePeriods = async () => {
+    if (!selectedCampaign) return;
+    setGeneratingPeriods(true);
+
+    const start = new Date(selectedCampaign.start_date + "T12:00:00");
+    const end = new Date(selectedCampaign.end_date + "T12:00:00");
+    const anchor = anchorDate ? new Date(anchorDate + "T12:00:00") : start;
+
+    let intervalDays: number;
+    switch (periodMode) {
+      case "WEEKLY": intervalDays = 7; break;
+      case "BIWEEKLY": intervalDays = 14; break;
+      case "MONTHLY": intervalDays = 30; break;
+      case "CUSTOM_DAYS": intervalDays = customDays || 7; break;
+      default: intervalDays = 7;
+    }
+
+    // Generate periods
+    const newPeriods: { period_number: number; period_start: string; period_end: string }[] = [];
+    let cursor = new Date(anchor);
+    // Align cursor to start_date if anchor is before
+    while (cursor < start) cursor.setDate(cursor.getDate() + intervalDays);
+    if (cursor > start) cursor = new Date(start);
+
+    let num = 1;
+    while (cursor <= end) {
+      const periodStart = cursor.toISOString().split("T")[0];
+      const periodEndDate = new Date(cursor);
+      periodEndDate.setDate(periodEndDate.getDate() + intervalDays - 1);
+      const periodEnd = periodEndDate > end ? selectedCampaign.end_date : periodEndDate.toISOString().split("T")[0];
+      newPeriods.push({ period_number: num, period_start: periodStart, period_end: periodEnd });
+      num++;
+      cursor.setDate(cursor.getDate() + intervalDays);
+    }
+
+    // Delete only OPEN periods, keep CLOSED
+    await supabase
+      .from("campaign_periods")
+      .delete()
+      .eq("campaign_id", selectedCampaign.id)
+      .eq("status", "open");
+
+    // Get existing closed periods to avoid conflicts
+    const { data: closedPeriods } = await supabase
+      .from("campaign_periods")
+      .select("period_number, period_start, period_end")
+      .eq("campaign_id", selectedCampaign.id)
+      .eq("status", "closed");
+
+    const closedNumbers = new Set((closedPeriods || []).map((p) => p.period_number));
+    const toInsert = newPeriods
+      .filter((p) => !closedNumbers.has(p.period_number))
+      .map((p) => ({
+        campaign_id: selectedCampaign.id,
+        ...p,
+        status: "open",
+      }));
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("campaign_periods").insert(toInsert);
+      if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+      else toast({ title: "Periodos generados", description: `${toInsert.length} periodos creados.` });
+    } else {
+      toast({ title: "Sin cambios", description: "Todos los periodos ya están cerrados." });
+    }
+
+    await loadPeriods(selectedCampaign.id);
+    setGeneratingPeriods(false);
+  };
+
+  const runSystemProcesses = async (silent = false) => {
+    if (!selectedCampaign) return;
+    setRunningSystem(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-system-processes", {
+        body: { campaign_id: selectedCampaign.id },
+      });
+      if (error) throw error;
+      if (!silent) {
+        toast({
+          title: "Procesos ejecutados",
+          description: `${data.periods_closed} periodos cerrados, ${data.settlements_generated} liquidaciones generadas.`,
+        });
+      }
+      if (data.periods_closed > 0) {
+        await loadPeriods(selectedCampaign.id);
+      }
+    } catch (err: any) {
+      if (!silent) toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setRunningSystem(false);
+  };
+
+  const closeCampaign = async () => {
+    if (!selectedCampaign) return;
+    setClosingCampaign(true);
+    const { error } = await supabase
+      .from("campaigns")
+      .update({
+        status: "closed",
+        is_active: false,
+        closed_at: new Date().toISOString(),
+        close_reason: closeReason || null,
+      })
+      .eq("id", selectedCampaign.id);
+
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else {
+      toast({ title: "Campaña cerrada" });
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          c.id === selectedCampaign.id
+            ? { ...c, status: "closed", is_active: false, closed_at: new Date().toISOString(), close_reason: closeReason || null }
+            : c
+        )
+      );
+    }
+    setClosingCampaign(false);
+    setCloseDialog(false);
   };
 
   const toggleCity = async (city: City) => {
-    const { error } = await supabase
-      .from("cities")
-      .update({ is_active: !city.is_active })
-      .eq("id", city.id);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      reloadCities();
-      toast({ title: "Actualizado", description: `${city.name} ${!city.is_active ? "habilitada" : "deshabilitada"}` });
-    }
+    const { error } = await supabase.from("cities").update({ is_active: !city.is_active }).eq("id", city.id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { reloadCities(); toast({ title: "Actualizado" }); }
   };
 
   const saveGeminiKey = async () => {
@@ -97,42 +306,43 @@ export default function ConfigurationPage() {
     const trimmed = geminiKey.trim();
     if (!trimmed) {
       await supabase.from("app_settings").delete().eq("key", "gemini_api_key");
-      setGeminiKeyExists(false);
-      setGeminiKey("");
-      toast({ title: "API Key eliminada", description: "Se usará Lovable AI como respaldo" });
+      setGeminiKeyExists(false); setGeminiKey("");
+      toast({ title: "API Key eliminada" });
     } else {
       const { error } = await supabase
         .from("app_settings")
         .upsert({ key: "gemini_api_key", value: trimmed, updated_at: new Date().toISOString() }, { onConflict: "key" });
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        setGeminiKeyExists(true);
-        toast({ title: "Guardado", description: "API Key de Gemini actualizada" });
-      }
+      if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+      else { setGeminiKeyExists(true); toast({ title: "Guardado" }); }
     }
     setSavingKey(false);
   };
 
-  // Current Bolivia week info
+  // Bolivia week info
   const now = new Date();
   const boliviaOffset = -4 * 60;
   const utcNow = now.getTime() + now.getTimezoneOffset() * 60000;
   const boliviaNow = new Date(utcNow + boliviaOffset * 60000);
-  const day = boliviaNow.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(boliviaNow);
-  monday.setDate(boliviaNow.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+
+  // Period status helpers
+  const openPeriods = periods.filter((p) => p.status === "open");
+  const closedPeriods = periods.filter((p) => p.status === "closed");
+  const currentPeriod = openPeriods[0];
+  const lastClosed = closedPeriods[closedPeriods.length - 1];
+  const lastSettlement = [...periods].reverse().find((p) => p.settlement_generated_at);
+  const lastReport = [...periods].reverse().find((p) => p.report_sent_at);
 
   if (loading) {
-    return (
-      <div className="flex justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
+
+  const fmtD = (d: string) => format(new Date(d), "d MMM yyyy", { locale: es });
+
+  const statusBadge = (s: string) => {
+    if (s === "active") return <Badge variant="default">Activa</Badge>;
+    if (s === "closed") return <Badge variant="secondary">Cerrada</Badge>;
+    return <Badge variant="outline">Borrador</Badge>;
+  };
 
   const quickLinks = [
     { label: "Campañas", href: "/admin/campanias", icon: Calendar, count: campaigns.length },
@@ -145,70 +355,208 @@ export default function ConfigurationPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold font-display tracking-tight">Configuración del Sistema</h1>
-        <p className="text-sm text-muted-foreground mt-1">Estado general, accesos rápidos y ajustes del sistema</p>
+        <p className="text-sm text-muted-foreground mt-1">Periodicidad de cierre, procesos del sistema y ajustes generales</p>
       </div>
 
-      {/* Current Week - hero-style */}
-      <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-card to-primary/5">
-        <CardContent className="py-5 px-6 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl gradient-gold flex items-center justify-center shadow-gold shrink-0">
-            <Clock className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Semana en Curso (Bolivia)</p>
-            <p className="text-lg font-bold font-display mt-0.5">
-              {format(monday, "d MMM", { locale: es })} — {format(sunday, "d MMM yyyy", { locale: es })}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Hoy: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })} (BOT UTC-4)
-            </p>
+      {/* Campaign Selector */}
+      <Card>
+        <CardContent className="py-4 px-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs">Campaña</Label>
+              <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar campaña" /></SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} ({c.status === "active" ? "Activa" : c.status === "closed" ? "Cerrada" : "Borrador"})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedCampaign && (
+              <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                {statusBadge(selectedCampaign.status)}
+                <span className="text-xs text-muted-foreground">
+                  {fmtD(selectedCampaign.start_date)} — {fmtD(selectedCampaign.end_date)}
+                </span>
+                {selectedCampaign.status === "active" && (
+                  <Button variant="destructive" size="sm" onClick={() => setCloseDialog(true)}>
+                    <XCircle className="h-3.5 w-3.5 mr-1" /> Cerrar
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Campaign Cards */}
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold font-display flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-primary" />
-          Campañas
-        </h2>
-        {campaigns.map((c) => (
-          <Card key={c.id} className="hover:border-primary/20 transition-colors">
-            <CardContent className="py-4 px-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-[15px]">{c.name}</h3>
-                    <Badge variant={c.is_active ? "default" : "secondary"} className="text-[10px]">
-                      {c.is_active ? "Activa" : "Inactiva"}
-                    </Badge>
-                    {c.registration_enabled && (
-                      <Badge variant="outline" className="text-success border-success/40 bg-success/5 text-[10px]">
-                        Registro abierto
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {format(new Date(c.start_date), "d MMM yyyy", { locale: es })} — {format(new Date(c.end_date), "d MMM yyyy", { locale: es })}
-                    {" · "}Modo: {c.points_mode}
-                  </p>
+      {selectedCampaign && (
+        <>
+          {/* Period Configuration */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Settings className="h-4 w-4 text-primary" />
+                Periodicidad de Cierre / Liquidación
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Modo de periodo</Label>
+                  <Select value={periodMode} onValueChange={setPeriodMode}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WEEKLY">Semanal (7 días)</SelectItem>
+                      <SelectItem value="BIWEEKLY">Quincenal (14 días)</SelectItem>
+                      <SelectItem value="MONTHLY">Mensual (30 días)</SelectItem>
+                      <SelectItem value="CUSTOM_DAYS">Personalizado (N días)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
-                  <Brain className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-xs font-medium">Validación IA</span>
-                  <Switch
-                    checked={c.ai_date_validation}
-                    onCheckedChange={() => toggleAiValidation(c.id, c.ai_date_validation)}
-                  />
+                {periodMode === "CUSTOM_DAYS" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Cada N días</Label>
+                    <Input type="number" min={1} max={365} value={customDays} onChange={(e) => setCustomDays(parseInt(e.target.value) || 7)} className="text-sm" />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Fecha ancla</Label>
+                  <Input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Hora de cierre (Bolivia)</Label>
+                  <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="text-sm" />
                 </div>
               </div>
+              <div className="flex items-center gap-3">
+                <Switch checked={reportOnClose} onCheckedChange={setReportOnClose} id="report-on-close" />
+                <Label htmlFor="report-on-close" className="text-xs">Generar y enviar reporte al cerrar periodo</Label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={saveConfig} disabled={savingConfig} variant="outline" size="sm">
+                  {savingConfig ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Guardar Config
+                </Button>
+                <Button onClick={generatePeriods} disabled={generatingPeriods} variant="premium" size="sm">
+                  {generatingPeriods ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calendar className="h-4 w-4 mr-1" />}
+                  Generar Periodos
+                </Button>
+              </div>
+              {periods.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {periods.length} periodos totales · {openPeriods.length} abiertos · {closedPeriods.length} cerrados
+                </p>
+              )}
             </CardContent>
           </Card>
-        ))}
-      </section>
+
+          {/* System Status Panel */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Clock className="h-4 w-4 text-primary" />
+                Estado del Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Periodo Actual</p>
+                  {currentPeriod ? (
+                    <p className="font-medium text-sm mt-1">
+                      #{currentPeriod.period_number}: {fmtD(currentPeriod.period_start)} — {fmtD(currentPeriod.period_end)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">Sin periodos abiertos</p>
+                  )}
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Último Cierre</p>
+                  {lastClosed ? (
+                    <p className="font-medium text-sm mt-1">
+                      #{lastClosed.period_number} · {lastClosed.closed_at ? format(new Date(lastClosed.closed_at), "d MMM HH:mm", { locale: es }) : "—"}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">—</p>
+                  )}
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Último Reporte</p>
+                  {lastReport?.report_sent_at ? (
+                    <p className="font-medium text-sm mt-1">
+                      #{lastReport.period_number} · {format(new Date(lastReport.report_sent_at), "d MMM HH:mm", { locale: es })}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">—</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                Bolivia ahora: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })} (BOT UTC-4)
+              </div>
+              <Button
+                onClick={() => runSystemProcesses(false)}
+                disabled={runningSystem || selectedCampaign.status !== "active"}
+                variant="premium"
+              >
+                {runningSystem ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                Ejecutar Procesos del Sistema
+              </Button>
+              {selectedCampaign.status !== "active" && (
+                <p className="text-xs text-warning flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  La campaña no está activa. Los procesos están deshabilitados.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Periods List */}
+          {periods.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-display">Periodos ({periods.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {periods.map((p) => (
+                    <div
+                      key={p.id}
+                      className={`flex items-center justify-between p-2.5 rounded-lg border text-sm ${
+                        p.status === "open"
+                          ? "bg-success/5 border-success/20"
+                          : "bg-muted/20 border-border/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-muted-foreground">#{p.period_number}</span>
+                        <span className="font-medium">{fmtD(p.period_start)} — {fmtD(p.period_end)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {p.settlement_generated_at && (
+                          <Badge variant="outline" className="text-[9px]">Liquidado</Badge>
+                        )}
+                        {p.report_sent_at && (
+                          <Badge variant="outline" className="text-[9px]">Reportado</Badge>
+                        )}
+                        <Badge variant={p.status === "open" ? "default" : "secondary"} className="text-[10px]">
+                          {p.status === "open" ? "Abierto" : "Cerrado"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
 
       {/* Cities Management */}
       <Card>
@@ -235,17 +583,13 @@ export default function ConfigurationPage() {
                 <span className={`text-[13px] font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
                   {city.name}
                 </span>
-                <Switch
-                  checked={city.is_active}
-                  onCheckedChange={() => toggleCity(city)}
-                />
+                <Switch checked={city.is_active} onCheckedChange={() => toggleCity(city)} />
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* City Groups */}
       <CityGroupsSection />
 
       {/* Gemini API Key */}
@@ -320,31 +664,28 @@ export default function ConfigurationPage() {
         </div>
       </section>
 
-      {/* Cron Jobs Info */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-display flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            Tareas Programadas (Cron)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2.5">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-            <div>
-              <p className="font-medium text-[13px]">Cierre Semanal</p>
-              <p className="text-[11px] text-muted-foreground">Lunes 23:59 BOT — Cierra ventas pendientes de la semana anterior</p>
+      {/* Close Campaign Dialog */}
+      <Dialog open={closeDialog} onOpenChange={setCloseDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Cerrar Campaña</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Esto bloqueará el registro de nuevas ventas. Los periodos abiertos se cerrarán automáticamente.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Razón (opcional)</Label>
+              <Input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="Fin de temporada..." />
             </div>
-            <Badge variant="outline" className="font-mono text-[10px]">weekly-close</Badge>
           </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-            <div>
-              <p className="font-medium text-[13px]">Reporte Semanal</p>
-              <p className="text-[11px] text-muted-foreground">Martes 09:00 BOT — Genera resumen semanal por ciudad</p>
-            </div>
-            <Badge variant="outline" className="font-mono text-[10px]">weekly-report</Badge>
-          </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDialog(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={closeCampaign} disabled={closingCampaign}>
+              {closingCampaign && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Confirmar Cierre
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
