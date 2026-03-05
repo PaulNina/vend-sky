@@ -494,70 +494,26 @@ export default function ConfigurationPage() {
                   {periods.length} periodos totales · {openPeriods.length} abiertos · {closedPeriods.length} cerrados
                 </p>
               )}
+              <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" />
+                  Bolivia: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => runSystemProcesses(false)}
+                  disabled={runningSystem || selectedCampaign.status !== "active"}
+                >
+                  {runningSystem ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+                  Ejecutar manualmente
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
-          {/* System Status Panel */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2 font-display">
-                <Clock className="h-4 w-4 text-primary" />
-                Estado del Sistema
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Periodo Actual</p>
-                  {currentPeriod ? (
-                    <p className="font-medium text-sm mt-1">
-                      #{currentPeriod.period_number}: {fmtD(currentPeriod.period_start)} — {fmtD(currentPeriod.period_end)}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground mt-1">Sin periodos abiertos</p>
-                  )}
-                </div>
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Último Cierre</p>
-                  {lastClosed ? (
-                    <p className="font-medium text-sm mt-1">
-                      #{lastClosed.period_number} · {lastClosed.closed_at ? format(new Date(lastClosed.closed_at), "d MMM HH:mm", { locale: es }) : "—"}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground mt-1">—</p>
-                  )}
-                </div>
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Último Reporte</p>
-                  {lastReport?.report_sent_at ? (
-                    <p className="font-medium text-sm mt-1">
-                      #{lastReport.period_number} · {format(new Date(lastReport.report_sent_at), "d MMM HH:mm", { locale: es })}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground mt-1">—</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />
-                Bolivia ahora: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })} (BOT UTC-4)
-              </div>
-              <Button
-                onClick={() => runSystemProcesses(false)}
-                disabled={runningSystem || selectedCampaign.status !== "active"}
-                variant="premium"
-              >
-                {runningSystem ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-                Ejecutar Procesos del Sistema
-              </Button>
-              {selectedCampaign.status !== "active" && (
-                <p className="text-xs text-warning flex items-center gap-1">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  La campaña no está activa. Los procesos están deshabilitados.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Periods List merged with status info */}
 
           {/* Periods List */}
           {periods.length > 0 && (
