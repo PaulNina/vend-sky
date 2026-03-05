@@ -8,17 +8,78 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
   Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
   Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap,
-  Play, AlertTriangle, CheckCircle2, Settings, XCircle
+  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCities, type City } from "@/hooks/useCities";
 import CityGroupsSection from "@/components/admin/CityGroupsSection";
+import * as XLSX from "xlsx";
+
+// --- Backup helpers ---
+
+const BACKUP_TABLES = [
+  { key: "campaigns", label: "Campañas" },
+  { key: "campaign_periods", label: "Periodos de Campaña" },
+  { key: "products", label: "Productos" },
+  { key: "serials", label: "Seriales" },
+  { key: "vendors", label: "Vendedores" },
+  { key: "sales", label: "Ventas" },
+  { key: "sale_attachments", label: "Adjuntos de Venta" },
+  { key: "reviews", label: "Revisiones" },
+  { key: "commission_payments", label: "Pagos de Comisión" },
+  { key: "cities", label: "Ciudades" },
+  { key: "city_groups", label: "Grupos de Ciudad" },
+  { key: "city_group_members", label: "Miembros de Grupo" },
+  { key: "report_recipients", label: "Destinatarios de Reporte" },
+  { key: "restricted_serials", label: "Seriales Restringidos" },
+  { key: "user_profiles", label: "Perfiles de Usuario" },
+  { key: "user_roles", label: "Roles de Usuario" },
+  { key: "app_settings", label: "Configuración" },
+  { key: "email_templates", label: "Plantillas de Email" },
+  { key: "notifications", label: "Notificaciones" },
+  { key: "admin_audit_logs", label: "Logs de Auditoría" },
+  { key: "supervisor_audits", label: "Auditorías de Supervisor" },
+  { key: "vendor_blocks", label: "Bloqueos de Vendedor" },
+  { key: "vendor_store_history", label: "Historial de Tienda" },
+] as const;
+
+type BackupTableKey = typeof BACKUP_TABLES[number]["key"];
+
+async function fetchAllRows(table: string): Promise<Record<string, any>[]> {
+  const PAGE_SIZE = 1000;
+  let allRows: Record<string, any>[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await (supabase.from(table as any) as any)
+      .select("*")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Error en ${table}: ${error.message}`);
+    const rows = data || [];
+    allRows = allRows.concat(rows);
+    hasMore = rows.length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
+
+  return allRows;
+}
+
+async function fetchTableCount(table: string): Promise<number> {
+  const { count, error } = await (supabase.from(table as any) as any)
+    .select("*", { count: "exact", head: true });
+  if (error) return 0;
+  return count || 0;
+}
+
+// --- Interfaces ---
 
 interface CampaignFull {
   id: string;
@@ -72,6 +133,12 @@ export default function ConfigurationPage() {
   const [closeReason, setCloseReason] = useState("");
   const [closingCampaign, setClosingCampaign] = useState(false);
 
+  // Backup state
+  const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
+  const [loadingCounts, setLoadingCounts] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
+  const [exportingTable, setExportingTable] = useState<string | null>(null);
+
   // Period config form
   const [periodMode, setPeriodMode] = useState("WEEKLY");
   const [customDays, setCustomDays] = useState<number>(14);
@@ -102,7 +169,6 @@ export default function ConfigurationPage() {
       setGeminiKeyExists(true);
       setGeminiKey(settingRes.data.value);
     }
-    // Auto-select first active campaign
     const active = camps.find((c) => c.status === "active") || camps[0];
     if (active) {
       setSelectedCampaignId(active.id);
@@ -137,7 +203,6 @@ export default function ConfigurationPage() {
     setPeriods((data || []) as CampaignPeriod[]);
   };
 
-  // Auto-trigger system runner once per session per campaign per day
   useEffect(() => {
     if (!selectedCampaign || selectedCampaign.status !== "active") return;
     const key = `system_run_${selectedCampaign.id}_${new Date().toISOString().split("T")[0]}`;
@@ -194,10 +259,8 @@ export default function ConfigurationPage() {
       default: intervalDays = 7;
     }
 
-    // Generate periods
     const newPeriods: { period_number: number; period_start: string; period_end: string }[] = [];
     let cursor = new Date(anchor);
-    // Align cursor to start_date if anchor is before
     while (cursor < start) cursor.setDate(cursor.getDate() + intervalDays);
     if (cursor > start) cursor = new Date(start);
 
@@ -212,14 +275,12 @@ export default function ConfigurationPage() {
       cursor.setDate(cursor.getDate() + intervalDays);
     }
 
-    // Delete only OPEN periods, keep CLOSED
     await supabase
       .from("campaign_periods")
       .delete()
       .eq("campaign_id", selectedCampaign.id)
       .eq("status", "open");
 
-    // Get existing closed periods to avoid conflicts
     const { data: closedPeriods } = await supabase
       .from("campaign_periods")
       .select("period_number, period_start, period_end")
@@ -360,6 +421,73 @@ export default function ConfigurationPage() {
     setSavingKey(false);
   };
 
+  // --- Backup functions ---
+
+  const loadTableCounts = async () => {
+    setLoadingCounts(true);
+    const results: Record<string, number> = {};
+    // Fetch counts in parallel batches of 6
+    for (let i = 0; i < BACKUP_TABLES.length; i += 6) {
+      const batch = BACKUP_TABLES.slice(i, i + 6);
+      const batchResults = await Promise.all(
+        batch.map((t) => fetchTableCount(t.key))
+      );
+      batch.forEach((t, idx) => {
+        results[t.key] = batchResults[idx];
+      });
+    }
+    setTableCounts(results);
+    setLoadingCounts(false);
+  };
+
+  const exportSingleTable = async (tableKey: string, label: string) => {
+    setExportingTable(tableKey);
+    try {
+      const rows = await fetchAllRows(tableKey);
+      if (rows.length === 0) {
+        toast({ title: "Sin datos", description: `La tabla ${label} está vacía.` });
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, label.substring(0, 31));
+      XLSX.writeFile(wb, `backup_${tableKey}_${new Date().toISOString().split("T")[0]}.xlsx`);
+      toast({ title: "Exportado", description: `${rows.length} registros de ${label}.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setExportingTable(null);
+    }
+  };
+
+  const exportAllTables = async () => {
+    setExportingAll(true);
+    try {
+      const wb = XLSX.utils.book_new();
+      let totalRows = 0;
+
+      for (const table of BACKUP_TABLES) {
+        try {
+          const rows = await fetchAllRows(table.key);
+          const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ "sin_datos": "" }]);
+          XLSX.utils.book_append_sheet(wb, ws, table.label.substring(0, 31));
+          totalRows += rows.length;
+        } catch (err: any) {
+          // Add error sheet
+          const ws = XLSX.utils.json_to_sheet([{ error: err.message }]);
+          XLSX.utils.book_append_sheet(wb, ws, table.label.substring(0, 31));
+        }
+      }
+
+      XLSX.writeFile(wb, `backup_completo_${new Date().toISOString().split("T")[0]}.xlsx`);
+      toast({ title: "Backup completo", description: `${totalRows.toLocaleString()} registros exportados en ${BACKUP_TABLES.length} tablas.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   // Bolivia week info
   const now = new Date();
   const boliviaOffset = -4 * 60;
@@ -368,9 +496,9 @@ export default function ConfigurationPage() {
 
   // Period status helpers
   const openPeriods = periods.filter((p) => p.status === "open");
-  const closedPeriods = periods.filter((p) => p.status === "closed");
+  const closedPeriods2 = periods.filter((p) => p.status === "closed");
   const currentPeriod = openPeriods[0];
-  const lastClosed = closedPeriods[closedPeriods.length - 1];
+  const lastClosed = closedPeriods2[closedPeriods2.length - 1];
   const lastSettlement = [...periods].reverse().find((p) => p.settlement_generated_at);
   const lastReport = [...periods].reverse().find((p) => p.report_sent_at);
 
@@ -395,272 +523,352 @@ export default function ConfigurationPage() {
     { label: "Correos por Ciudad", href: "/admin/correos-ciudad", icon: Mail, count: counts.recipients },
   ];
 
+  const totalRecords = Object.values(tableCounts).reduce((a, b) => a + b, 0);
+
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold font-display tracking-tight">Configuración del Sistema</h1>
         <p className="text-sm text-muted-foreground mt-1">Periodicidad de cierre, procesos del sistema y ajustes generales</p>
       </div>
 
-      {/* Campaign Selector */}
-      <Card>
-        <CardContent className="py-4 px-5">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-1 space-y-1.5">
-              <Label className="text-xs">Campaña</Label>
-              <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar campaña" /></SelectTrigger>
-                <SelectContent>
-                  {campaigns.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} ({c.status === "active" ? "Activa" : c.status === "closed" ? "Cerrada" : "Borrador"})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {selectedCampaign && (
-              <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                {statusBadge(selectedCampaign.status)}
-                <span className="text-xs text-muted-foreground">
-                  {fmtD(selectedCampaign.start_date)} — {fmtD(selectedCampaign.end_date)}
-                </span>
-                {selectedCampaign.status === "active" && (
-                  <Button variant="destructive" size="sm" onClick={() => setCloseDialog(true)}>
-                    <XCircle className="h-3.5 w-3.5 mr-1" /> Cerrar
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-xs">
+          <TabsTrigger value="general" className="flex items-center gap-1.5">
+            <Settings className="h-3.5 w-3.5" />
+            General
+          </TabsTrigger>
+          <TabsTrigger value="backup" className="flex items-center gap-1.5" onClick={() => { if (Object.keys(tableCounts).length === 0) loadTableCounts(); }}>
+            <HardDrive className="h-3.5 w-3.5" />
+            Backup
+          </TabsTrigger>
+        </TabsList>
 
-      {selectedCampaign && (
-        <>
-          {/* Period Configuration */}
+        <TabsContent value="general" className="space-y-8 mt-6">
+          {/* Campaign Selector */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2 font-display">
-                <Settings className="h-4 w-4 text-primary" />
-                Periodicidad de Cierre / Liquidación
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Modo de periodo</Label>
-                  <Select value={periodMode} onValueChange={setPeriodMode}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+            <CardContent className="py-4 px-5">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-xs">Campaña</Label>
+                  <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar campaña" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="WEEKLY">Semanal (7 días)</SelectItem>
-                      <SelectItem value="BIWEEKLY">Quincenal (14 días)</SelectItem>
-                      <SelectItem value="MONTHLY">Mensual (30 días)</SelectItem>
-                      <SelectItem value="CUSTOM_DAYS">Personalizado (N días)</SelectItem>
+                      {campaigns.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.status === "active" ? "Activa" : c.status === "closed" ? "Cerrada" : "Borrador"})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                {periodMode === "CUSTOM_DAYS" && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Cada N días</Label>
-                    <Input type="number" min={1} max={365} value={customDays} onChange={(e) => setCustomDays(parseInt(e.target.value) || 7)} className="text-sm" />
+                {selectedCampaign && (
+                  <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                    {statusBadge(selectedCampaign.status)}
+                    <span className="text-xs text-muted-foreground">
+                      {fmtD(selectedCampaign.start_date)} — {fmtD(selectedCampaign.end_date)}
+                    </span>
+                    {selectedCampaign.status === "active" && (
+                      <Button variant="destructive" size="sm" onClick={() => setCloseDialog(true)}>
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Cerrar
+                      </Button>
+                    )}
                   </div>
                 )}
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Fecha ancla</Label>
-                  <Input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="text-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Hora de cierre (Bolivia)</Label>
-                  <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch checked={reportOnClose} onCheckedChange={setReportOnClose} id="report-on-close" />
-                <Label htmlFor="report-on-close" className="text-xs">Generar y enviar reporte al cerrar periodo</Label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={saveConfig} disabled={savingConfig} variant="outline" size="sm">
-                  {savingConfig ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                  Guardar Config
-                </Button>
-                <Button onClick={generatePeriods} disabled={generatingPeriods} variant="premium" size="sm">
-                  {generatingPeriods ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calendar className="h-4 w-4 mr-1" />}
-                  Generar Periodos
-                </Button>
-              </div>
-              {periods.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {periods.length} periodos totales · {openPeriods.length} abiertos · {closedPeriods.length} cerrados
-                </p>
-              )}
-              <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />
-                  Bolivia: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-7"
-                  onClick={() => runSystemProcesses(false)}
-                  disabled={runningSystem || selectedCampaign.status !== "active"}
-                >
-                  {runningSystem ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-                  Ejecutar manualmente
-                </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Periods List merged with status info */}
-
-          {/* Periods List */}
-          {periods.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-display">Periodos ({periods.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                  {periods.map((p) => (
-                    <div
-                      key={p.id}
-                      className={`flex items-center justify-between p-2.5 rounded-lg border text-sm ${
-                        p.status === "open"
-                          ? "bg-success/5 border-success/20"
-                          : "bg-muted/20 border-border/50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground">#{p.period_number}</span>
-                        <span className="font-medium">{fmtD(p.period_start)} — {fmtD(p.period_end)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {p.settlement_generated_at && (
-                          <Badge variant="outline" className="text-[9px]">Liquidado</Badge>
-                        )}
-                        {p.report_sent_at && (
-                          <Badge variant="outline" className="text-[9px]">Reportado</Badge>
-                        )}
-                        <Badge variant={p.status === "open" ? "default" : "secondary"} className="text-[10px]">
-                          {p.status === "open" ? "Abierto" : "Cerrado"}
-                        </Badge>
-                      </div>
+          {selectedCampaign && (
+            <>
+              {/* Period Configuration */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 font-display">
+                    <Settings className="h-4 w-4 text-primary" />
+                    Periodicidad de Cierre / Liquidación
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Modo de periodo</Label>
+                      <Select value={periodMode} onValueChange={setPeriodMode}>
+                        <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WEEKLY">Semanal (7 días)</SelectItem>
+                          <SelectItem value="BIWEEKLY">Quincenal (14 días)</SelectItem>
+                          <SelectItem value="MONTHLY">Mensual (30 días)</SelectItem>
+                          <SelectItem value="CUSTOM_DAYS">Personalizado (N días)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-
-      {/* Cities Management */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2 font-display">
-            <MapPin className="h-4 w-4 text-primary" />
-            Ciudades Habilitadas
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-4">
-            Las ciudades deshabilitadas no aparecerán en los formularios de registro ni de ventas.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            {cities.map((city) => (
-              <div
-                key={city.id}
-                className={`flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 ${
-                  city.is_active
-                    ? "bg-success/5 border-success/20 hover:border-success/40"
-                    : "bg-muted/30 border-border/50 hover:border-border"
-                }`}
-              >
-                <span className={`text-[13px] font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
-                  {city.name}
-                </span>
-                <Switch checked={city.is_active} onCheckedChange={() => toggleCity(city)} />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <CityGroupsSection />
-
-      {/* Gemini API Key */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2 font-display">
-            <Key className="h-4 w-4 text-primary" />
-            API Key de Google Gemini
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Configura tu propia API key de Google Gemini para la validación IA de fechas. Si no se configura, se usará Lovable AI como respaldo.
-          </p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                type={showKey ? "text" : "password"}
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <Button onClick={saveGeminiKey} disabled={savingKey} size="sm" variant="premium">
-              {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-              Guardar
-            </Button>
-          </div>
-          {geminiKeyExists && (
-            <Badge variant="outline" className="text-success border-success/40 bg-success/5">
-              API Key configurada
-            </Badge>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Quick Links */}
-      <section>
-        <h2 className="text-base font-semibold font-display mb-3 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-primary" />
-          Accesos Rápidos
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {quickLinks.map((link) => (
-            <Link key={link.href} to={link.href}>
-              <Card className="hover:border-primary/30 hover:bg-card/80 transition-all duration-200 cursor-pointer group">
-                <CardContent className="py-3.5 px-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <link.icon className="h-4 w-4 text-primary" />
+                    {periodMode === "CUSTOM_DAYS" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Cada N días</Label>
+                        <Input type="number" min={1} max={365} value={customDays} onChange={(e) => setCustomDays(parseInt(e.target.value) || 7)} className="text-sm" />
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Fecha ancla</Label>
+                      <Input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="text-sm" />
                     </div>
-                    <div>
-                      <p className="font-medium text-[13px]">{link.label}</p>
-                      {link.count !== undefined && (
-                        <p className="text-[11px] text-muted-foreground">{link.count} registros</p>
-                      )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Hora de cierre (Bolivia)</Label>
+                      <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="text-sm" />
                     </div>
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                  <div className="flex items-center gap-3">
+                    <Switch checked={reportOnClose} onCheckedChange={setReportOnClose} id="report-on-close" />
+                    <Label htmlFor="report-on-close" className="text-xs">Generar y enviar reporte al cerrar periodo</Label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={saveConfig} disabled={savingConfig} variant="outline" size="sm">
+                      {savingConfig ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                      Guardar Config
+                    </Button>
+                    <Button onClick={generatePeriods} disabled={generatingPeriods} variant="premium" size="sm">
+                      {generatingPeriods ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calendar className="h-4 w-4 mr-1" />}
+                      Generar Periodos
+                    </Button>
+                  </div>
+                  {periods.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {periods.length} periodos totales · {openPeriods.length} abiertos · {closedPeriods2.length} cerrados
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      Bolivia: {format(boliviaNow, "EEEE d 'de' MMMM, HH:mm", { locale: es })}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => runSystemProcesses(false)}
+                      disabled={runningSystem || selectedCampaign.status !== "active"}
+                    >
+                      {runningSystem ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+                      Ejecutar manualmente
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
+
+              {/* Periods List */}
+              {periods.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base font-display">Periodos ({periods.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                      {periods.map((p) => (
+                        <div
+                          key={p.id}
+                          className={`flex items-center justify-between p-2.5 rounded-lg border text-sm ${
+                            p.status === "open"
+                              ? "bg-success/5 border-success/20"
+                              : "bg-muted/20 border-border/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">#{p.period_number}</span>
+                            <span className="font-medium">{fmtD(p.period_start)} — {fmtD(p.period_end)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {p.settlement_generated_at && (
+                              <Badge variant="outline" className="text-[9px]">Liquidado</Badge>
+                            )}
+                            {p.report_sent_at && (
+                              <Badge variant="outline" className="text-[9px]">Reportado</Badge>
+                            )}
+                            <Badge variant={p.status === "open" ? "default" : "secondary"} className="text-[10px]">
+                              {p.status === "open" ? "Abierto" : "Cerrado"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Cities Management */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <MapPin className="h-4 w-4 text-primary" />
+                Ciudades Habilitadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-4">
+                Las ciudades deshabilitadas no aparecerán en los formularios de registro ni de ventas.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {cities.map((city) => (
+                  <div
+                    key={city.id}
+                    className={`flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 ${
+                      city.is_active
+                        ? "bg-success/5 border-success/20 hover:border-success/40"
+                        : "bg-muted/30 border-border/50 hover:border-border"
+                    }`}
+                  >
+                    <span className={`text-[13px] font-medium ${!city.is_active ? "text-muted-foreground line-through" : ""}`}>
+                      {city.name}
+                    </span>
+                    <Switch checked={city.is_active} onCheckedChange={() => toggleCity(city)} />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <CityGroupsSection />
+
+          {/* Gemini API Key */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Key className="h-4 w-4 text-primary" />
+                API Key de Google Gemini
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Configura tu propia API key de Google Gemini para la validación IA de fechas. Si no se configura, se usará Lovable AI como respaldo.
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showKey ? "text" : "password"}
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <Button onClick={saveGeminiKey} disabled={savingKey} size="sm" variant="premium">
+                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Guardar
+                </Button>
+              </div>
+              {geminiKeyExists && (
+                <Badge variant="outline" className="text-success border-success/40 bg-success/5">
+                  API Key configurada
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Links */}
+          <section>
+            <h2 className="text-base font-semibold font-display mb-3 flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Accesos Rápidos
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {quickLinks.map((link) => (
+                <Link key={link.href} to={link.href}>
+                  <Card className="hover:border-primary/30 hover:bg-card/80 transition-all duration-200 cursor-pointer group">
+                    <CardContent className="py-3.5 px-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <link.icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-[13px]">{link.label}</p>
+                          {link.count !== undefined && (
+                            <p className="text-[11px] text-muted-foreground">{link.count} registros</p>
+                          )}
+                        </div>
+                      </div>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="backup" className="space-y-6 mt-6">
+          {/* Backup Header */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Database className="h-4 w-4 text-primary" />
+                Backup del Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Exporta todos los datos del sistema en un archivo Excel con una hoja por cada tabla.
+                Las tablas con muchos registros se descargan con paginación automática.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={exportAllTables} disabled={exportingAll} variant="premium" size="default">
+                  {exportingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                  {exportingAll ? "Exportando..." : "Exportar Todo"}
+                </Button>
+                <Button onClick={loadTableCounts} disabled={loadingCounts} variant="outline" size="sm">
+                  {loadingCounts ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-1" />}
+                  Actualizar conteos
+                </Button>
+                {totalRecords > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {totalRecords.toLocaleString()} registros totales
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tables Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {BACKUP_TABLES.map((table) => {
+              const count = tableCounts[table.key];
+              const isExporting = exportingTable === table.key;
+              return (
+                <Card key={table.key} className="hover:border-primary/20 transition-colors">
+                  <CardContent className="py-3.5 px-4 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium truncate">{table.label}</p>
+                      <p className="text-[11px] text-muted-foreground font-mono">{table.key}</p>
+                      {count !== undefined && (
+                        <Badge variant="outline" className="mt-1 text-[10px]">
+                          {count.toLocaleString()} registros
+                        </Badge>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => exportSingleTable(table.key, table.label)}
+                      disabled={isExporting || exportingAll}
+                    >
+                      {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Close Campaign Dialog */}
       <Dialog open={closeDialog} onOpenChange={setCloseDialog}>
