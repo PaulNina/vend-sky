@@ -14,7 +14,7 @@ import { Link } from "react-router-dom";
 import {
   Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
   Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap,
-  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive
+  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive, Globe
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
