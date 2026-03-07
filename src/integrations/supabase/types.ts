@@ -132,6 +132,7 @@ export type Database = {
           report_on_close: boolean
           report_recipients_mode: string
           require_vendor_approval: boolean
+          slug: string | null
           start_date: string
           status: string
           subtitle: string | null
@@ -158,6 +159,7 @@ export type Database = {
           report_on_close?: boolean
           report_recipients_mode?: string
           require_vendor_approval?: boolean
+          slug?: string | null
           start_date: string
           status?: string
           subtitle?: string | null
@@ -184,6 +186,7 @@ export type Database = {
           report_on_close?: boolean
           report_recipients_mode?: string
           require_vendor_approval?: boolean
+          slug?: string | null
           start_date?: string
           status?: string
           subtitle?: string | null
