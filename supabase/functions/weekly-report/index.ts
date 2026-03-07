@@ -5,6 +5,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function callSendEmail(supabaseUrl: string, serviceKey: string, payload: { to: string[]; subject: string; html: string; from_name?: string }): Promise<boolean> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch (e) {
+    console.error("callSendEmail error:", e);
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -13,16 +31,15 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get sender email from app_settings, fallback to default
+    // Get sender name from app_settings
     const { data: senderSetting } = await supabase
       .from("app_settings")
       .select("value")
       .eq("key", "report_sender_email")
       .maybeSingle();
-    const senderEmail = senderSetting?.value || "reportes@bonovendedor.com";
+    const senderName = senderSetting?.value || "Bono Vendedor SKYWORTH";
 
     // Get active campaigns
     const { data: campaigns } = await supabase
@@ -56,7 +73,6 @@ Deno.serve(async (req) => {
     const emailsSent: string[] = [];
 
     for (const campaign of campaigns) {
-      // Get recipients for this campaign
       const { data: recipients } = await supabase
         .from("report_recipients")
         .select("email, city")
@@ -64,14 +80,13 @@ Deno.serve(async (req) => {
 
       if (!recipients || recipients.length === 0) continue;
 
-      // Get ALL approved sales for this campaign
       const { data: allSales } = await supabase
         .from("sales")
         .select("week_start, week_end, bonus_bs, points, city, status")
         .eq("campaign_id", campaign.id)
         .eq("status", "approved");
 
-      // --- Build weekly summary (all cities) ---
+      // Build weekly summary
       const weekMap = new Map<string, { units: number; bonusBs: number }>();
       if (allSales) {
         for (const s of allSales) {
@@ -90,7 +105,6 @@ Deno.serve(async (req) => {
           return { weekNumber: i + 1, start, end, range: `Del ${formatDate(start)} al ${formatDate(end)}`, ...val };
         });
 
-      // Add accumulation
       let accUnits = 0;
       let accBs = 0;
       const weeksWithAcc = weeks.map((w) => {
@@ -99,11 +113,10 @@ Deno.serve(async (req) => {
         return { ...w, accUnits, accBs };
       });
 
-      // --- Build city/group summary ---
+      // Build city/group summary
       const citySummary: { name: string; units: number; bonusBs: number }[] = [];
 
       if (groupsWithMembers.length > 0) {
-        // Use configured groups
         for (const group of groupsWithMembers) {
           const groupSales = (allSales || []).filter((s) => group.cities.includes(s.city));
           citySummary.push({
@@ -112,7 +125,6 @@ Deno.serve(async (req) => {
             bonusBs: groupSales.reduce((sum, s) => sum + Number(s.bonus_bs), 0),
           });
         }
-        // Add ungrouped cities
         const allGroupedCities = groupsWithMembers.flatMap((g) => g.cities);
         const ungroupedSales = (allSales || []).filter((s) => !allGroupedCities.includes(s.city));
         const ungroupedCities = [...new Set(ungroupedSales.map((s) => s.city))];
@@ -121,7 +133,6 @@ Deno.serve(async (req) => {
           citySummary.push({ name: city, units: cs.length, bonusBs: cs.reduce((sum, s) => sum + Number(s.bonus_bs), 0) });
         }
       } else {
-        // No groups configured, use individual cities
         const cityMap = new Map<string, { units: number; bonusBs: number }>();
         for (const s of allSales || []) {
           const existing = cityMap.get(s.city) || { units: 0, bonusBs: 0 };
@@ -147,37 +158,22 @@ Deno.serve(async (req) => {
 
       results.push(reportData);
 
-      // --- Send email via Resend ---
-      if (RESEND_API_KEY) {
-        const allEmails = [...new Set(recipients.map((r) => r.email))];
+      // Send email via send-email function
+      const allEmails = [...new Set(recipients.map((r) => r.email))];
+      const html = buildReportHtml(campaign.name, weeksWithAcc, citySummary, totalUnits, totalBs);
 
-        // Build HTML table email
-        const html = buildReportHtml(campaign.name, weeksWithAcc, citySummary, totalUnits, totalBs);
-
-        try {
-          const resendRes = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${RESEND_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: senderEmail,
-              to: allEmails,
-              subject: `Reporte Semanal - ${campaign.name}`,
-              html,
-            }),
-          });
-
-          if (!resendRes.ok) {
-            const errText = await resendRes.text();
-            console.error("Resend error:", resendRes.status, errText);
-          } else {
-            emailsSent.push(...allEmails);
-          }
-        } catch (emailErr) {
-          console.error("Email send error:", emailErr);
+      try {
+        const sent = await callSendEmail(supabaseUrl, supabaseKey, {
+          to: allEmails,
+          subject: `Reporte Semanal - ${campaign.name}`,
+          html,
+          from_name: senderName,
+        });
+        if (sent) {
+          emailsSent.push(...allEmails);
         }
+      } catch (emailErr) {
+        console.error("Email send error:", emailErr);
       }
     }
 

@@ -139,6 +139,19 @@ export default function ConfigurationPage() {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingTable, setExportingTable] = useState<string | null>(null);
 
+  // Email config state
+  const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpFromEmail, setSmtpFromEmail] = useState("");
+  const [smtpSecure, setSmtpSecure] = useState(true);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+
   // Period config form
   const [periodMode, setPeriodMode] = useState("WEEKLY");
   const [customDays, setCustomDays] = useState<number>(14);
@@ -149,13 +162,16 @@ export default function ConfigurationPage() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes] = await Promise.all([
+    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes, emailSettingsRes] = await Promise.all([
       supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("serials").select("id", { count: "exact", head: true }).eq("status", "available"),
       supabase.from("vendors").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("report_recipients").select("id", { count: "exact", head: true }),
       supabase.from("app_settings").select("value").eq("key", "gemini_api_key").maybeSingle(),
+      supabase.from("app_settings").select("key, value").in("key", [
+        "email_provider", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email", "smtp_secure"
+      ]),
     ]);
     const camps = (campRes.data || []) as CampaignFull[];
     setCampaigns(camps);
@@ -169,6 +185,19 @@ export default function ConfigurationPage() {
       setGeminiKeyExists(true);
       setGeminiKey(settingRes.data.value);
     }
+    // Load email settings
+    const emailMap: Record<string, string> = {};
+    for (const s of emailSettingsRes.data || []) {
+      emailMap[s.key] = s.value;
+    }
+    if (emailMap["email_provider"]) setEmailProvider(emailMap["email_provider"] as "resend" | "smtp");
+    if (emailMap["smtp_host"]) setSmtpHost(emailMap["smtp_host"]);
+    if (emailMap["smtp_port"]) setSmtpPort(emailMap["smtp_port"]);
+    if (emailMap["smtp_user"]) setSmtpUser(emailMap["smtp_user"]);
+    if (emailMap["smtp_password"]) setSmtpPassword(emailMap["smtp_password"]);
+    if (emailMap["smtp_from_email"]) setSmtpFromEmail(emailMap["smtp_from_email"]);
+    if (emailMap["smtp_secure"] !== undefined) setSmtpSecure(emailMap["smtp_secure"] === "true");
+
     const active = camps.find((c) => c.status === "active") || camps[0];
     if (active) {
       setSelectedCampaignId(active.id);
@@ -421,6 +450,66 @@ export default function ConfigurationPage() {
     setSavingKey(false);
   };
 
+  // --- Email config functions ---
+
+  const saveEmailConfig = async () => {
+    setSavingEmail(true);
+    const settings = [
+      { key: "email_provider", value: emailProvider },
+      { key: "smtp_host", value: smtpHost },
+      { key: "smtp_port", value: smtpPort },
+      { key: "smtp_user", value: smtpUser },
+      { key: "smtp_password", value: smtpPassword },
+      { key: "smtp_from_email", value: smtpFromEmail },
+      { key: "smtp_secure", value: smtpSecure ? "true" : "false" },
+    ];
+
+    for (const s of settings) {
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert({ key: s.key, value: s.value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        setSavingEmail(false);
+        return;
+      }
+    }
+    toast({ title: "Configuración de email guardada" });
+    setSavingEmail(false);
+  };
+
+  const sendTestEmail = async () => {
+    if (!testEmailAddress.trim()) {
+      toast({ title: "Ingresa un email de prueba", variant: "destructive" });
+      return;
+    }
+    setTestingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: {
+          to: [testEmailAddress.trim()],
+          subject: "Prueba de correo - Bono Vendedor SKYWORTH",
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#c8a45a;">✅ Correo de prueba exitoso</h2>
+            <p>Si puedes leer este mensaje, la configuración de correo electrónico está funcionando correctamente.</p>
+            <p style="color:#999;font-size:12px;margin-top:20px;">Proveedor: ${emailProvider.toUpperCase()}</p>
+            <p style="color:#999;font-size:12px;">— Equipo Skyworth</p>
+          </div>`,
+          from_name: "Skyworth Bonos",
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast({ title: "Email de prueba enviado", description: `Enviado a ${testEmailAddress} vía ${data.provider?.toUpperCase() || emailProvider.toUpperCase()}` });
+      } else {
+        toast({ title: "Error al enviar", description: "Verifica la configuración del proveedor.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setTestingEmail(false);
+  };
+
   // --- Backup functions ---
 
   const loadTableCounts = async () => {
@@ -533,10 +622,14 @@ export default function ConfigurationPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-xs">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="general" className="flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="email" className="flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            Email
           </TabsTrigger>
           <TabsTrigger value="backup" className="flex items-center gap-1.5" onClick={() => { if (Object.keys(tableCounts).length === 0) loadTableCounts(); }}>
             <HardDrive className="h-3.5 w-3.5" />
@@ -802,6 +895,148 @@ export default function ConfigurationPage() {
               ))}
             </div>
           </section>
+        </TabsContent>
+
+        {/* Email Configuration Tab */}
+        <TabsContent value="email" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Mail className="h-4 w-4 text-primary" />
+                Proveedor de Correo Electrónico
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-xs text-muted-foreground">
+                Configura cómo se envían los correos del sistema (reportes, notificaciones de pago, etc.).
+                Puedes usar <strong>Resend</strong> (API Key configurada como secreto del servidor) o un servidor <strong>SMTP</strong> propio.
+              </p>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Proveedor</Label>
+                <Select value={emailProvider} onValueChange={(v) => setEmailProvider(v as "resend" | "smtp")}>
+                  <SelectTrigger className="text-sm max-w-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="resend">Resend (API)</SelectItem>
+                    <SelectItem value="smtp">SMTP (Servidor propio)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {emailProvider === "resend" && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Resend usa la API Key configurada como secreto del servidor (<code className="text-[10px] bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code>).
+                    Para cambiarla, contacta al administrador del servidor.
+                  </p>
+                  <Badge variant="outline" className="text-success border-success/40 bg-success/5">
+                    API Key configurada en servidor
+                  </Badge>
+                </div>
+              )}
+
+              {emailProvider === "smtp" && (
+                <div className="space-y-4 rounded-lg border border-border/50 p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Servidor SMTP</Label>
+                      <Input
+                        value={smtpHost}
+                        onChange={(e) => setSmtpHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Puerto</Label>
+                      <Input
+                        value={smtpPort}
+                        onChange={(e) => setSmtpPort(e.target.value)}
+                        placeholder="587"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Usuario</Label>
+                      <Input
+                        value={smtpUser}
+                        onChange={(e) => setSmtpUser(e.target.value)}
+                        placeholder="usuario@dominio.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Contraseña</Label>
+                      <div className="relative">
+                        <Input
+                          type={showSmtpPassword ? "text" : "password"}
+                          value={smtpPassword}
+                          onChange={(e) => setSmtpPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="text-sm pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showSmtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Email remitente</Label>
+                      <Input
+                        value={smtpFromEmail}
+                        onChange={(e) => setSmtpFromEmail(e.target.value)}
+                        placeholder="noreply@empresa.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 pt-5">
+                      <Switch checked={smtpSecure} onCheckedChange={setSmtpSecure} id="smtp-secure" />
+                      <Label htmlFor="smtp-secure" className="text-xs">TLS / SSL</Label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button onClick={saveEmailConfig} disabled={savingEmail} variant="premium" size="sm">
+                  {savingEmail ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Guardar Configuración
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Test Email */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Zap className="h-4 w-4 text-primary" />
+                Enviar Correo de Prueba
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Envía un correo de prueba para verificar que la configuración del proveedor es correcta.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  className="text-sm max-w-xs"
+                />
+                <Button onClick={sendTestEmail} disabled={testingEmail} variant="outline" size="sm">
+                  {testingEmail ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                  Enviar Prueba
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="backup" className="space-y-6 mt-6">
