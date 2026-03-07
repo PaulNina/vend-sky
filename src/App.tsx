@@ -23,6 +23,7 @@ import RegisterSalePage from "@/pages/RegisterSalePage";
 import MySalesPage from "@/pages/MySalesPage";
 import RankingPage from "@/pages/RankingPage";
 import VendorProfilePage from "@/pages/VendorProfilePage";
+import InstallAppPage from "@/pages/InstallAppPage";
 
 // Admin pages
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/v/mis-ventas" element={<MySalesPage />} />
               <Route path="/v/ranking" element={<RankingPage />} />
               <Route path="/v/perfil" element={<VendorProfilePage />} />
+              <Route path="/v/instalar" element={<InstallAppPage />} />
             </Route>
 
             {/* Admin (protected) */}

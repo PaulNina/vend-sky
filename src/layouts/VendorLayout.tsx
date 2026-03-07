@@ -14,7 +14,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, UserCircle, Bell } from "lucide-react";
+import { LayoutDashboard, PlusCircle, List, Trophy, LogOut, UserCircle, Bell, Smartphone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +25,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches;
+
 const vendorNav = [
   { title: "Mi Panel", url: "/v", icon: LayoutDashboard, end: true },
   { title: "Registrar Venta", url: "/v/registrar-venta", icon: PlusCircle },
   { title: "Mis Ventas", url: "/v/mis-ventas", icon: List },
   { title: "Ranking", url: "/v/ranking", icon: Trophy },
   { title: "Mi Perfil", url: "/v/perfil", icon: UserCircle },
+  ...(!isStandalone() ? [{ title: "Instalar App", url: "/v/instalar", icon: Smartphone }] : []),
 ];
 
 function VendorSidebar() {
