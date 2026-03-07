@@ -231,9 +231,14 @@ export default function UsersRolesPage() {
         body: { target_user_id: deleteTarget.user_id, mode, force: hasHistory },
       });
 
-      if (res.error) throw new Error(res.error.message);
       const result = res.data;
-      if (!result.success) throw new Error(result.error);
+
+      if (res.error || !result?.success) {
+        const errorMsg = result?.error || res.error?.message || "Error desconocido";
+        toast({ title: "Error", description: errorMsg, variant: "destructive" });
+        setDeleteLoading(false);
+        return;
+      }
 
       toast({
         title: mode === "soft" ? "Usuario deshabilitado" : "Usuario eliminado",
@@ -244,7 +249,7 @@ export default function UsersRolesPage() {
       setDeleteDialog(false);
       load();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Error inesperado", variant: "destructive" });
     }
     setDeleteLoading(false);
   };
