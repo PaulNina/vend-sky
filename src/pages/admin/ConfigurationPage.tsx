@@ -902,6 +902,11 @@ export default function ConfigurationPage() {
           </section>
         </TabsContent>
 
+        {/* Landing Page Tab */}
+        <TabsContent value="landing" className="space-y-6 mt-6">
+          <LandingConfigSection />
+        </TabsContent>
+
         {/* Email Configuration Tab */}
         <TabsContent value="email" className="space-y-6 mt-6">
           <Card>
