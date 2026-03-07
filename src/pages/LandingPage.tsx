@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Trophy, UserCheck, BarChart3, Tv, Zap } from "lucide-react";
+import { Trophy, UserCheck, Tv, Zap, DollarSign, PartyPopper } from "lucide-react";
 import { motion } from "framer-motion";
 import skyworthTv from "@/assets/skyworth-tv-hero.png";
+import celebrationMoney from "@/assets/celebration-money.png";
+import { useEffect, useState } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -22,13 +24,101 @@ const scaleIn = {
   }),
 };
 
-const features = [
-  { icon: Tv, title: "Registra tu venta", desc: "Sube el serial del TV SKYWORTH vendido" },
+const steps = [
+  { icon: Tv, title: "Vende un TV SKYWORTH", desc: "Cada televisor vendido cuenta" },
   { icon: UserCheck, title: "Un operador valida", desc: "Tu venta es revisada y aprobada" },
-  { icon: Trophy, title: "Gana tu bono", desc: "Acumula puntos y recibe Bs cada semana" },
+  { icon: DollarSign, title: "Recibe tu bono en Bs", desc: "Dinero real cada semana" },
 ];
 
+/* Confetti / floating particles */
+function Confetti() {
+  const [particles] = useState(() =>
+    Array.from({ length: 18 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 4,
+      duration: 3 + Math.random() * 4,
+      size: 6 + Math.random() * 10,
+      color: ["hsl(43,96%,56%)", "hsl(35,100%,62%)", "hsl(152,60%,42%)", "hsl(0,72%,51%)", "hsl(210,40%,96%)"][
+        Math.floor(Math.random() * 5)
+      ],
+    }))
+  );
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-sm"
+          style={{
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * 0.6,
+            backgroundColor: p.color,
+            top: -20,
+          }}
+          animate={{
+            y: [0, 800],
+            x: [0, (Math.random() - 0.5) * 100],
+            rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
+            opacity: [1, 1, 0],
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* Floating coins */
+function FloatingCoins() {
+  const coins = Array.from({ length: 8 }, (_, i) => ({
+    id: i,
+    left: 10 + Math.random() * 80,
+    delay: Math.random() * 3,
+    duration: 2.5 + Math.random() * 2,
+  }));
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {coins.map((c) => (
+        <motion.div
+          key={c.id}
+          className="absolute text-primary"
+          style={{ left: `${c.left}%`, bottom: -30 }}
+          animate={{
+            y: [0, -600],
+            opacity: [0, 1, 1, 0],
+            scale: [0.5, 1, 0.8],
+          }}
+          transition={{
+            duration: c.duration,
+            delay: c.delay,
+            repeat: Infinity,
+            ease: "easeOut",
+          }}
+        >
+          <DollarSign className="h-5 w-5" />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export default function LandingPage() {
+  const [showBurst, setShowBurst] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowBurst(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
       {/* Header */}
@@ -52,57 +142,68 @@ export default function LandingPage() {
         </div>
       </motion.header>
 
-      {/* Hero with TV image */}
-      <section className="relative px-6 py-16 md:py-24">
+      {/* Hero */}
+      <section className="relative px-6 py-16 md:py-24 overflow-hidden">
+        <Confetti />
+        <FloatingCoins />
+
         {/* Glow effects */}
         <motion.div
-          className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-primary/5 blur-3xl"
+          className="absolute top-10 left-1/4 w-72 h-72 rounded-full bg-primary/8 blur-3xl"
           animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-primary/3 blur-3xl"
+          className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-success/5 blur-3xl"
           animate={{ x: [0, -20, 0], y: [0, 30, 0] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        <div className="relative max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+        <div className="relative max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           {/* Text */}
-          <div className="space-y-6 text-center md:text-left">
+          <div className="space-y-5 text-center md:text-left z-10">
             <motion.div
               variants={fadeUp} initial="hidden" animate="visible" custom={0}
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/30"
             >
               <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                <Zap className="h-4 w-4 text-primary" />
+                <PartyPopper className="h-4 w-4 text-primary" />
               </motion.div>
-              <span className="text-sm font-medium text-primary">Campaña activa</span>
+              <span className="text-sm font-medium text-primary">¡Campaña activa!</span>
             </motion.div>
 
             <motion.h2
               variants={fadeUp} initial="hidden" animate="visible" custom={1}
               className="text-3xl md:text-5xl font-extrabold leading-tight font-display"
             >
-              Vendé TVs{" "}
+              Vende TVs{" "}
               <span className="text-primary">SKYWORTH</span>
-              <br />y ganá bonos en Bs
+              <br />
+              <motion.span
+                className="inline-block"
+                animate={{ scale: [1, 1.04, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                ¡y gana dinero! 💰
+              </motion.span>
             </motion.h2>
 
             <motion.p
               variants={fadeUp} initial="hidden" animate="visible" custom={2}
               className="text-base text-muted-foreground max-w-md"
             >
-              Registra cada venta, un operador la valida y acumulás puntos que se convierten en efectivo cada semana.
+              Cada televisor que vendes se convierte en un bono en efectivo.
+              Registra tu venta, un operador la aprueba y el dinero es tuyo.
             </motion.p>
 
             <motion.div
               variants={fadeUp} initial="hidden" animate="visible" custom={3}
               className="flex flex-col sm:flex-row gap-3"
             >
-              <Button size="lg" className="shadow-gold" asChild>
+              <Button size="lg" variant="premium" className="text-base" asChild>
                 <Link to="/register">
                   <Zap className="h-5 w-5 mr-1" />
-                  Crear cuenta
+                  ¡Quiero ganar bonos!
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
@@ -111,54 +212,79 @@ export default function LandingPage() {
             </motion.div>
           </div>
 
-          {/* TV Image */}
+          {/* TV + celebration imagery */}
           <motion.div
-            initial={{ opacity: 0, x: 60 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="flex justify-center"
+            className="relative flex justify-center z-10"
           >
+            {/* Money burst behind TV */}
+            {showBurst && (
+              <motion.img
+                src={celebrationMoney}
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain opacity-30 scale-125"
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 0.3, scale: 1.25 }}
+                transition={{ duration: 1, ease: "easeOut" }}
+              />
+            )}
             <motion.img
               src={skyworthTv}
               alt="Televisor SKYWORTH"
-              className="w-full max-w-md drop-shadow-2xl"
-              animate={{ y: [0, -10, 0] }}
+              className="relative w-full max-w-sm drop-shadow-2xl z-10"
+              animate={{ y: [0, -12, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            />
+            {/* Pulsing ring */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border-2 border-primary/20"
+              animate={{ scale: [0.8, 1.3], opacity: [0.5, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+            />
+            <motion.div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border-2 border-primary/20"
+              animate={{ scale: [0.8, 1.3], opacity: [0.5, 0] }}
+              transition={{ duration: 2, delay: 1, repeat: Infinity, ease: "easeOut" }}
             />
           </motion.div>
         </div>
       </section>
 
-      {/* How it works - compact */}
+      {/* Steps - compact */}
       <motion.section
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-60px" }}
-        className="px-6 py-16 border-y border-border bg-card/40"
+        className="px-6 py-14 border-y border-border bg-card/40"
       >
         <motion.h3
           variants={fadeUp} custom={0}
           className="text-xl md:text-2xl font-bold text-center mb-10 font-display"
         >
-          Así de fácil funciona
+          🎉 Así de fácil ganas
         </motion.h3>
         <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {features.map((f, i) => (
+          {steps.map((s, i) => (
             <motion.div
-              key={f.title}
+              key={s.title}
               variants={scaleIn}
               custom={i}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              whileHover={{ y: -6, scale: 1.03, transition: { duration: 0.2 } }}
               className="group relative p-5 rounded-xl border border-border bg-card text-center space-y-3 hover:border-primary/40 transition-colors"
             >
-              <div className="relative mx-auto">
-                <span className="absolute -top-2 -left-2 text-4xl font-extrabold text-primary/10 font-display">{i + 1}</span>
-                <div className="h-12 w-12 mx-auto rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <f.icon className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-              <h4 className="font-semibold">{f.title}</h4>
-              <p className="text-sm text-muted-foreground">{f.desc}</p>
+              <span className="absolute -top-3 -right-3 text-xs font-bold bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center font-display shadow-gold">
+                {i + 1}
+              </span>
+              <motion.div
+                whileHover={{ rotate: 10 }}
+                className="h-12 w-12 mx-auto rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors"
+              >
+                <s.icon className="h-6 w-6 text-primary" />
+              </motion.div>
+              <h4 className="font-semibold">{s.title}</h4>
+              <p className="text-sm text-muted-foreground">{s.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -173,19 +299,30 @@ export default function LandingPage() {
       >
         <motion.div
           variants={scaleIn} custom={0}
-          className="max-w-lg mx-auto text-center p-8 rounded-2xl border border-primary/30 bg-primary/5 space-y-5"
+          className="relative max-w-lg mx-auto text-center p-8 rounded-2xl border border-primary/30 bg-primary/5 space-y-5 overflow-hidden"
         >
           <motion.div
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <BarChart3 className="h-10 w-10 text-primary mx-auto" />
-          </motion.div>
-          <h3 className="text-xl md:text-2xl font-bold font-display">¿Listo para ganar?</h3>
-          <p className="text-sm text-muted-foreground">Cada TV SKYWORTH que vendés te acerca a tu próximo bono.</p>
-          <Button size="lg" variant="premium" asChild>
-            <Link to="/register">Empezar ahora</Link>
-          </Button>
+            className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent"
+            animate={{ opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          />
+          <div className="relative z-10 space-y-5">
+            <motion.div
+              animate={{ y: [0, -5, 0], rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Trophy className="h-10 w-10 text-primary mx-auto" />
+            </motion.div>
+            <h3 className="text-xl md:text-2xl font-bold font-display">
+              ¡No te quedes fuera! 🏆
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Cada TV SKYWORTH que vendes es dinero directo a tu bolsillo.
+            </p>
+            <Button size="lg" variant="premium" className="text-base px-8" asChild>
+              <Link to="/register">Registrarme ahora</Link>
+            </Button>
+          </div>
         </motion.div>
       </motion.section>
 
