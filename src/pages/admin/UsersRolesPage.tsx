@@ -228,7 +228,7 @@ export default function UsersRolesPage() {
 
     try {
       const res = await supabase.functions.invoke("admin-delete-user", {
-        body: { target_user_id: deleteTarget.user_id, mode },
+        body: { target_user_id: deleteTarget.user_id, mode, force: hasHistory },
       });
 
       if (res.error) throw new Error(res.error.message);
@@ -239,7 +239,7 @@ export default function UsersRolesPage() {
         title: mode === "soft" ? "Usuario deshabilitado" : "Usuario eliminado",
         description: mode === "soft"
           ? "El usuario ha sido deshabilitado y no podrá iniciar sesión."
-          : "El usuario ha sido eliminado permanentemente.",
+          : "El usuario y todas sus dependencias han sido eliminados permanentemente.",
       });
       setDeleteDialog(false);
       load();
@@ -511,7 +511,7 @@ export default function UsersRolesPage() {
                 <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm">
                   <p className="font-medium text-destructive">⚠️ Este usuario tiene historial en el sistema</p>
                   <p className="text-muted-foreground mt-1">
-                    Tiene ventas, revisiones o auditorías registradas. Solo se puede <strong>bloquear</strong> (se corta el acceso pero se conserva el historial).
+                    Tiene ventas, revisiones o auditorías registradas. Puedes <strong>bloquear</strong> (recomendado) o <strong>eliminar permanentemente</strong> junto con todas sus dependencias.
                   </p>
                 </div>
               )}
@@ -529,28 +529,31 @@ export default function UsersRolesPage() {
                   <span className="text-xs text-muted-foreground ml-auto">Recomendado</span>
                 </Button>
 
-                {!hasHistory && (
-                  <div className="space-y-2 pt-2 border-t">
-                    <p className="text-sm font-medium text-destructive">Eliminación permanente</p>
-                    <p className="text-xs text-muted-foreground">
-                      Escribe el email del usuario para confirmar: <strong>{deleteTarget?.email}</strong>
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-sm font-medium text-destructive">Eliminación permanente</p>
+                  {hasHistory && (
+                    <p className="text-xs text-destructive/80">
+                      ⚠️ Se eliminarán también todas las ventas, revisiones, auditorías y datos asociados a este usuario.
                     </p>
-                    <Input
-                      value={deleteConfirmEmail}
-                      onChange={e => setDeleteConfirmEmail(e.target.value)}
-                      placeholder="Confirmar email"
-                    />
-                    <Button
-                      variant="destructive"
-                      className="w-full"
-                      onClick={() => handleDeleteUser("hard")}
-                      disabled={deleteLoading || deleteConfirmEmail.toLowerCase() !== (deleteTarget?.email || "").toLowerCase()}
-                    >
-                      {deleteLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                      Eliminar permanentemente
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Escribe el email del usuario para confirmar: <strong>{deleteTarget?.email}</strong>
+                  </p>
+                  <Input
+                    value={deleteConfirmEmail}
+                    onChange={e => setDeleteConfirmEmail(e.target.value)}
+                    placeholder="Confirmar email"
+                  />
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => handleDeleteUser("hard")}
+                    disabled={deleteLoading || deleteConfirmEmail.toLowerCase() !== (deleteTarget?.email || "").toLowerCase()}
+                  >
+                    {deleteLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Eliminar permanentemente
+                  </Button>
+                </div>
               </div>
             </div>
           )}

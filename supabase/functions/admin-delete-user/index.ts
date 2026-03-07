@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { target_user_id, mode } = await req.json();
+    const { target_user_id, mode, force } = await req.json();
 
     if (!target_user_id || !mode) {
       return new Response(
@@ -112,10 +112,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (mode === "hard" && hasHistory) {
+    if (mode === "hard" && hasHistory && !force) {
       return new Response(
         JSON.stringify({
-          error: "Este usuario tiene historial (ventas, revisiones o auditoría). Solo se puede deshabilitar.",
+          error: "Este usuario tiene historial. Usa force=true para eliminar con todas sus dependencias.",
           has_history: true,
         }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -153,12 +153,38 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "hard") {
-      await adminClient.from("user_roles").delete().eq("user_id", target_user_id);
-      await adminClient.from("user_profiles").delete().eq("user_id", target_user_id);
-
+      // Delete all dependent records first
       if (vendorRecord) {
+        // Delete sales-related data
+        const { data: salesData } = await adminClient
+          .from("sales")
+          .select("id")
+          .eq("vendor_id", vendorRecord.id);
+
+        if (salesData && salesData.length > 0) {
+          const saleIds = salesData.map((s: any) => s.id);
+          await adminClient.from("reviews").delete().in("sale_id", saleIds);
+          await adminClient.from("supervisor_audits").delete().in("sale_id", saleIds);
+          await adminClient.from("sale_attachments").delete().in("sale_id", saleIds);
+          // Revert serials
+          await adminClient.from("serials")
+            .update({ status: "available", used_sale_id: null })
+            .in("used_sale_id", saleIds);
+          await adminClient.from("sales").delete().eq("vendor_id", vendorRecord.id);
+        }
+
+        await adminClient.from("commission_payments").delete().eq("vendor_id", vendorRecord.id);
+        await adminClient.from("vendor_blocks").delete().eq("vendor_id", vendorRecord.id);
+        await adminClient.from("vendor_store_history").delete().eq("vendor_id", vendorRecord.id);
         await adminClient.from("vendors").delete().eq("id", vendorRecord.id);
       }
+
+      // Delete reviews/audits done BY this user (as reviewer/supervisor)
+      await adminClient.from("reviews").delete().eq("reviewer_user_id", target_user_id);
+      await adminClient.from("supervisor_audits").delete().eq("supervisor_user_id", target_user_id);
+      await adminClient.from("notifications").delete().eq("user_id", target_user_id);
+      await adminClient.from("user_roles").delete().eq("user_id", target_user_id);
+      await adminClient.from("user_profiles").delete().eq("user_id", target_user_id);
 
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(target_user_id);
       if (deleteError) {
@@ -172,7 +198,7 @@ Deno.serve(async (req) => {
         admin_user_id: callerId,
         action: "delete_user",
         target_user_id,
-        details: { mode: "hard" },
+        details: { mode: "hard", force: !!force, had_history: hasHistory },
       });
 
       return new Response(
