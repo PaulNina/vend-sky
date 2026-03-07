@@ -14,12 +14,13 @@ import { Link } from "react-router-dom";
 import {
   Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
   Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap,
-  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive
+  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive, Globe
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCities, type City } from "@/hooks/useCities";
 import CityGroupsSection from "@/components/admin/CityGroupsSection";
+import LandingConfigSection from "@/components/admin/LandingConfigSection";
 import * as XLSX from "xlsx";
 
 // --- Backup helpers ---
@@ -622,10 +623,14 @@ export default function ConfigurationPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-lg">
           <TabsTrigger value="general" className="flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="landing" className="flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" />
+            Landing
           </TabsTrigger>
           <TabsTrigger value="email" className="flex items-center gap-1.5">
             <Mail className="h-3.5 w-3.5" />
@@ -895,6 +900,11 @@ export default function ConfigurationPage() {
               ))}
             </div>
           </section>
+        </TabsContent>
+
+        {/* Landing Page Tab */}
+        <TabsContent value="landing" className="space-y-6 mt-6">
+          <LandingConfigSection />
         </TabsContent>
 
         {/* Email Configuration Tab */}
