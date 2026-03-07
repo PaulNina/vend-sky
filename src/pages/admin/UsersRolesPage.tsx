@@ -344,7 +344,7 @@ export default function UsersRolesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Eliminar / deshabilitar usuario"
+                          title="Eliminar o bloquear usuario"
                           onClick={() => openDeleteDialog(r.user_id, r.email || "")}
                         >
                           <UserX className="h-4 w-4 text-destructive" />
