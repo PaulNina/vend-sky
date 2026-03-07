@@ -450,6 +450,66 @@ export default function ConfigurationPage() {
     setSavingKey(false);
   };
 
+  // --- Email config functions ---
+
+  const saveEmailConfig = async () => {
+    setSavingEmail(true);
+    const settings = [
+      { key: "email_provider", value: emailProvider },
+      { key: "smtp_host", value: smtpHost },
+      { key: "smtp_port", value: smtpPort },
+      { key: "smtp_user", value: smtpUser },
+      { key: "smtp_password", value: smtpPassword },
+      { key: "smtp_from_email", value: smtpFromEmail },
+      { key: "smtp_secure", value: smtpSecure ? "true" : "false" },
+    ];
+
+    for (const s of settings) {
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert({ key: s.key, value: s.value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        setSavingEmail(false);
+        return;
+      }
+    }
+    toast({ title: "Configuración de email guardada" });
+    setSavingEmail(false);
+  };
+
+  const sendTestEmail = async () => {
+    if (!testEmailAddress.trim()) {
+      toast({ title: "Ingresa un email de prueba", variant: "destructive" });
+      return;
+    }
+    setTestingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: {
+          to: [testEmailAddress.trim()],
+          subject: "Prueba de correo - Bono Vendedor SKYWORTH",
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#c8a45a;">✅ Correo de prueba exitoso</h2>
+            <p>Si puedes leer este mensaje, la configuración de correo electrónico está funcionando correctamente.</p>
+            <p style="color:#999;font-size:12px;margin-top:20px;">Proveedor: ${emailProvider.toUpperCase()}</p>
+            <p style="color:#999;font-size:12px;">— Equipo Skyworth</p>
+          </div>`,
+          from_name: "Skyworth Bonos",
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast({ title: "Email de prueba enviado", description: `Enviado a ${testEmailAddress} vía ${data.provider?.toUpperCase() || emailProvider.toUpperCase()}` });
+      } else {
+        toast({ title: "Error al enviar", description: "Verifica la configuración del proveedor.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setTestingEmail(false);
+  };
+
   // --- Backup functions ---
 
   const loadTableCounts = async () => {
