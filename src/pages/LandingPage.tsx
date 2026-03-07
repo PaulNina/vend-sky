@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import skyworthTv from "@/assets/skyworth-tv-hero.png";
 import celebrationMoney from "@/assets/celebration-money.png";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { LANDING_DEFAULTS, type LandingConfig } from "@/components/admin/LandingConfigSection";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -24,13 +26,7 @@ const scaleIn = {
   }),
 };
 
-const steps = [
-  { icon: Tv, title: "Vende un TV SKYWORTH", desc: "Cada televisor vendido cuenta" },
-  { icon: UserCheck, title: "Un operador valida", desc: "Tu venta es revisada y aprobada" },
-  { icon: DollarSign, title: "Recibe tu bono en Bs", desc: "Dinero real cada semana" },
-];
-
-/* Confetti / floating particles */
+/* Confetti particles */
 function Confetti() {
   const [particles] = useState(() =>
     Array.from({ length: 18 }, (_, i) => ({
@@ -51,25 +47,9 @@ function Confetti() {
         <motion.div
           key={p.id}
           className="absolute rounded-sm"
-          style={{
-            left: `${p.left}%`,
-            width: p.size,
-            height: p.size * 0.6,
-            backgroundColor: p.color,
-            top: -20,
-          }}
-          animate={{
-            y: [0, 800],
-            x: [0, (Math.random() - 0.5) * 100],
-            rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
-            opacity: [1, 1, 0],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          style={{ left: `${p.left}%`, width: p.size, height: p.size * 0.6, backgroundColor: p.color, top: -20 }}
+          animate={{ y: [0, 800], x: [0, (Math.random() - 0.5) * 100], rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)], opacity: [1, 1, 0] }}
+          transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: "linear" }}
         />
       ))}
     </div>
@@ -92,17 +72,8 @@ function FloatingCoins() {
           key={c.id}
           className="absolute text-primary"
           style={{ left: `${c.left}%`, bottom: -30 }}
-          animate={{
-            y: [0, -600],
-            opacity: [0, 1, 1, 0],
-            scale: [0.5, 1, 0.8],
-          }}
-          transition={{
-            duration: c.duration,
-            delay: c.delay,
-            repeat: Infinity,
-            ease: "easeOut",
-          }}
+          animate={{ y: [0, -600], opacity: [0, 1, 1, 0], scale: [0.5, 1, 0.8] }}
+          transition={{ duration: c.duration, delay: c.delay, repeat: Infinity, ease: "easeOut" }}
         >
           <DollarSign className="h-5 w-5" />
         </motion.div>
@@ -112,12 +83,37 @@ function FloatingCoins() {
 }
 
 export default function LandingPage() {
+  const [cfg, setCfg] = useState<LandingConfig>({ ...LANDING_DEFAULTS });
   const [showBurst, setShowBurst] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowBurst(true), 1000);
+    // Load config from DB
+    supabase
+      .from("app_settings")
+      .select("key, value")
+      .like("key", "landing_%")
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const merged = { ...LANDING_DEFAULTS };
+          for (const row of data) {
+            if (row.key in merged) {
+              (merged as any)[row.key] = row.value;
+            }
+          }
+          setCfg(merged);
+        }
+      });
     return () => clearTimeout(timer);
   }, []);
+
+  const showConfetti = cfg.landing_show_confetti === "true";
+
+  const steps = [
+    { icon: Tv, title: cfg.landing_step1_title, desc: cfg.landing_step1_desc },
+    { icon: UserCheck, title: cfg.landing_step2_title, desc: cfg.landing_step2_desc },
+    { icon: DollarSign, title: cfg.landing_step3_title, desc: cfg.landing_step3_desc },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
@@ -144,12 +140,11 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative px-6 py-16 md:py-24 overflow-hidden">
-        <Confetti />
-        <FloatingCoins />
+        {showConfetti && <><Confetti /><FloatingCoins /></>}
 
         {/* Glow effects */}
         <motion.div
-          className="absolute top-10 left-1/4 w-72 h-72 rounded-full bg-primary/8 blur-3xl"
+          className="absolute top-10 left-1/4 w-72 h-72 rounded-full bg-primary/5 blur-3xl"
           animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -169,15 +164,15 @@ export default function LandingPage() {
               <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 2, repeat: Infinity }}>
                 <PartyPopper className="h-4 w-4 text-primary" />
               </motion.div>
-              <span className="text-sm font-medium text-primary">¡Campaña activa!</span>
+              <span className="text-sm font-medium text-primary">{cfg.landing_badge_text}</span>
             </motion.div>
 
             <motion.h2
               variants={fadeUp} initial="hidden" animate="visible" custom={1}
               className="text-3xl md:text-5xl font-extrabold leading-tight font-display"
             >
-              Vende TVs{" "}
-              <span className="text-primary">SKYWORTH</span>
+              {cfg.landing_headline}{" "}
+              <span className="text-primary">{cfg.landing_highlight}</span>
               <br />
               <motion.span
                 className="inline-block"
@@ -192,8 +187,7 @@ export default function LandingPage() {
               variants={fadeUp} initial="hidden" animate="visible" custom={2}
               className="text-base text-muted-foreground max-w-md"
             >
-              Cada televisor que vendes se convierte en un bono en efectivo.
-              Registra tu venta, un operador la aprueba y el dinero es tuyo.
+              {cfg.landing_description}
             </motion.p>
 
             <motion.div
@@ -203,23 +197,22 @@ export default function LandingPage() {
               <Button size="lg" variant="premium" className="text-base" asChild>
                 <Link to="/register">
                   <Zap className="h-5 w-5 mr-1" />
-                  ¡Quiero ganar bonos!
+                  {cfg.landing_cta_text}
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link to="/login">Ya tengo cuenta</Link>
+                <Link to="/login">{cfg.landing_cta_login_text}</Link>
               </Button>
             </motion.div>
           </div>
 
-          {/* TV + celebration imagery */}
+          {/* TV + celebration */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
             className="relative flex justify-center z-10"
           >
-            {/* Money burst behind TV */}
             {showBurst && (
               <motion.img
                 src={celebrationMoney}
@@ -237,7 +230,6 @@ export default function LandingPage() {
               animate={{ y: [0, -12, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             />
-            {/* Pulsing ring */}
             <motion.div
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border-2 border-primary/20"
               animate={{ scale: [0.8, 1.3], opacity: [0.5, 0] }}
@@ -252,7 +244,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Steps - compact */}
+      {/* Steps */}
       <motion.section
         initial="hidden"
         whileInView="visible"
@@ -268,7 +260,7 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6">
           {steps.map((s, i) => (
             <motion.div
-              key={s.title}
+              key={i}
               variants={scaleIn}
               custom={i}
               whileHover={{ y: -6, scale: 1.03, transition: { duration: 0.2 } }}
@@ -313,14 +305,10 @@ export default function LandingPage() {
             >
               <Trophy className="h-10 w-10 text-primary mx-auto" />
             </motion.div>
-            <h3 className="text-xl md:text-2xl font-bold font-display">
-              ¡No te quedes fuera! 🏆
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Cada TV SKYWORTH que vendes es dinero directo a tu bolsillo.
-            </p>
+            <h3 className="text-xl md:text-2xl font-bold font-display">{cfg.landing_cta_final_title}</h3>
+            <p className="text-sm text-muted-foreground">{cfg.landing_cta_final_desc}</p>
             <Button size="lg" variant="premium" className="text-base px-8" asChild>
-              <Link to="/register">Registrarme ahora</Link>
+              <Link to="/register">{cfg.landing_cta_final_button}</Link>
             </Button>
           </div>
         </motion.div>
