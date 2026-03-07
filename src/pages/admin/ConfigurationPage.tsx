@@ -622,10 +622,14 @@ export default function ConfigurationPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-xs">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="general" className="flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="email" className="flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            Email
           </TabsTrigger>
           <TabsTrigger value="backup" className="flex items-center gap-1.5" onClick={() => { if (Object.keys(tableCounts).length === 0) loadTableCounts(); }}>
             <HardDrive className="h-3.5 w-3.5" />
