@@ -897,7 +897,148 @@ export default function ConfigurationPage() {
           </section>
         </TabsContent>
 
-        <TabsContent value="backup" className="space-y-6 mt-6">
+        {/* Email Configuration Tab */}
+        <TabsContent value="email" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Mail className="h-4 w-4 text-primary" />
+                Proveedor de Correo Electrónico
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-xs text-muted-foreground">
+                Configura cómo se envían los correos del sistema (reportes, notificaciones de pago, etc.).
+                Puedes usar <strong>Resend</strong> (API Key configurada como secreto del servidor) o un servidor <strong>SMTP</strong> propio.
+              </p>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Proveedor</Label>
+                <Select value={emailProvider} onValueChange={(v) => setEmailProvider(v as "resend" | "smtp")}>
+                  <SelectTrigger className="text-sm max-w-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="resend">Resend (API)</SelectItem>
+                    <SelectItem value="smtp">SMTP (Servidor propio)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {emailProvider === "resend" && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Resend usa la API Key configurada como secreto del servidor (<code className="text-[10px] bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code>).
+                    Para cambiarla, contacta al administrador del servidor.
+                  </p>
+                  <Badge variant="outline" className="text-success border-success/40 bg-success/5">
+                    API Key configurada en servidor
+                  </Badge>
+                </div>
+              )}
+
+              {emailProvider === "smtp" && (
+                <div className="space-y-4 rounded-lg border border-border/50 p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Servidor SMTP</Label>
+                      <Input
+                        value={smtpHost}
+                        onChange={(e) => setSmtpHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Puerto</Label>
+                      <Input
+                        value={smtpPort}
+                        onChange={(e) => setSmtpPort(e.target.value)}
+                        placeholder="587"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Usuario</Label>
+                      <Input
+                        value={smtpUser}
+                        onChange={(e) => setSmtpUser(e.target.value)}
+                        placeholder="usuario@dominio.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Contraseña</Label>
+                      <div className="relative">
+                        <Input
+                          type={showSmtpPassword ? "text" : "password"}
+                          value={smtpPassword}
+                          onChange={(e) => setSmtpPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="text-sm pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showSmtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Email remitente</Label>
+                      <Input
+                        value={smtpFromEmail}
+                        onChange={(e) => setSmtpFromEmail(e.target.value)}
+                        placeholder="noreply@empresa.com"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 pt-5">
+                      <Switch checked={smtpSecure} onCheckedChange={setSmtpSecure} id="smtp-secure" />
+                      <Label htmlFor="smtp-secure" className="text-xs">TLS / SSL</Label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button onClick={saveEmailConfig} disabled={savingEmail} variant="premium" size="sm">
+                  {savingEmail ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Guardar Configuración
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Test Email */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Zap className="h-4 w-4 text-primary" />
+                Enviar Correo de Prueba
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Envía un correo de prueba para verificar que la configuración del proveedor es correcta.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  className="text-sm max-w-xs"
+                />
+                <Button onClick={sendTestEmail} disabled={testingEmail} variant="outline" size="sm">
+                  {testingEmail ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                  Enviar Prueba
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
           {/* Backup Header */}
           <Card>
             <CardHeader className="pb-3">
