@@ -111,6 +111,7 @@ export default function CampaignsPage() {
                       <div>
                         <p className="font-medium">{c.name}</p>
                         {c.subtitle && <p className="text-xs text-muted-foreground">{c.subtitle}</p>}
+                        {c.slug && <p className="text-[10px] text-primary font-mono">/c/{c.slug}</p>}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">{fmtDate(c.start_date)} — {fmtDate(c.end_date)}</TableCell>

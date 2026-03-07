@@ -11,6 +11,7 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import CampaignLandingPage from "@/pages/CampaignLandingPage";
 import NotFound from "@/pages/NotFound";
 
 // Layouts
@@ -54,6 +55,7 @@ const App = () => (
           <Routes>
             {/* Public */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/c/:slug" element={<CampaignLandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
