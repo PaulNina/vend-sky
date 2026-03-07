@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Save, Globe } from "lucide-react";
+import { Loader2, Save, Globe, ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export interface LandingConfig {
   landing_headline: string;
@@ -66,29 +68,65 @@ const FIELDS: { key: keyof LandingConfig; label: string; type: "text" | "textare
   { key: "landing_show_confetti", label: "Mostrar confetti y monedas animadas", type: "switch" },
 ];
 
+interface Campaign {
+  id: string;
+  name: string;
+  slug: string | null;
+  is_active: boolean;
+  status: string;
+}
+
 export default function LandingConfigSection() {
   const [config, setConfig] = useState<LandingConfig>({ ...DEFAULTS });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedScope, setSelectedScope] = useState<string>("global"); // "global" or campaign_id
+
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
 
   useEffect(() => {
     loadConfig();
-  }, []);
+  }, [selectedScope]);
+
+  const loadCampaigns = async () => {
+    const { data } = await supabase
+      .from("campaigns")
+      .select("id, name, slug, is_active, status")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true });
+    setCampaigns((data || []) as Campaign[]);
+  };
+
+  const getKeyPrefix = () => {
+    if (selectedScope === "global") return "landing_";
+    return `landing_${selectedScope}_`;
+  };
 
   const loadConfig = async () => {
+    setLoading(true);
+    const prefix = getKeyPrefix();
+
     const { data } = await supabase
       .from("app_settings")
       .select("key, value")
-      .like("key", "landing_%");
+      .like("key", `${prefix}%`);
 
-    if (data) {
+    if (data && data.length > 0) {
       const merged = { ...DEFAULTS };
       for (const row of data) {
-        if (row.key in merged) {
-          (merged as any)[row.key] = row.value;
+        const baseKey = selectedScope === "global"
+          ? row.key
+          : row.key.replace(`landing_${selectedScope}_`, "landing_");
+        if (baseKey in merged) {
+          (merged as any)[baseKey] = row.value;
         }
       }
       setConfig(merged);
+    } else {
+      setConfig({ ...DEFAULTS });
     }
     setLoading(false);
   };
@@ -99,9 +137,13 @@ export default function LandingConfigSection() {
     const entries = Object.entries(config);
 
     for (const [key, value] of entries) {
+      const dbKey = selectedScope === "global"
+        ? key
+        : key.replace("landing_", `landing_${selectedScope}_`);
+
       const { error } = await supabase
         .from("app_settings")
-        .upsert({ key, value, updated_at: now }, { onConflict: "key" });
+        .upsert({ key: dbKey, value, updated_at: now }, { onConflict: "key" });
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
         setSaving(false);
@@ -109,7 +151,8 @@ export default function LandingConfigSection() {
       }
     }
 
-    toast({ title: "Landing page actualizada", description: "Los cambios se verán reflejados inmediatamente." });
+    const scopeLabel = selectedScope === "global" ? "global" : campaigns.find(c => c.id === selectedScope)?.name || "campaña";
+    toast({ title: "Landing actualizada", description: `Configuración ${scopeLabel} guardada.` });
     setSaving(false);
   };
 
@@ -117,6 +160,27 @@ export default function LandingConfigSection() {
     setConfig({ ...DEFAULTS });
     toast({ title: "Valores por defecto restaurados", description: "Presiona Guardar para aplicar." });
   };
+
+  const copyFromGlobal = async () => {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("key, value")
+      .like("key", "landing_%");
+
+    if (data) {
+      const merged = { ...DEFAULTS };
+      for (const row of data) {
+        if (row.key.match(/^landing_[0-9a-f-]{36}_/)) continue;
+        if (row.key in merged) {
+          (merged as any)[row.key] = row.value;
+        }
+      }
+      setConfig(merged);
+      toast({ title: "Copiado desde configuración global", description: "Presiona Guardar para aplicar." });
+    }
+  };
+
+  const selectedCampaign = campaigns.find(c => c.id === selectedScope);
 
   if (loading) {
     return (
@@ -137,8 +201,48 @@ export default function LandingConfigSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Scope selector */}
+        {campaigns.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs">Configurar landing para:</Label>
+            <Select value={selectedScope} onValueChange={setSelectedScope}>
+              <SelectTrigger className="text-sm max-w-md">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="global">🌐 Landing Principal (global)</SelectItem>
+                {campaigns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    📢 {c.name} {c.slug ? `(/c/${c.slug})` : "(sin slug)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {selectedScope === "global" ? (
+              <p className="text-xs text-muted-foreground">
+                La landing principal se muestra en <code className="text-[10px] bg-muted px-1 py-0.5 rounded">/</code>.
+                {campaigns.length > 1 && " Cuando hay múltiples campañas activas, muestra un listado de campañas."}
+              </p>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedCampaign?.slug ? (
+                  <Badge variant="outline" className="text-[10px] text-success border-success/40 bg-success/5">
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    /c/{selectedCampaign.slug}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400/40 bg-amber-50">
+                    Sin slug configurado – configúralo en Campañas
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-muted-foreground">
-          Personaliza los textos y opciones que se muestran en la página de inicio pública.
+          Personaliza los textos y opciones que se muestran en la página de inicio.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -182,6 +286,11 @@ export default function LandingConfigSection() {
             {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
             Guardar Cambios
           </Button>
+          {selectedScope !== "global" && (
+            <Button onClick={copyFromGlobal} variant="outline" size="sm">
+              Copiar desde global
+            </Button>
+          )}
           <Button onClick={resetDefaults} variant="outline" size="sm">
             Restaurar valores por defecto
           </Button>
