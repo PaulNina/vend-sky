@@ -7,103 +7,66 @@ import celebrationMoney from "@/assets/celebration-money.png";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LANDING_DEFAULTS, type LandingConfig } from "@/components/admin/LandingConfigSection";
+import { Confetti, FloatingCoins, fadeUp, scaleIn } from "@/components/landing/LandingAnimations";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Calendar } from "lucide-react";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.15, duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
-  }),
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.85 },
-  visible: (i: number) => ({
-    opacity: 1,
-    scale: 1,
-    transition: { delay: 0.3 + i * 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
-  }),
-};
-
-/* Confetti particles */
-function Confetti() {
-  const [particles] = useState(() =>
-    Array.from({ length: 18 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 4,
-      duration: 3 + Math.random() * 4,
-      size: 6 + Math.random() * 10,
-      color: ["hsl(43,96%,56%)", "hsl(35,100%,62%)", "hsl(152,60%,42%)", "hsl(0,72%,51%)", "hsl(210,40%,96%)"][
-        Math.floor(Math.random() * 5)
-      ],
-    }))
-  );
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          className="absolute rounded-sm"
-          style={{ left: `${p.left}%`, width: p.size, height: p.size * 0.6, backgroundColor: p.color, top: -20 }}
-          animate={{ y: [0, 800], x: [0, (Math.random() - 0.5) * 100], rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)], opacity: [1, 1, 0] }}
-          transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: "linear" }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* Floating coins */
-function FloatingCoins() {
-  const coins = Array.from({ length: 8 }, (_, i) => ({
-    id: i,
-    left: 10 + Math.random() * 80,
-    delay: Math.random() * 3,
-    duration: 2.5 + Math.random() * 2,
-  }));
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {coins.map((c) => (
-        <motion.div
-          key={c.id}
-          className="absolute text-primary"
-          style={{ left: `${c.left}%`, bottom: -30 }}
-          animate={{ y: [0, -600], opacity: [0, 1, 1, 0], scale: [0.5, 1, 0.8] }}
-          transition={{ duration: c.duration, delay: c.delay, repeat: Infinity, ease: "easeOut" }}
-        >
-          <DollarSign className="h-5 w-5" />
-        </motion.div>
-      ))}
-    </div>
-  );
+interface ActiveCampaign {
+  id: string;
+  name: string;
+  subtitle: string | null;
+  slug: string | null;
+  start_date: string;
+  end_date: string;
+  registration_enabled: boolean;
 }
 
 export default function LandingPage() {
   const [cfg, setCfg] = useState<LandingConfig>({ ...LANDING_DEFAULTS });
   const [showBurst, setShowBurst] = useState(false);
+  const [campaigns, setCampaigns] = useState<ActiveCampaign[]>([]);
+  const [multiCampaign, setMultiCampaign] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowBurst(true), 1000);
-    // Load config from DB
-    supabase
-      .from("app_settings")
-      .select("key, value")
-      .like("key", "landing_%")
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          const merged = { ...LANDING_DEFAULTS };
-          for (const row of data) {
-            if (row.key in merged) {
-              (merged as any)[row.key] = row.value;
-            }
+
+    (async () => {
+      // Load active campaigns
+      const { data: camps } = await supabase
+        .from("campaigns")
+        .select("id, name, subtitle, slug, start_date, end_date, registration_enabled")
+        .eq("is_active", true)
+        .eq("status", "active")
+        .order("created_at", { ascending: true });
+
+      const activeCamps = (camps || []) as ActiveCampaign[];
+      setCampaigns(activeCamps);
+
+      // If more than 1 active campaign, show multi-campaign view
+      if (activeCamps.length > 1) {
+        setMultiCampaign(true);
+      }
+
+      // Load global landing config
+      const { data } = await supabase
+        .from("app_settings")
+        .select("key, value")
+        .like("key", "landing_%");
+
+      if (data && data.length > 0) {
+        const merged = { ...LANDING_DEFAULTS };
+        for (const row of data) {
+          // Skip campaign-specific keys
+          if (row.key.match(/^landing_[0-9a-f-]{36}_/)) continue;
+          if (row.key in merged) {
+            (merged as any)[row.key] = row.value;
           }
-          setCfg(merged);
         }
-      });
+        setCfg(merged);
+      }
+    })();
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -114,6 +77,11 @@ export default function LandingPage() {
     { icon: UserCheck, title: cfg.landing_step2_title, desc: cfg.landing_step2_desc },
     { icon: DollarSign, title: cfg.landing_step3_title, desc: cfg.landing_step3_desc },
   ];
+
+  const fmtDate = (d: string) => {
+    const [y, m, day] = d.split("-");
+    return `${day}/${m}/${y}`;
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
@@ -142,7 +110,6 @@ export default function LandingPage() {
       <section className="relative px-6 py-16 md:py-24 overflow-hidden">
         {showConfetti && <><Confetti /><FloatingCoins /></>}
 
-        {/* Glow effects */}
         <motion.div
           className="absolute top-10 left-1/4 w-72 h-72 rounded-full bg-primary/5 blur-3xl"
           animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
@@ -194,12 +161,22 @@ export default function LandingPage() {
               variants={fadeUp} initial="hidden" animate="visible" custom={3}
               className="flex flex-col sm:flex-row gap-3"
             >
-              <Button size="lg" variant="premium" className="text-base" asChild>
-                <Link to="/register">
-                  <Zap className="h-5 w-5 mr-1" />
-                  {cfg.landing_cta_text}
-                </Link>
-              </Button>
+              {!multiCampaign && (
+                <Button size="lg" variant="premium" className="text-base" asChild>
+                  <Link to="/register">
+                    <Zap className="h-5 w-5 mr-1" />
+                    {cfg.landing_cta_text}
+                  </Link>
+                </Button>
+              )}
+              {multiCampaign && (
+                <Button size="lg" variant="premium" className="text-base" asChild>
+                  <a href="#campaigns">
+                    <Zap className="h-5 w-5 mr-1" />
+                    Ver campañas activas
+                  </a>
+                </Button>
+              )}
               <Button size="lg" variant="outline" asChild>
                 <Link to="/login">{cfg.landing_cta_login_text}</Link>
               </Button>
@@ -244,75 +221,138 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Steps */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-60px" }}
-        className="px-6 py-14 border-y border-border bg-card/40"
-      >
-        <motion.h3
-          variants={fadeUp} custom={0}
-          className="text-xl md:text-2xl font-bold text-center mb-10 font-display"
+      {/* Multi-Campaign Cards */}
+      {multiCampaign && (
+        <motion.section
+          id="campaigns"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-60px" }}
+          className="px-6 py-14 border-y border-border bg-card/40"
         >
-          🎉 Así de fácil ganas
-        </motion.h3>
-        <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {steps.map((s, i) => (
-            <motion.div
-              key={i}
-              variants={scaleIn}
-              custom={i}
-              whileHover={{ y: -6, scale: 1.03, transition: { duration: 0.2 } }}
-              className="group relative p-5 rounded-xl border border-border bg-card text-center space-y-3 hover:border-primary/40 transition-colors"
-            >
-              <span className="absolute -top-3 -right-3 text-xs font-bold bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center font-display shadow-gold">
-                {i + 1}
-              </span>
-              <motion.div
-                whileHover={{ rotate: 10 }}
-                className="h-12 w-12 mx-auto rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors"
-              >
-                <s.icon className="h-6 w-6 text-primary" />
+          <motion.h3
+            variants={fadeUp} custom={0}
+            className="text-xl md:text-2xl font-bold text-center mb-3 font-display"
+          >
+            🏆 Campañas Activas
+          </motion.h3>
+          <motion.p
+            variants={fadeUp} custom={1}
+            className="text-center text-sm text-muted-foreground mb-8"
+          >
+            Elige la campaña en la que quieres participar
+          </motion.p>
+          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {campaigns.map((camp, i) => (
+              <motion.div key={camp.id} variants={scaleIn} custom={i}>
+                <Link to={camp.slug ? `/c/${camp.slug}` : `/register?campaign=${camp.id}`}>
+                  <Card className="group hover:border-primary/40 transition-all duration-200 cursor-pointer hover:shadow-lg">
+                    <CardContent className="p-6 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-lg font-display">{camp.name}</h4>
+                        <Badge variant="default" className="text-[10px]">Activa</Badge>
+                      </div>
+                      {camp.subtitle && (
+                        <p className="text-sm text-muted-foreground">{camp.subtitle}</p>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{fmtDate(camp.start_date)} — {fmtDate(camp.end_date)}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2">
+                        {camp.registration_enabled ? (
+                          <Badge variant="outline" className="text-[10px] text-success border-success/40 bg-success/5">
+                            Registro abierto
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Registro cerrado</Badge>
+                        )}
+                        <span className="text-xs text-primary font-medium flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                          {camp.slug ? "Ver landing" : "Registrarme"} <ArrowRight className="h-3 w-3" />
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               </motion.div>
-              <h4 className="font-semibold">{s.title}</h4>
-              <p className="text-sm text-muted-foreground">{s.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* Steps (only show when single campaign) */}
+      {!multiCampaign && (
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-60px" }}
+          className="px-6 py-14 border-y border-border bg-card/40"
+        >
+          <motion.h3
+            variants={fadeUp} custom={0}
+            className="text-xl md:text-2xl font-bold text-center mb-10 font-display"
+          >
+            🎉 Así de fácil ganas
+          </motion.h3>
+          <div className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {steps.map((s, i) => (
+              <motion.div
+                key={i}
+                variants={scaleIn}
+                custom={i}
+                whileHover={{ y: -6, scale: 1.03, transition: { duration: 0.2 } }}
+                className="group relative p-5 rounded-xl border border-border bg-card text-center space-y-3 hover:border-primary/40 transition-colors"
+              >
+                <span className="absolute -top-3 -right-3 text-xs font-bold bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center font-display shadow-gold">
+                  {i + 1}
+                </span>
+                <motion.div
+                  whileHover={{ rotate: 10 }}
+                  className="h-12 w-12 mx-auto rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors"
+                >
+                  <s.icon className="h-6 w-6 text-primary" />
+                </motion.div>
+                <h4 className="font-semibold">{s.title}</h4>
+                <p className="text-sm text-muted-foreground">{s.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+      )}
 
       {/* CTA */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-60px" }}
-        className="px-6 py-16"
-      >
-        <motion.div
-          variants={scaleIn} custom={0}
-          className="relative max-w-lg mx-auto text-center p-8 rounded-2xl border border-primary/30 bg-primary/5 space-y-5 overflow-hidden"
+      {!multiCampaign && (
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-60px" }}
+          className="px-6 py-16"
         >
           <motion.div
-            className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent"
-            animate={{ opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          />
-          <div className="relative z-10 space-y-5">
+            variants={scaleIn} custom={0}
+            className="relative max-w-lg mx-auto text-center p-8 rounded-2xl border border-primary/30 bg-primary/5 space-y-5 overflow-hidden"
+          >
             <motion.div
-              animate={{ y: [0, -5, 0], rotate: [0, 5, -5, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <Trophy className="h-10 w-10 text-primary mx-auto" />
-            </motion.div>
-            <h3 className="text-xl md:text-2xl font-bold font-display">{cfg.landing_cta_final_title}</h3>
-            <p className="text-sm text-muted-foreground">{cfg.landing_cta_final_desc}</p>
-            <Button size="lg" variant="premium" className="text-base px-8" asChild>
-              <Link to="/register">{cfg.landing_cta_final_button}</Link>
-            </Button>
-          </div>
-        </motion.div>
-      </motion.section>
+              className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent"
+              animate={{ opacity: [0.3, 0.6, 0.3] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+            <div className="relative z-10 space-y-5">
+              <motion.div
+                animate={{ y: [0, -5, 0], rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Trophy className="h-10 w-10 text-primary mx-auto" />
+              </motion.div>
+              <h3 className="text-xl md:text-2xl font-bold font-display">{cfg.landing_cta_final_title}</h3>
+              <p className="text-sm text-muted-foreground">{cfg.landing_cta_final_desc}</p>
+              <Button size="lg" variant="premium" className="text-base px-8" asChild>
+                <Link to="/register">{cfg.landing_cta_final_button}</Link>
+              </Button>
+            </div>
+          </motion.div>
+        </motion.section>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-border p-5 text-center text-xs text-muted-foreground mt-auto">
