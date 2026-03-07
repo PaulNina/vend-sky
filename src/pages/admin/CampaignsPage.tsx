@@ -15,6 +15,7 @@ interface Campaign {
   id: string;
   name: string;
   subtitle: string | null;
+  slug: string | null;
   start_date: string;
   end_date: string;
   is_active: boolean;
@@ -29,7 +30,7 @@ interface Campaign {
 }
 
 const empty: Omit<Campaign, "id"> = {
-  name: "", subtitle: "", start_date: "", end_date: "",
+  name: "", subtitle: "", slug: null, start_date: "", end_date: "",
   is_active: true, registration_enabled: true, ai_date_validation: false, points_mode: "product",
   registration_open_at: null, registration_close_at: null,
   status: "active", closed_at: null, close_reason: null,
@@ -53,7 +54,7 @@ export default function CampaignsPage() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm(empty); setDialog(true); };
-  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, status: c.status, closed_at: c.closed_at, close_reason: c.close_reason }); setDialog(true); };
+  const openEdit = (c: Campaign) => { setEditing(c); setForm({ name: c.name, subtitle: c.subtitle, slug: c.slug, start_date: c.start_date, end_date: c.end_date, is_active: c.is_active, registration_enabled: c.registration_enabled, ai_date_validation: c.ai_date_validation, points_mode: c.points_mode, registration_open_at: c.registration_open_at, registration_close_at: c.registration_close_at, status: c.status, closed_at: c.closed_at, close_reason: c.close_reason }); setDialog(true); };
 
   const save = async () => {
     if (!form.name || !form.start_date || !form.end_date) {
@@ -150,6 +151,17 @@ export default function CampaignsPage() {
           <div className="space-y-4">
             <div className="space-y-2"><Label>Nombre *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label>Subtítulo</Label><Input value={form.subtitle || ""} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label>Slug (URL de la landing)</Label>
+              <Input
+                value={form.slug || ""}
+                onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") || null })}
+                placeholder="ej: bono-hincha-2026"
+              />
+              <p className="text-xs text-muted-foreground">
+                {form.slug ? `Landing accesible en /c/${form.slug}` : "Sin slug = sin landing propia. Se mostrará en la landing principal."}
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Fecha inicio *</Label><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
               <div className="space-y-2"><Label>Fecha fin *</Label><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></div>
