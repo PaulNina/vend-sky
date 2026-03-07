@@ -1039,6 +1039,7 @@ export default function ConfigurationPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="backup" className="space-y-6 mt-6">
           {/* Backup Header */}
           <Card>
             <CardHeader className="pb-3">
