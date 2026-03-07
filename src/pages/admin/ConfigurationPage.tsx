@@ -162,13 +162,16 @@ export default function ConfigurationPage() {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes] = await Promise.all([
+    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes, emailSettingsRes] = await Promise.all([
       supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("serials").select("id", { count: "exact", head: true }).eq("status", "available"),
       supabase.from("vendors").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("report_recipients").select("id", { count: "exact", head: true }),
       supabase.from("app_settings").select("value").eq("key", "gemini_api_key").maybeSingle(),
+      supabase.from("app_settings").select("key, value").in("key", [
+        "email_provider", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email", "smtp_secure"
+      ]),
     ]);
     const camps = (campRes.data || []) as CampaignFull[];
     setCampaigns(camps);
@@ -182,6 +185,19 @@ export default function ConfigurationPage() {
       setGeminiKeyExists(true);
       setGeminiKey(settingRes.data.value);
     }
+    // Load email settings
+    const emailMap: Record<string, string> = {};
+    for (const s of emailSettingsRes.data || []) {
+      emailMap[s.key] = s.value;
+    }
+    if (emailMap["email_provider"]) setEmailProvider(emailMap["email_provider"] as "resend" | "smtp");
+    if (emailMap["smtp_host"]) setSmtpHost(emailMap["smtp_host"]);
+    if (emailMap["smtp_port"]) setSmtpPort(emailMap["smtp_port"]);
+    if (emailMap["smtp_user"]) setSmtpUser(emailMap["smtp_user"]);
+    if (emailMap["smtp_password"]) setSmtpPassword(emailMap["smtp_password"]);
+    if (emailMap["smtp_from_email"]) setSmtpFromEmail(emailMap["smtp_from_email"]);
+    if (emailMap["smtp_secure"] !== undefined) setSmtpSecure(emailMap["smtp_secure"] === "true");
+
     const active = camps.find((c) => c.status === "active") || camps[0];
     if (active) {
       setSelectedCampaignId(active.id);
