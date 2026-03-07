@@ -344,7 +344,7 @@ export default function UsersRolesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Eliminar / deshabilitar usuario"
+                          title="Eliminar o bloquear usuario"
                           onClick={() => openDeleteDialog(r.user_id, r.email || "")}
                         >
                           <UserX className="h-4 w-4 text-destructive" />
@@ -496,7 +496,7 @@ export default function UsersRolesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-destructive" />
-              Eliminar / Deshabilitar usuario
+              Eliminar o Bloquear usuario
             </DialogTitle>
             <DialogDescription>
               Usuario: <strong>{deleteTarget?.email}</strong>
@@ -511,7 +511,7 @@ export default function UsersRolesPage() {
                 <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm">
                   <p className="font-medium text-destructive">⚠️ Este usuario tiene historial en el sistema</p>
                   <p className="text-muted-foreground mt-1">
-                    Tiene ventas, revisiones o auditorías registradas. Solo se puede <strong>deshabilitar</strong> (se corta el acceso pero se conserva el historial).
+                    Tiene ventas, revisiones o auditorías registradas. Solo se puede <strong>bloquear</strong> (se corta el acceso pero se conserva el historial).
                   </p>
                 </div>
               )}
@@ -519,12 +519,13 @@ export default function UsersRolesPage() {
               <div className="space-y-3">
                 <Button
                   variant="outline"
-                  className="w-full justify-start gap-2"
+                  className="w-full justify-start gap-2 border-warning/50 hover:bg-warning/10"
                   onClick={() => handleDeleteUser("soft")}
                   disabled={deleteLoading}
                 >
-                  <Ban className="h-4 w-4" />
-                  Deshabilitar usuario (soft delete)
+                  {deleteLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  <Ban className="h-4 w-4 text-warning" />
+                  Bloquear usuario
                   <span className="text-xs text-muted-foreground ml-auto">Recomendado</span>
                 </Button>
 
