@@ -623,10 +623,14 @@ export default function ConfigurationPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-lg">
           <TabsTrigger value="general" className="flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="landing" className="flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" />
+            Landing
           </TabsTrigger>
           <TabsTrigger value="email" className="flex items-center gap-1.5">
             <Mail className="h-3.5 w-3.5" />
