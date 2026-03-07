@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCities, type City } from "@/hooks/useCities";
 import CityGroupsSection from "@/components/admin/CityGroupsSection";
+import LandingConfigSection from "@/components/admin/LandingConfigSection";
 import * as XLSX from "xlsx";
 
 // --- Backup helpers ---
