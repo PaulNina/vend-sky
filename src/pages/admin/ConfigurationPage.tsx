@@ -139,6 +139,19 @@ export default function ConfigurationPage() {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingTable, setExportingTable] = useState<string | null>(null);
 
+  // Email config state
+  const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpFromEmail, setSmtpFromEmail] = useState("");
+  const [smtpSecure, setSmtpSecure] = useState(true);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+
   // Period config form
   const [periodMode, setPeriodMode] = useState("WEEKLY");
   const [customDays, setCustomDays] = useState<number>(14);
