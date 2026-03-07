@@ -195,68 +195,68 @@ Deno.serve(async (req) => {
       // Send report if configured
       if (campaign.report_on_close) {
         try {
-          const resendKey = Deno.env.get("RESEND_API_KEY");
-          if (resendKey) {
-            // Get recipients
-            const { data: recipients } = await adminClient
-              .from("report_recipients")
-              .select("email, city")
-              .eq("campaign_id", campaign_id);
+          // Get recipients
+          const { data: recipients } = await adminClient
+            .from("report_recipients")
+            .select("email, city")
+            .eq("campaign_id", campaign_id);
 
-            if (recipients && recipients.length > 0) {
-              // Build simple report
-              const cityStats: Record<string, { units: number; bs: number }> = {};
-              for (const sale of sales || []) {
-                const vendor = (vendors || []).find((v) => v.id === sale.vendor_id);
-                const city = vendor?.city || "Desconocida";
-                if (!cityStats[city]) cityStats[city] = { units: 0, bs: 0 };
-                cityStats[city].units += 1;
-                cityStats[city].bs += Number(sale.bonus_bs) || 0;
-              }
+          if (recipients && recipients.length > 0) {
+            // Build simple report
+            const cityStats: Record<string, { units: number; bs: number }> = {};
+            for (const sale of sales || []) {
+              const vendor = (vendors || []).find((v) => v.id === sale.vendor_id);
+              const city = vendor?.city || "Desconocida";
+              if (!cityStats[city]) cityStats[city] = { units: 0, bs: 0 };
+              cityStats[city].units += 1;
+              cityStats[city].bs += Number(sale.bonus_bs) || 0;
+            }
 
-              const reportHtml = `
-                <h2>Reporte de Periodo - ${campaign.name}</h2>
-                <p>Periodo ${period.period_number}: ${period.period_start} a ${period.period_end}</p>
-                <table border="1" cellpadding="5" style="border-collapse:collapse">
-                  <tr><th>Ciudad</th><th>Unidades</th><th>Bs</th></tr>
-                  ${Object.entries(cityStats).map(([city, s]) =>
-                    `<tr><td>${city}</td><td>${s.units}</td><td>${Math.round(s.bs)}</td></tr>`
-                  ).join("")}
-                </table>
-              `;
+            const reportHtml = `
+              <h2>Reporte de Periodo - ${campaign.name}</h2>
+              <p>Periodo ${period.period_number}: ${period.period_start} a ${period.period_end}</p>
+              <table border="1" cellpadding="5" style="border-collapse:collapse">
+                <tr><th>Ciudad</th><th>Unidades</th><th>Bs</th></tr>
+                ${Object.entries(cityStats).map(([city, s]) =>
+                  `<tr><td>${city}</td><td>${s.units}</td><td>${Math.round(s.bs)}</td></tr>`
+                ).join("")}
+              </table>
+            `;
 
-              // Group recipients by city or send global
-              const emailSet = new Set(recipients.map((r) => r.email));
-              const emails = Array.from(emailSet);
+            const emailSet = new Set(recipients.map((r) => r.email));
+            const emails = Array.from(emailSet);
 
-              if (emails.length > 0) {
-                await fetch("https://api.resend.com/emails", {
+            if (emails.length > 0) {
+              // Call send-email function (supports Resend or SMTP based on config)
+              try {
+                await fetch(`${supabaseUrl}/functions/v1/send-email`, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${resendKey}`,
+                    Authorization: `Bearer ${serviceKey}`,
                   },
                   body: JSON.stringify({
-                    from: "VendSky <noreply@resend.dev>",
                     to: emails,
                     subject: `Reporte Periodo ${period.period_number} - ${campaign.name}`,
                     html: reportHtml,
+                    from_name: "VendSky",
                   }),
                 });
-
-                await adminClient
-                  .from("campaign_periods")
-                  .update({
-                    report_generated_at: new Date().toISOString(),
-                    report_sent_at: new Date().toISOString(),
-                  })
-                  .eq("id", period.id);
+              } catch (emailErr) {
+                console.error("send-email call error:", emailErr);
               }
+
+              await adminClient
+                .from("campaign_periods")
+                .update({
+                  report_generated_at: new Date().toISOString(),
+                  report_sent_at: new Date().toISOString(),
+                })
+                .eq("id", period.id);
             }
           }
         } catch (reportErr) {
           console.error("Report send error:", reportErr);
-          // Don't fail the whole process for report errors
         }
       }
     }

@@ -6,6 +6,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function callSendEmail(supabaseUrl: string, serviceKey: string, payload: { to: string[]; subject: string; html: string; from_name?: string; reply_to?: string }): Promise<boolean> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch (e) {
+    console.error("callSendEmail error:", e);
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -14,7 +32,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     const { commission_payment_id, vendor_id, vendor_name, vendor_email, campaign_name, period_start, period_end, amount_bs } = await req.json();
@@ -51,9 +68,9 @@ Deno.serve(async (req) => {
       data: { commission_payment_id, campaign_name, period_start, period_end, amount_bs },
     });
 
-    // 2. Send email if RESEND_API_KEY is configured
+    // 2. Send email via send-email function (Resend or SMTP based on config)
     let emailSent = false;
-    if (resendApiKey && recipientEmail) {
+    if (recipientEmail) {
       // Fetch email template
       const { data: template } = await adminClient
         .from("email_templates")
@@ -96,25 +113,13 @@ Deno.serve(async (req) => {
           `;
         }
 
-        const fromName = template.from_name || "Skyworth Bonos";
-        const fromEmail = "onboarding@resend.dev";
-
-        try {
-          const emailRes = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: `${fromName} <${fromEmail}>`,
-              to: [recipientEmail],
-              subject,
-              html: bodyHtml,
-              ...(template.reply_to ? { reply_to: template.reply_to } : {}),
-            }),
-          });
-          emailSent = emailRes.ok;
-        } catch (e) {
-          console.error("Email send error:", e);
-        }
+        emailSent = await callSendEmail(supabaseUrl, serviceKey, {
+          to: [recipientEmail],
+          subject,
+          html: bodyHtml,
+          from_name: template.from_name || "Skyworth Bonos",
+          ...(template.reply_to ? { reply_to: template.reply_to } : {}),
+        });
       }
     }
 
