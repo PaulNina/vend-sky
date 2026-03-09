@@ -97,6 +97,9 @@ export default function AdminManualPage() {
           <TabsTrigger value="data" className="text-xs">📦 Datos</TabsTrigger>
           <TabsTrigger value="reports" className="text-xs">📈 Reportes</TabsTrigger>
           <TabsTrigger value="system" className="text-xs">⚙️ Sistema</TabsTrigger>
+          <TabsTrigger value="shortcuts" className="text-xs">⌨️ Atajos</TabsTrigger>
+          <TabsTrigger value="faq" className="text-xs">❓ FAQ</TabsTrigger>
+          <TabsTrigger value="glossary" className="text-xs">📖 Glosario</TabsTrigger>
         </TabsList>
 
         {/* ═══════════ VISIÓN GENERAL ═══════════ */}
@@ -718,6 +721,289 @@ export default function AdminManualPage() {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════ ATAJOS DE TECLADO ═══════════ */}
+        <TabsContent value="shortcuts" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={Keyboard} title="Atajos de Teclado" description="Accesos rápidos para agilizar las tareas más comunes." />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <h4 className="font-semibold text-foreground text-sm">Módulo de Revisiones</h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 text-muted-foreground">
+                      <th className="text-left px-3 py-2 font-medium">Tecla</th>
+                      <th className="text-left px-3 py-2 font-medium">Acción</th>
+                      <th className="text-left px-3 py-2 font-medium">Contexto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { key: "← (Flecha izquierda)", action: "Ir a la venta anterior", ctx: "Con detalle de venta abierto" },
+                      { key: "→ (Flecha derecha)", action: "Ir a la siguiente venta", ctx: "Con detalle de venta abierto" },
+                      { key: "A", action: "Aprobar la venta actual", ctx: "Con detalle de venta abierto" },
+                      { key: "Esc", action: "Cerrar panel de detalle", ctx: "Con detalle de venta abierto" },
+                    ].map((s, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-3 py-2"><Badge variant="outline" className="font-mono text-xs">{s.key}</Badge></td>
+                        <td className="px-3 py-2">{s.action}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{s.ctx}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Tip>Los atajos de teclado solo funcionan cuando el panel de detalle de la venta está abierto y no hay un campo de texto activo (input/textarea).</Tip>
+
+              <h4 className="font-semibold text-foreground text-sm">Navegación General</h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 text-muted-foreground">
+                      <th className="text-left px-3 py-2 font-medium">Tecla</th>
+                      <th className="text-left px-3 py-2 font-medium">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { key: "Ctrl + B / ⌘ + B", action: "Colapsar/expandir sidebar" },
+                      { key: "Tab", action: "Navegar entre elementos interactivos" },
+                      { key: "Enter", action: "Activar botón o enlace enfocado" },
+                      { key: "Esc", action: "Cerrar modales y diálogos" },
+                    ].map((s, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-3 py-2"><Badge variant="outline" className="font-mono text-xs">{s.key}</Badge></td>
+                        <td className="px-3 py-2">{s.action}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <h4 className="font-semibold text-foreground text-sm">Flujo Rápido de Revisión</h4>
+              <p className="text-sm text-muted-foreground">
+                Para revisar ventas de forma eficiente sin usar el mouse:
+              </p>
+              <FlowDiagram steps={[
+                "Abrir primera venta",
+                "Verificar fotos",
+                "Presionar A para aprobar",
+                "→ para siguiente",
+                "Repetir",
+              ]} />
+              <Tip>Este flujo permite revisar decenas de ventas en minutos, ideal para revisores de ciudad con alto volumen.</Tip>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════ FAQ ═══════════ */}
+        <TabsContent value="faq" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={AlertTriangle} title="Preguntas Frecuentes y Solución de Problemas" description="Respuestas a las dudas más comunes al operar el sistema." />
+            </CardHeader>
+            <CardContent>
+              <Accordion type="multiple" className="w-full">
+                {/* Ventas & Revisiones */}
+                <AccordionItem value="faq-serial-not-found">
+                  <AccordionTrigger className="text-sm font-medium">Un vendedor dice que su serial no es reconocido</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Causa más común:</strong> El serial no fue importado a la tabla de seriales o fue importado con un producto diferente.</p>
+                    <p><strong>Solución:</strong></p>
+                    <p>1. Ve a <strong>Seriales</strong> y busca el serial exacto (sin espacios).</p>
+                    <p>2. Si no aparece, necesitas importarlo. Usa el botón "Importar" con un archivo que contenga el serial y su producto asociado.</p>
+                    <p>3. Si aparece como "Bloqueado", revisa en <strong>Restringidos</strong> si está en la lista negra.</p>
+                    <p>4. Si aparece como "Usado", significa que ya fue registrado en otra venta.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-serial-restricted">
+                  <AccordionTrigger className="text-sm font-medium">El serial aparece como restringido pero no debería</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Solución:</strong></p>
+                    <p>1. Ve a <strong>Restringidos</strong> y busca el serial.</p>
+                    <p>2. Verifica la razón y campaña de origen.</p>
+                    <p>3. Si fue un error, elimínalo con el botón 🗑️.</p>
+                    <p>4. El serial volverá a estar disponible inmediatamente.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-duplicate-sale">
+                  <AccordionTrigger className="text-sm font-medium">Un vendedor registró la misma venta dos veces</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p>El sistema previene duplicados por serial: una vez usado, el serial no puede registrarse de nuevo.</p>
+                    <p>Si de alguna forma se duplicó (diferentes seriales, mismo producto), el revisor debe <strong>rechazar</strong> la venta duplicada con el motivo "Duplicada".</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-wrong-approval">
+                  <AccordionTrigger className="text-sm font-medium">Un revisor aprobó una venta por error</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Solución:</strong> Un supervisor puede revertir la aprobación desde el módulo de <strong>Auditoría</strong>.</p>
+                    <p>1. El supervisor busca la venta en el módulo de Auditoría.</p>
+                    <p>2. Presiona "Revertir" e ingresa el motivo.</p>
+                    <p>3. La venta vuelve a estado "pendiente" y puede ser revisada nuevamente.</p>
+                    <p>4. Se registra la acción en <code>supervisor_audits</code> para trazabilidad.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Campañas */}
+                <AccordionItem value="faq-campaign-periods">
+                  <AccordionTrigger className="text-sm font-medium">Los periodos de la campaña no se están cerrando automáticamente</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Verificar:</strong></p>
+                    <p>1. Que la campaña tenga activado "Cierre automático de periodos".</p>
+                    <p>2. Que la campaña esté en estado "activa".</p>
+                    <p>3. El proceso de cierre se ejecuta automáticamente. Si un periodo no se cerró, puede ser que las fechas no coincidan o el proceso aún no se ejecutó.</p>
+                    <p>4. En <strong>Configuración → Procesos del Sistema</strong> puedes verificar el estado de los procesos automáticos.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-vendor-not-enrolled">
+                  <AccordionTrigger className="text-sm font-medium">Un vendedor no puede inscribirse a una campaña</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Posibles causas:</strong></p>
+                    <p>1. <strong>Registro cerrado:</strong> La campaña tiene deshabilitado el registro o la ventana de registro ya pasó.</p>
+                    <p>2. <strong>Requiere aprobación:</strong> La campaña tiene activado "Requiere aprobación" y el vendedor está pendiente de aprobación.</p>
+                    <p>3. <strong>Vendedor inactivo:</strong> El vendedor está desactivado o bloqueado en el sistema.</p>
+                    <p>4. <strong>Ya inscrito:</strong> El vendedor ya está inscrito en la campaña.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Comisiones */}
+                <AccordionItem value="faq-commission-zero">
+                  <AccordionTrigger className="text-sm font-medium">La liquidación de un vendedor aparece en Bs 0</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Causa:</strong> El vendedor no tiene ventas <strong>aprobadas</strong> en el periodo seleccionado.</p>
+                    <p><strong>Verificar:</strong></p>
+                    <p>1. Que las ventas del vendedor estén en estado "approved" (no "pending" o "rejected").</p>
+                    <p>2. Que las fechas de venta caigan dentro del periodo seleccionado.</p>
+                    <p>3. Que los productos tengan un valor de bono Bs mayor a 0.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-regenerate-settlement">
+                  <AccordionTrigger className="text-sm font-medium">¿Puedo regenerar una liquidación después de aprobar ventas adicionales?</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p>Sí. Si se aprobaron ventas adicionales después de generar la liquidación, puedes volver a presionar <strong>"Generar Liquidación"</strong> para el mismo periodo.</p>
+                    <p>El sistema recalculará los montos incluyendo las nuevas ventas aprobadas.</p>
+                    <Tip>Asegúrate de no haber marcado pagos ya. Si ya se pagaron comisiones, coordina con el vendedor el diferencial.</Tip>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Importaciones */}
+                <AccordionItem value="faq-import-fails">
+                  <AccordionTrigger className="text-sm font-medium">La importación de Excel/CSV falla o no carga todos los registros</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Pasos para diagnosticar:</strong></p>
+                    <p>1. <strong>Formato:</strong> Verifica que el archivo tenga las columnas exactas de la plantilla. Descarga la plantilla desde el botón correspondiente.</p>
+                    <p>2. <strong>Encoding:</strong> Guarda el archivo como CSV UTF-8 si tiene caracteres especiales (ñ, tildes).</p>
+                    <p>3. <strong>Duplicados:</strong> Si un serial o producto ya existe, puede ser ignorado silenciosamente.</p>
+                    <p>4. <strong>Tamaño:</strong> Para archivos muy grandes (+50,000 filas), puede tomar varios segundos. Espera a que termine sin cerrar la pestaña.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* QR y Pagos */}
+                <AccordionItem value="faq-vendor-no-qr">
+                  <AccordionTrigger className="text-sm font-medium">El vendedor no tiene QR de cobro</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p>El QR de cobro lo sube cada vendedor desde su perfil personal en <strong>/v/perfil</strong>.</p>
+                    <p>Si un vendedor no tiene QR, indícale que:</p>
+                    <p>1. Ingrese a su cuenta desde el celular.</p>
+                    <p>2. Vaya a "Mi Perfil".</p>
+                    <p>3. Suba una foto o captura de pantalla de su QR bancario.</p>
+                    <p>El QR tiene una fecha de expiración configurable. Si expiró, el vendedor debe subirlo nuevamente.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-ai-validation">
+                  <AccordionTrigger className="text-sm font-medium">¿Cómo funciona la validación de fecha con IA?</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p>Cuando la campaña tiene activada la <strong>Validación IA de fecha</strong>:</p>
+                    <p>1. Al registrar una venta, el sistema analiza la foto de la <strong>Nota de Venta</strong> con inteligencia artificial.</p>
+                    <p>2. La IA intenta detectar la fecha impresa en la nota.</p>
+                    <p>3. Si la fecha detectada no coincide con la fecha declarada por el vendedor, se genera una alerta ⚠️.</p>
+                    <p>4. El revisor ve el nivel de <strong>confianza</strong> de la IA (porcentaje) y la fecha detectada.</p>
+                    <p>5. El revisor decide si aprobar o rechazar basándose en toda la evidencia disponible.</p>
+                    <Tip>La IA no rechaza ventas automáticamente. Solo alerta al revisor para que preste atención especial.</Tip>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-user-locked">
+                  <AccordionTrigger className="text-sm font-medium">Un usuario dice que no puede iniciar sesión</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Pasos para diagnosticar:</strong></p>
+                    <p>1. Ve a <strong>Usuarios/Roles</strong> y busca el email del usuario.</p>
+                    <p>2. Verifica si la cuenta está <strong>bloqueada</strong> (is_disabled = true).</p>
+                    <p>3. Si está bloqueada, desbloquéala.</p>
+                    <p>4. Si no está bloqueada, usa <strong>"Resetear Contraseña"</strong> para enviar un email de recuperación.</p>
+                    <p>5. Verifica que el usuario tenga al menos un <strong>rol asignado</strong>, de lo contrario no tendrá acceso a ningún módulo.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-backup">
+                  <AccordionTrigger className="text-sm font-medium">¿Cómo hago un respaldo completo del sistema?</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p>Ve a <strong>Configuración → Respaldos</strong> y presiona <strong>"Exportar Todo"</strong>.</p>
+                    <p>Esto descargará un archivo Excel con una hoja por cada tabla del sistema, incluyendo:</p>
+                    <p>• Campañas, periodos, productos, seriales, vendedores, ventas, adjuntos</p>
+                    <p>• Revisiones, comisiones, auditorías, usuarios, roles, configuraciones</p>
+                    <p>El proceso puede tomar hasta un minuto en sistemas con muchos datos (especialmente seriales con +100k registros).</p>
+                    <Tip>Se recomienda hacer un respaldo al menos una vez por semana, y siempre antes de realizar importaciones masivas.</Tip>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════ GLOSARIO ═══════════ */}
+        <TabsContent value="glossary" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={BookOpen} title="Glosario de Términos" description="Definición de todos los términos utilizados en el sistema." />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-0">
+                {[
+                  { term: "Bono Bs", def: "Comisión en bolivianos que recibe el vendedor por cada venta aprobada. Se configura por producto." },
+                  { term: "Campaña", def: "Programa de incentivos con fecha de inicio y fin. Contiene periodos, vendedores inscritos y ventas." },
+                  { term: "Cierre de Periodo", def: "Proceso que finaliza un periodo semanal/quincenal. Las ventas pendientes se marcan como 'cerradas' y se genera el reporte." },
+                  { term: "Ciudad", def: "Ubicación geográfica del vendedor. Se usa para filtrar ventas, asignar revisores y generar reportes." },
+                  { term: "Feature Flag", def: "Interruptor que habilita o deshabilita una funcionalidad del sistema sin cambiar código (ej: Comparador de Campañas)." },
+                  { term: "Grupo de Ciudades", def: "Agrupación de ciudades para reportes consolidados (ej: 'Eje Troncal')." },
+                  { term: "Inscripción", def: "Proceso por el cual un vendedor se registra para participar en una campaña." },
+                  { term: "Kardex", def: "Ficha o expediente del vendedor con todos sus datos, historial de tiendas y ventas." },
+                  { term: "Landing", def: "Página pública de inicio del sistema, visible antes de iniciar sesión." },
+                  { term: "Liquidación", def: "Cálculo del monto total a pagar a cada vendedor por sus ventas aprobadas en un periodo." },
+                  { term: "Nota de Venta", def: "Foto del recibo o comprobante de venta con la fecha visible. Evidencia obligatoria para cada venta." },
+                  { term: "Periodo", def: "Intervalo de tiempo dentro de una campaña (semanal, quincenal, mensual). Las ventas y comisiones se agrupan por periodo." },
+                  { term: "Póliza", def: "Foto de la póliza de garantía o factura del producto. Evidencia obligatoria para cada venta." },
+                  { term: "Puntos", def: "Valor asignado al vendedor para el ranking de la campaña. Se configura por producto." },
+                  { term: "QR de Cobro", def: "Imagen del código QR bancario del vendedor, usado para realizar transferencias de pago de comisiones." },
+                  { term: "Ranking", def: "Tabla de posiciones de vendedores ordenada por puntos acumulados en la campaña." },
+                  { term: "Revisor de Ciudad", def: "Rol que permite revisar (aprobar/rechazar) las ventas registradas por vendedores de una ciudad específica." },
+                  { term: "RLS (Row Level Security)", def: "Política de seguridad a nivel de base de datos que garantiza que cada usuario solo acceda a los datos que le corresponden." },
+                  { term: "Serial", def: "Número de serie único del producto Skyworth. Cada venta requiere un serial válido que se verifica contra la base de datos." },
+                  { term: "Serial Restringido", def: "Serial que está en lista negra y no puede usarse para registrar ventas (usado en campaña anterior, robado, etc.)." },
+                  { term: "Slug", def: "Identificador corto y amigable para URLs (ej: /c/campania-verano-2025). Se configura al crear la campaña." },
+                  { term: "Supervisor", def: "Rol que audita por muestreo las aprobaciones hechas por revisores de ciudad. Puede revertir decisiones." },
+                  { term: "TAG", def: "Foto de la etiqueta del producto Skyworth con el número de serie visible. Evidencia obligatoria para cada venta." },
+                  { term: "Talla de Polera", def: "Talla de remera/polera del vendedor, registrada para envío de merchandise de la campaña." },
+                  { term: "Tienda", def: "Punto de venta o local comercial donde trabaja el vendedor. Los cambios de tienda quedan registrados con historial." },
+                  { term: "Validación IA", def: "Proceso automatizado que usa inteligencia artificial para detectar la fecha en la foto de la nota de venta y compararla con la fecha declarada." },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 py-3 border-b last:border-b-0">
+                    <Badge variant="outline" className="shrink-0 mt-0.5 font-mono text-xs min-w-[140px] justify-center">{item.term}</Badge>
+                    <p className="text-sm text-muted-foreground">{item.def}</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
