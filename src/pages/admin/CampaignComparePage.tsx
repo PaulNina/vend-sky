@@ -101,11 +101,22 @@ export default function CampaignComparePage() {
       const campaign = campaigns.find(c => c.id === campaignId);
       if (!campaign) continue;
 
-      // Get sales data
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("status, bonus_bs, points, vendor_id")
-        .eq("campaign_id", campaignId);
+      // Batch-load sales to avoid 1000-row limit
+      let allSales: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data: batch } = await supabase
+          .from("sales")
+          .select("status, bonus_bs, points, vendor_id")
+          .eq("campaign_id", campaignId)
+          .range(from, from + batchSize - 1);
+        if (!batch || batch.length === 0) break;
+        allSales = allSales.concat(batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+      const sales = allSales;
 
       // Get enrollments
       const { count: enrolledCount } = await supabase
@@ -114,14 +125,14 @@ export default function CampaignComparePage() {
         .eq("campaign_id", campaignId)
         .eq("status", "active");
 
-      const totalSales = sales?.length || 0;
-      const approvedSales = sales?.filter(s => s.status === "approved").length || 0;
-      const pendingSales = sales?.filter(s => s.status === "pending").length || 0;
-      const rejectedSales = sales?.filter(s => s.status === "rejected").length || 0;
-      const observedSales = sales?.filter(s => s.status === "observed").length || 0;
-      const totalBonus = sales?.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.bonus_bs || 0), 0) || 0;
-      const totalPoints = sales?.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.points || 0), 0) || 0;
-      const uniqueVendors = new Set(sales?.filter(s => s.status === "approved").map(s => s.vendor_id)).size;
+      const totalSales = sales.length;
+      const approvedSales = sales.filter(s => s.status === "approved").length;
+      const pendingSales = sales.filter(s => s.status === "pending").length;
+      const rejectedSales = sales.filter(s => s.status === "rejected").length;
+      const observedSales = sales.filter(s => s.status === "observed").length;
+      const totalBonus = sales.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.bonus_bs || 0), 0);
+      const totalPoints = sales.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.points || 0), 0);
+      const uniqueVendors = new Set(sales.filter(s => s.status === "approved").map(s => s.vendor_id)).size;
       const approvalRate = totalSales > 0 ? Math.round((approvedSales / totalSales) * 100) : 0;
       const avgBonus = uniqueVendors > 0 ? Math.round(totalBonus / uniqueVendors) : 0;
 
