@@ -158,9 +158,26 @@ export default function MetricsPage() {
     }
 
     const sales = allSales;
-    if (sales.length === 0) {
+    // Collect any vendor_ids from sales not yet in vendorMap and fetch their info
+    const missingVendorIds = new Set<string>();
+    for (const s of allSales) {
+      if (!vendorMap.has(s.vendor_id)) missingVendorIds.add(s.vendor_id);
+    }
+    if (missingVendorIds.size > 0) {
+      const ids = Array.from(missingVendorIds);
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const { data: vData } = await supabase.from("vendors").select("id, full_name, store_name, city").in("id", chunk);
+        if (vData) {
+          for (const v of vData) {
+            vendorMap.set(v.id, { full_name: v.full_name, store_name: v.store_name || "", city: v.city });
+          }
+        }
+      }
+    }
+
+    if (allSales.length === 0) {
       setWeeklyData([]); setCityData([]); setProductData([]);
-      // Still show vendors with 0 sales
       const emptyVendors: VendorRow[] = Array.from(vendorMap.entries()).map(([vid, v]) => ({
         vendor_id: vid, full_name: v.full_name, store_name: v.store_name, city: v.city,
         total_units: 0, approved_units: 0, rejected_units: 0, observed_units: 0, pending_units: 0,
