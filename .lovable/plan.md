@@ -1,24 +1,40 @@
 
 
-## Plan: Pestaña de Backup en Configuración
+## Plan: Nuevos informes en Métricas (Tabs adicionales)
 
-### Enfoque
-Agregar un sistema de Tabs a la página de Configuración. La pestaña "General" contendrá todo el contenido actual. La nueva pestaña "Backup" permitirá exportar todos los datos del sistema.
+### Informes faltantes para el dueño
 
-### Cambios en `src/pages/admin/ConfigurationPage.tsx`
+Actualmente la página tiene 4 tabs: Vista General, Semanal, Por Ciudad, Productos. Faltan reportes clave que un dueño necesita:
 
-1. **Envolver el contenido en Tabs** (de Radix/shadcn): Tab "General" con todo lo actual, Tab "Backup" nueva.
+1. **Top Vendedores** — Ranking de vendedores por unidades aprobadas, con bono acumulado, tasa de aprobación y ciudad. Exportable a Excel.
+2. **Tendencia Diaria** — Gráfico de línea con ventas por día + tabla con desglose diario (total, aprobadas, rechazadas). Exportable.
+3. **Seriales** — Resumen de uso de seriales: total importados, usados, disponibles, % utilización por producto. Exportable.
 
-2. **Tab Backup** incluirá:
-   - Botón "Exportar Todo" que descarga un archivo Excel (.xlsx) con una hoja por cada tabla del sistema
-   - Botones individuales por tabla para exportar solo esa entidad
-   - Contadores de registros por tabla
-   - Tablas a exportar: campaigns, campaign_periods, products, serials, vendors, sales, sale_attachments, reviews, commission_payments, cities, city_groups, city_group_members, report_recipients, restricted_serials, user_profiles, user_roles, app_settings, email_templates, notifications, admin_audit_logs, supervisor_audits, vendor_blocks, vendor_store_history
+### Cambios en `src/pages/admin/MetricsPage.tsx`
 
-3. **Lógica de exportación**: Usar la librería `xlsx` (ya instalada) para generar un archivo multi-hoja. Cada tabla se consulta via Supabase con paginación para superar el límite de 1000 filas (importante para serials con 107k registros).
+**Datos adicionales a cargar:**
+- Ampliar el `select` de sales para incluir `sale_date` (ya disponible en filtros pero no en el select)
+- Cargar vendors con `id, full_name, city, store_name` filtrados por campaña (via enrollments) para mapear vendor_id → nombre
+- Cargar conteos de seriales (total y usados) agrupados por producto
 
-4. **Función de paginación**: Helper `fetchAllRows(table)` que hace queries en lotes de 1000 hasta traer todos los registros.
+**Nuevas agregaciones (desde los mismos sales ya cargados):**
 
-### Archivos modificados
-- `src/pages/admin/ConfigurationPage.tsx` — agregar Tabs + lógica de backup
+- **vendorData**: Map por vendor_id → { name, city, store, total_units, approved_units, rejected_units, observed_units, bonus_bs, points, approval_rate }
+- **dailyData**: Map por sale_date → { date, total, approved, pending, rejected, observed, bonus_bs }
+- **serialsData**: Query aparte a `serials` con conteo por status
+
+**3 nuevos TabsTrigger + TabsContent:**
+
+- `vendors` — Tabla ranking con columnas: #, Vendedor, Tienda, Ciudad, Total, Aprobadas, % Aprob., Bono Bs, Puntos. Footer con totales. Botón exportar.
+- `daily` — LineChart de unidades aprobadas por día + tabla con desglose. Botón exportar.
+- `serials` — Tabla de productos con Total Seriales, Usados, Disponibles, % Uso. Barra de progreso visual por producto.
+
+**Exportaciones Excel:**
+- `exportVendors()` — usa `exportToExcel` 
+- `exportDaily()` — usa `exportToExcel`
+- `exportSerials()` — usa `exportToExcel`
+- Actualizar `exportFullReport()` para incluir las 3 hojas nuevas en el reporte gerencial multi-hoja
+
+### Archivo modificado
+- `src/pages/admin/MetricsPage.tsx`
 
