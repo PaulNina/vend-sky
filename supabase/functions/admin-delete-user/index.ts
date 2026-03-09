@@ -155,21 +155,33 @@ Deno.serve(async (req) => {
     if (mode === "hard") {
       // Delete all dependent records first
       if (vendorRecord) {
-        // Delete sales-related data
-        const { data: salesData } = await adminClient
-          .from("sales")
-          .select("id")
-          .eq("vendor_id", vendorRecord.id);
+        // Batch-load all sale IDs to avoid 1000-row limit
+        let allSaleIds: string[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        while (true) {
+          const { data: batch } = await adminClient
+            .from("sales")
+            .select("id")
+            .eq("vendor_id", vendorRecord.id)
+            .range(from, from + batchSize - 1);
+          if (!batch || batch.length === 0) break;
+          allSaleIds = allSaleIds.concat(batch.map((s: any) => s.id));
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
 
-        if (salesData && salesData.length > 0) {
-          const saleIds = salesData.map((s: any) => s.id);
-          await adminClient.from("reviews").delete().in("sale_id", saleIds);
-          await adminClient.from("supervisor_audits").delete().in("sale_id", saleIds);
-          await adminClient.from("sale_attachments").delete().in("sale_id", saleIds);
-          // Revert serials
-          await adminClient.from("serials")
-            .update({ status: "available", used_sale_id: null })
-            .in("used_sale_id", saleIds);
+        if (allSaleIds.length > 0) {
+          // Process in chunks of 500 to avoid query size limits
+          for (let i = 0; i < allSaleIds.length; i += 500) {
+            const chunk = allSaleIds.slice(i, i + 500);
+            await adminClient.from("reviews").delete().in("sale_id", chunk);
+            await adminClient.from("supervisor_audits").delete().in("sale_id", chunk);
+            await adminClient.from("sale_attachments").delete().in("sale_id", chunk);
+            await adminClient.from("serials")
+              .update({ status: "available", used_sale_id: null })
+              .in("used_sale_id", chunk);
+          }
           await adminClient.from("sales").delete().eq("vendor_id", vendorRecord.id);
         }
 
