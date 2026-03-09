@@ -498,7 +498,7 @@ export default function MetricsPage() {
   };
 
   const clearDateRange = () => { setDateFrom(undefined); setDateTo(undefined); setQuickRange("all"); };
-  const clearFilters = () => { clearDateRange(); setSelectedCity("all"); };
+  const clearFilters = () => { clearDateRange(); if (!isRevisor) setSelectedCity("all"); };
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -546,7 +546,7 @@ export default function MetricsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ciudad:</span>
-            <Select value={selectedCity} onValueChange={setSelectedCity}>
+            <Select value={selectedCity} onValueChange={setSelectedCity} disabled={isRevisor}>
               <SelectTrigger className="w-[180px] h-8 text-sm">
                 <SelectValue placeholder="Todas las ciudades" />
               </SelectTrigger>
