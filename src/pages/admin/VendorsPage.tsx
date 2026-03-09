@@ -319,7 +319,10 @@ export default function VendorsPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{totalFiltered} vendedores encontrados</p>
         </div>
-        <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
+          <Button variant="outline" onClick={openImport}><Upload className="h-4 w-4 mr-1" />Importar</Button>
+        </div>
       </div>
 
       {/* Stats */}
