@@ -16,13 +16,14 @@ function useRegistrationStatus(campaignId?: string) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [campaignSubtitle, setCampaignSubtitle] = useState("");
+  const [campaignData, setCampaignData] = useState<{ id: string; require_vendor_approval: boolean } | null>(null);
   const [message, setMessage] = useState("");
   
   useEffect(() => {
     const check = async () => {
       let query = supabase
         .from("campaigns")
-        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at")
+        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
         .eq("is_active", true)
         .eq("status", "active");
 
@@ -42,6 +43,7 @@ function useRegistrationStatus(campaignId?: string) {
 
       setCampaignName(campaign.name);
       setCampaignSubtitle(campaign.subtitle || "");
+      setCampaignData({ id: campaign.id, require_vendor_approval: campaign.require_vendor_approval });
       const now = new Date();
 
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
@@ -68,7 +70,7 @@ function useRegistrationStatus(campaignId?: string) {
     check();
   }, [campaignId]);
 
-  return { allowed, campaignName, campaignSubtitle, message };
+  return { allowed, campaignName, campaignSubtitle, campaignData, message };
 }
 
 export default function RegisterPage() {
