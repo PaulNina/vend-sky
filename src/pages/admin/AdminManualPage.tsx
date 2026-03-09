@@ -173,8 +173,11 @@ const searchIndex: SearchEntry[] = [
   { tab: "faq", tabLabel: "FAQ", title: "Validación IA de fecha", keywords: "IA inteligencia artificial fecha nota venta confianza alerta" },
   { tab: "faq", tabLabel: "FAQ", title: "Usuario no puede iniciar sesión", keywords: "login contraseña bloqueado resetear rol" },
   { tab: "faq", tabLabel: "FAQ", title: "Respaldo completo", keywords: "backup respaldo exportar todo Excel tablas" },
+  { tab: "faq", tabLabel: "FAQ", title: "Error al registrarse como vendedor", keywords: "registro error cuenta parcial fallo vendedor crear" },
+  { tab: "faq", tabLabel: "FAQ", title: "Vendedor pendiente de aprobación", keywords: "aprobación pendiente require_vendor_approval inactivo campaña" },
+  { tab: "faq", tabLabel: "FAQ", title: "Datos incompletos en reportes grandes", keywords: "datos faltantes truncados 1000 límite paginación batch" },
   // Glosario
-  { tab: "glossary", tabLabel: "Glosario", title: "Glosario de Términos", keywords: "glosario definición término bono campaña cierre ciudad feature flag grupo inscripción kardex landing liquidación nota periodo póliza puntos QR ranking revisor RLS serial slug supervisor TAG talla tienda validación" },
+  { tab: "glossary", tabLabel: "Glosario", title: "Glosario de Términos", keywords: "glosario definición término bono campaña cierre ciudad feature flag grupo inscripción kardex landing liquidación nota periodo póliza puntos QR ranking revisor RLS serial slug supervisor TAG talla tienda validación aprobación" },
   // Inicio Rápido
   { tab: "quickstart", tabLabel: "Inicio Rápido", title: "Guía de Inicio Rápido", keywords: "inicio rápido checklist lanzar campaña crear productos seriales revisores correos inscripción activa" },
   { tab: "quickstart", tabLabel: "Inicio Rápido", title: "Estados de una Venta", keywords: "estados venta pendiente aprobada rechazada cerrada flujo" },
@@ -582,9 +585,12 @@ export default function AdminManualPage() {
               <div className="text-sm text-muted-foreground space-y-1">
                 <p>• <strong>Validación IA de fecha:</strong> Usa inteligencia artificial para verificar que la fecha en la nota de venta coincida con la fecha registrada.</p>
                 <p>• <strong>Registro habilitado:</strong> Permite/bloquea la inscripción de vendedores.</p>
-                <p>• <strong>Requiere aprobación:</strong> Los vendedores deben ser aprobados por un admin antes de poder registrar ventas.</p>
+                <p>• <strong>Requiere aprobación:</strong> Si está activado, los vendedores que se registren quedarán con estado <strong>pendiente de aprobación</strong> (inactivos) hasta que un administrador los apruebe manualmente desde el Kardex de Vendedores. Mientras estén pendientes, no podrán registrar ventas. <strong>Por defecto está deshabilitado</strong>, lo que permite acceso inmediato al registrarse.</p>
                 <p>• <strong>Ventas dentro de campaña:</strong> Solo permite registrar ventas con fecha dentro del rango de la campaña.</p>
               </div>
+              <Warning>
+                Si activas "Requiere aprobación" a mitad de campaña, solo afectará a los <strong>nuevos registros</strong>. Los vendedores ya inscritos no se verán afectados.
+              </Warning>
             </CardContent>
           </Card>
 
@@ -1108,6 +1114,25 @@ export default function AdminManualPage() {
                       <p>• <strong>Cierre semanal:</strong> Cierra periodos vencidos y actualiza estados de ventas.</p>
                       <p>• <strong>Generación de reportes:</strong> Crea y envía reportes por ciudad al cierre de periodo.</p>
                       <p>• <strong>Notificación de pago:</strong> Envía email a vendedores cuando su comisión es marcada como pagada.</p>
+                      <p>• <strong>Liquidación:</strong> Calcula comisiones para todos los vendedores del periodo seleccionado.</p>
+                    </div>
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <div className="flex items-start gap-2">
+                        <ShieldAlert className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                        <div className="text-sm text-muted-foreground">
+                          <p className="font-medium text-foreground">Seguridad</p>
+                          <p className="mt-1">Todos los procesos del sistema requieren autenticación de administrador. Las funciones de backend verifican el rol del usuario antes de ejecutarse, previniendo acceso no autorizado.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <div className="flex items-start gap-2">
+                        <Database className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                        <div className="text-sm text-muted-foreground">
+                          <p className="font-medium text-foreground">Integridad de Datos</p>
+                          <p className="mt-1">El sistema maneja volúmenes grandes de datos mediante carga por lotes (batch loading). Esto garantiza que reportes, liquidaciones y métricas reflejen el 100% de los datos, sin importar la cantidad de registros.</p>
+                        </div>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>
