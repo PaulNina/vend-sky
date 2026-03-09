@@ -6,6 +6,7 @@ import {
   Upload, Download, Search, Filter, Keyboard, AlertTriangle, QrCode,
   Globe, Layers, Database, RefreshCw, ChevronRight, Info, Zap,
   Rocket, Lock, Trash2, UserX, ShieldAlert, Clock, Star, TriangleAlert,
+  TrendingUp, CalendarIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
