@@ -142,6 +142,22 @@ export default function ConfigurationPage() {
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingTable, setExportingTable] = useState<string | null>(null);
 
+  // System health state
+  const [healthChecks, setHealthChecks] = useState<{
+    database: "loading" | "ok" | "error";
+    auth: "loading" | "ok" | "error";
+    storage: "loading" | "ok" | "error";
+    edgeFunctions: "loading" | "ok" | "error";
+  }>({ database: "loading", auth: "loading", storage: "loading", edgeFunctions: "loading" });
+  const [systemStats, setSystemStats] = useState<{
+    totalUsers: number;
+    totalSales: number;
+    totalSerials: number;
+    pendingReviews: number;
+    lastAuditLog: string | null;
+  }>({ totalUsers: 0, totalSales: 0, totalSerials: 0, pendingReviews: 0, lastAuditLog: null });
+  const [loadingHealth, setLoadingHealth] = useState(false);
+
   // Email config state
   const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
   const [smtpHost, setSmtpHost] = useState("");
