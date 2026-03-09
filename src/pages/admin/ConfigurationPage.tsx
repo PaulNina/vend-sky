@@ -1257,6 +1257,151 @@ export default function ConfigurationPage() {
             })}
           </div>
         </TabsContent>
+
+        {/* System Health Tab */}
+        <TabsContent value="system" className="space-y-6 mt-6">
+          {/* Health Status */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Activity className="h-4 w-4 text-primary" />
+                Estado del Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Diagnóstico de los servicios principales del sistema.
+              </p>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { key: "database", label: "Base de Datos", icon: Database },
+                  { key: "auth", label: "Autenticación", icon: ShieldCheck },
+                  { key: "storage", label: "Almacenamiento", icon: HardDriveDownload },
+                  { key: "edgeFunctions", label: "Funciones", icon: Server },
+                ].map((service) => {
+                  const status = healthChecks[service.key as keyof typeof healthChecks];
+                  return (
+                    <div
+                      key={service.key}
+                      className={`p-4 rounded-lg border text-center transition-all ${
+                        status === "ok"
+                          ? "bg-success/5 border-success/30"
+                          : status === "error"
+                          ? "bg-destructive/5 border-destructive/30"
+                          : "bg-muted/20 border-border/50"
+                      }`}
+                    >
+                      <service.icon
+                        className={`h-6 w-6 mx-auto mb-2 ${
+                          status === "ok"
+                            ? "text-success"
+                            : status === "error"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      />
+                      <p className="text-xs font-medium">{service.label}</p>
+                      <div className="mt-1">
+                        {status === "loading" ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Verificando
+                          </Badge>
+                        ) : status === "ok" ? (
+                          <Badge variant="outline" className="text-[10px] text-success border-success/40 bg-success/10">
+                            <Wifi className="h-3 w-3 mr-1" />
+                            Conectado
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40 bg-destructive/10">
+                            <WifiOff className="h-3 w-3 mr-1" />
+                            Error
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button onClick={runHealthChecks} disabled={loadingHealth} variant="outline" size="sm">
+                {loadingHealth ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                Verificar Conexiones
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* System Statistics */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                Estadísticas del Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-2xl font-bold text-primary">{systemStats.totalUsers.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Usuarios Registrados</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-2xl font-bold text-primary">{systemStats.totalSales.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ventas Totales</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-2xl font-bold text-primary">{systemStats.totalSerials.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Seriales en Sistema</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-2xl font-bold text-primary">{systemStats.pendingReviews.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Revisiones Pendientes</p>
+                </div>
+              </div>
+              {systemStats.lastAuditLog && (
+                <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Última acción de auditoría: {format(new Date(systemStats.lastAuditLog), "d MMM yyyy, HH:mm", { locale: es })}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* System Info */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Server className="h-4 w-4 text-primary" />
+                Información del Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center py-2 border-b border-border/50">
+                  <span className="text-muted-foreground">Versión de la Aplicación</span>
+                  <Badge variant="outline">1.0.0</Badge>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-border/50">
+                  <span className="text-muted-foreground">Entorno</span>
+                  <Badge variant="secondary">Producción</Badge>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-border/50">
+                  <span className="text-muted-foreground">Zona Horaria</span>
+                  <span className="font-mono text-xs">America/La_Paz (UTC-4)</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-border/50">
+                  <span className="text-muted-foreground">Tablas en Backup</span>
+                  <span className="font-mono text-xs">{BACKUP_TABLES.length}</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-muted-foreground">Hora del Servidor (Bolivia)</span>
+                  <span className="font-mono text-xs">{format(boliviaNow, "d MMM yyyy, HH:mm:ss", { locale: es })}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Close Campaign Dialog */}
