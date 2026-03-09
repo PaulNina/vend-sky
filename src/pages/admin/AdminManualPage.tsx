@@ -512,7 +512,7 @@ export default function AdminManualPage() {
 
         {/* ═══════════ VISIÓN GENERAL ═══════════ */}
         <TabsContent value="overview" className="space-y-4 mt-4">
-          <Card>
+           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> Arquitectura del Sistema</CardTitle>
               <CardDescription>Flujo principal del proceso de ventas y comisiones.</CardDescription>
@@ -522,6 +522,37 @@ export default function AdminManualPage() {
                 El sistema SKYWORTH gestiona campañas de incentivos para vendedores. Los vendedores registran ventas con evidencia fotográfica,
                 que son revisadas por supervisores de ciudad, auditadas por supervisores generales, y finalmente se generan comisiones para pago.
               </p>
+
+              <h4 className="font-semibold text-foreground text-sm">Arquitectura por Capas</h4>
+              <ArchDiagram layers={[
+                {
+                  title: "Capa de Usuarios",
+                  items: [
+                    { icon: Users, label: "Vendedores", desc: "Registran ventas" },
+                    { icon: Eye, label: "Revisores", desc: "Aprueban por ciudad" },
+                    { icon: ShieldCheck, label: "Supervisores", desc: "Auditan muestreo" },
+                    { icon: Settings, label: "Admins", desc: "Gestión total" },
+                  ],
+                },
+                {
+                  title: "Capa de Procesos",
+                  items: [
+                    { icon: Target, label: "Campañas", desc: "Periodos + config" },
+                    { icon: ClipboardCheck, label: "Revisiones", desc: "Aprobar/Rechazar" },
+                    { icon: ShieldAlert, label: "Auditoría", desc: "OK/Revertir/Observar" },
+                    { icon: DollarSign, label: "Comisiones", desc: "Liquidar + pagar" },
+                  ],
+                },
+                {
+                  title: "Capa de Datos",
+                  items: [
+                    { icon: Package, label: "Productos", desc: "Modelos + bonos" },
+                    { icon: Hash, label: "Seriales", desc: "107K+ registros" },
+                    { icon: Upload, label: "Evidencias", desc: "Fotos TAG/Póliza/Nota" },
+                    { icon: Database, label: "Reportes", desc: "Excel multi-hoja" },
+                  ],
+                },
+              ]} />
 
               <h4 className="font-semibold text-foreground text-sm">Flujo Principal</h4>
               <FlowDiagram steps={[
@@ -538,14 +569,22 @@ export default function AdminManualPage() {
               <h4 className="font-semibold text-foreground text-sm">Roles del Sistema</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { role: "Vendedor", desc: "Registra ventas, sube evidencia, consulta ranking y comisiones." },
-                  { role: "Revisor de Ciudad", desc: "Revisa ventas de su ciudad asignada, aprueba o rechaza con motivo." },
-                  { role: "Supervisor", desc: "Audita aprobaciones por muestreo, puede revertir decisiones." },
-                  { role: "Admin", desc: "Acceso completo: campañas, productos, seriales, comisiones, configuración." },
+                  { role: "Vendedor", icon: Users, desc: "Registra ventas, sube evidencia, consulta ranking y comisiones.", perms: ["Registrar ventas", "Ver ranking", "Subir QR cobro"] },
+                  { role: "Revisor de Ciudad", icon: Eye, desc: "Revisa ventas de su ciudad asignada, aprueba o rechaza con motivo.", perms: ["Revisar su ciudad", "Ver métricas de ciudad"] },
+                  { role: "Supervisor", icon: ShieldCheck, desc: "Audita aprobaciones por muestreo, puede revertir decisiones.", perms: ["Auditar ventas", "Revertir/Observar", "Ver todas las métricas"] },
+                  { role: "Admin", icon: Settings, desc: "Acceso completo: campañas, productos, seriales, comisiones, configuración.", perms: ["Todo lo anterior", "Gestionar sistema", "Exportar respaldos"] },
                 ].map((r) => (
-                  <div key={r.role} className="p-3 rounded-lg border bg-card">
-                    <Badge variant="outline" className="mb-1">{r.role}</Badge>
-                    <p className="text-xs text-muted-foreground">{r.desc}</p>
+                  <div key={r.role} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <r.icon className="h-4 w-4 text-primary" />
+                      <Badge variant="outline">{r.role}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{r.desc}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {r.perms.map((p, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{p}</span>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
