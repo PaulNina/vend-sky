@@ -342,7 +342,7 @@ export default function ReviewsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.map((s, i) => (
+                {filteredSales.map((s, i) => (
                   <TableRow key={s.id} className={`cursor-pointer hover:bg-muted/50 ${s.ai_flag ? "bg-warning/5" : ""}`} onClick={() => viewDetail(s, i)}>
                     <TableCell className="text-sm">{fmtDate(s.sale_date)}</TableCell>
                     <TableCell>
