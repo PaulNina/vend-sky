@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,10 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, DollarSign, Download, CheckCircle2, QrCode, ChevronDown, ChevronUp, Upload, Eye, ExternalLink } from "lucide-react";
+import {
+  Loader2, DollarSign, Download, CheckCircle2, QrCode, ChevronDown, ChevronUp, Upload, Eye, ExternalLink,
+  Search, ArrowUpDown, CreditCard, AlertTriangle, TrendingUp, Users
+} from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -56,6 +61,9 @@ interface WeekBreakdown {
   cumulative: number;
 }
 
+type SortKey = "name" | "city" | "units" | "amount" | "status";
+type SortDir = "asc" | "desc";
+
 function fmtBs(n: number) {
   return Math.round(n).toLocaleString("es-BO");
 }
@@ -84,12 +92,22 @@ export default function CommissionsPage() {
   const [weeklyData, setWeeklyData] = useState<Record<string, WeekBreakdown[]>>({});
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
 
+  // Search & sort
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("amount");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
   // Pay dialog
   const [payDialog, setPayDialog] = useState(false);
   const [payingRow, setPayingRow] = useState<CommissionRow | null>(null);
   const [payNote, setPayNote] = useState("");
   const [payFile, setPayFile] = useState<File | null>(null);
   const [paying, setPaying] = useState(false);
+
+  // Batch pay
+  const [batchPayDialog, setBatchPayDialog] = useState(false);
+  const [batchPaying, setBatchPaying] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   // QR dialog
   const [qrDialog, setQrDialog] = useState(false);
@@ -117,14 +135,12 @@ export default function CommissionsPage() {
       });
   }, []);
 
-  // Load periods when campaign changes
   useEffect(() => {
     const c = campaigns.find((x) => x.id === selectedCampaign);
     if (c) {
       setPeriodStart(c.start_date);
       setPeriodEnd(c.end_date);
       setSelectedPeriodId("custom");
-      // Load campaign periods
       supabase
         .from("campaign_periods")
         .select("id, period_number, period_start, period_end, status")
@@ -142,7 +158,6 @@ export default function CommissionsPage() {
     if (!selectedCampaign || !periodStart || !periodEnd) return;
     setLoading(true);
 
-    // Fetch commission_payments joined with vendor info
     let query = supabase
       .from("commission_payments")
       .select("id, vendor_id, units, amount_bs, status, paid_at, payment_proof_url, payment_note, vendors(full_name, city, store_name, qr_url, qr_expires_at)")
@@ -165,7 +180,7 @@ export default function CommissionsPage() {
     }
 
     const mapped: CommissionRow[] = (data || [])
-      .filter((r: any) => r.vendors) // filter out null joins when city filter
+      .filter((r: any) => r.vendors)
       .map((r: any) => ({
         id: r.id,
         vendor_id: r.vendor_id,
@@ -187,12 +202,60 @@ export default function CommissionsPage() {
     setLoading(false);
   }, [selectedCampaign, periodStart, periodEnd, selectedCity, statusFilter, showZero]);
 
+  // Filtered + sorted rows
+  const displayRows = useMemo(() => {
+    let result = rows;
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r =>
+        r.full_name.toLowerCase().includes(q) ||
+        r.city.toLowerCase().includes(q) ||
+        (r.store_name || "").toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "name": cmp = a.full_name.localeCompare(b.full_name); break;
+        case "city": cmp = a.city.localeCompare(b.city); break;
+        case "units": cmp = a.units - b.units; break;
+        case "amount": cmp = a.amount_bs - b.amount_bs; break;
+        case "status": cmp = a.status.localeCompare(b.status); break;
+      }
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+
+    return result;
+  }, [rows, searchQuery, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  const SortableHeader = ({ label, sortKeyName }: { label: string; sortKeyName: SortKey }) => (
+    <button
+      className="flex items-center gap-1 hover:text-foreground transition-colors text-left"
+      onClick={() => toggleSort(sortKeyName)}
+    >
+      {label}
+      <ArrowUpDown className={`h-3 w-3 ${sortKey === sortKeyName ? "text-primary" : "text-muted-foreground/50"}`} />
+    </button>
+  );
+
   const handleGenerate = async () => {
     if (!selectedCampaign || !periodStart || !periodEnd) {
       toast({ title: "Error", description: "Selecciona campaña y periodo.", variant: "destructive" });
       return;
     }
-    // Clamp period to campaign range
     if (campaignData) {
       if (periodStart < campaignData.start_date || periodEnd > campaignData.end_date) {
         toast({ title: "Aviso", description: "El periodo fue ajustado al rango de la campaña.", variant: "default" });
@@ -222,7 +285,7 @@ export default function CommissionsPage() {
   };
 
   const handleExport = () => {
-    const exportData = rows.map((r) => ({
+    const exportData = displayRows.map((r) => ({
       Vendedor: r.full_name,
       Ciudad: r.city,
       Tienda: r.store_name || "",
@@ -230,6 +293,7 @@ export default function CommissionsPage() {
       "Comisión Bs": Math.round(r.amount_bs),
       Estado: r.status === "paid" ? "Pagado" : "Pendiente",
       "Fecha Pago": r.paid_at ? new Date(r.paid_at).toLocaleDateString("es-BO") : "",
+      "Nota Pago": r.payment_note || "",
     }));
     exportToExcel(exportData, `comisiones_${periodStart}_${periodEnd}`);
   };
@@ -267,7 +331,6 @@ export default function CommissionsPage() {
 
       if (error) throw error;
 
-      // Send notification to vendor
       const campaign = campaigns.find((c) => c.id === selectedCampaign);
       supabase.functions.invoke("notify-payment", {
         body: {
@@ -291,11 +354,65 @@ export default function CommissionsPage() {
     }
   };
 
+  // Batch pay all pending
+  const pendingRows = useMemo(() => displayRows.filter(r => r.status === "pending" && r.units > 0), [displayRows]);
+
+  const handleBatchPay = async () => {
+    setBatchPaying(true);
+    setBatchProgress(0);
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    const campaign = campaigns.find((c) => c.id === selectedCampaign);
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < pendingRows.length; i++) {
+      const row = pendingRows[i];
+      const { error } = await supabase
+        .from("commission_payments")
+        .update({
+          status: "paid" as any,
+          paid_at: new Date().toISOString(),
+          paid_by: userId,
+          payment_note: "Pago masivo",
+        })
+        .eq("id", row.id);
+
+      if (error) {
+        failed++;
+      } else {
+        success++;
+        // Notify in background
+        supabase.functions.invoke("notify-payment", {
+          body: {
+            commission_payment_id: row.id,
+            vendor_id: row.vendor_id,
+            vendor_name: row.full_name,
+            campaign_name: campaign?.name || "",
+            period_start: periodStart,
+            period_end: periodEnd,
+            amount_bs: row.amount_bs,
+          },
+        }).catch(() => {});
+      }
+
+      setBatchProgress(Math.round(((i + 1) / pendingRows.length) * 100));
+    }
+
+    toast({
+      title: "Pago masivo completado",
+      description: `${success} pagos registrados${failed > 0 ? `, ${failed} fallidos` : ""}.`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+
+    setBatchPaying(false);
+    setBatchPayDialog(false);
+    loadData();
+  };
+
   const openQr = async (row: CommissionRow) => {
     if (!row.qr_url) return;
     setQrLoading(true);
     setQrDialog(true);
-    // Get signed URL for private bucket
     const { data } = await supabase.storage.from("vendor-qr").createSignedUrl(row.qr_url, 300);
     setQrUrl(data?.signedUrl || null);
     setQrLoading(false);
@@ -312,7 +429,7 @@ export default function CommissionsPage() {
     setProofLoading(false);
   };
 
-  // Weekly breakdown computation
+  // Weekly breakdown
   const loadWeeklyBreakdown = async (vendorId: string) => {
     if (weeklyData[vendorId]) {
       setExpandedVendor(expandedVendor === vendorId ? null : vendorId);
@@ -335,16 +452,13 @@ export default function CommissionsPage() {
       return;
     }
 
-    // Generate week buckets from periodStart to periodEnd (Mon-Sun)
     const weeks: { start: string; end: string }[] = [];
     const ps = new Date(periodStart + "T12:00:00-04:00");
     const pe = new Date(periodEnd + "T12:00:00-04:00");
-    // Find first Monday >= periodStart
     let cursor = new Date(ps);
     const day = cursor.getDay();
     const diffToMonday = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
     if (diffToMonday > 0 && day !== 1) cursor.setDate(cursor.getDate() + diffToMonday);
-    // If periodStart is before that Monday, add partial week
     if (ps < cursor) {
       const partialEnd = new Date(cursor);
       partialEnd.setDate(partialEnd.getDate() - 1);
@@ -377,8 +491,27 @@ export default function CommissionsPage() {
     return new Date(row.qr_expires_at) > new Date() ? "vigente" : "vencido";
   };
 
+  // Stats
   const totalUnits = rows.reduce((s, r) => s + r.units, 0);
   const totalBs = rows.reduce((s, r) => s + r.amount_bs, 0);
+  const paidCount = rows.filter(r => r.status === "paid").length;
+  const pendingCount = rows.filter(r => r.status === "pending" && r.units > 0).length;
+  const paymentProgress = rows.length > 0 ? Math.round((paidCount / rows.filter(r => r.units > 0).length) * 100) || 0 : 0;
+  const paidBs = rows.filter(r => r.status === "paid").reduce((s, r) => s + r.amount_bs, 0);
+  const pendingBs = rows.filter(r => r.status === "pending").reduce((s, r) => s + r.amount_bs, 0);
+
+  // City breakdown
+  const cityBreakdown = useMemo(() => {
+    const map: Record<string, { units: number; bs: number; paid: number; pending: number }> = {};
+    rows.forEach(r => {
+      if (!map[r.city]) map[r.city] = { units: 0, bs: 0, paid: 0, pending: 0 };
+      map[r.city].units += r.units;
+      map[r.city].bs += r.amount_bs;
+      if (r.status === "paid") map[r.city].paid++;
+      else if (r.units > 0) map[r.city].pending++;
+    });
+    return Object.entries(map).sort((a, b) => b[1].bs - a[1].bs);
+  }, [rows]);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -474,9 +607,19 @@ export default function CommissionsPage() {
               {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Consultar
             </Button>
-            <Button onClick={handleExport} variant="outline" disabled={rows.length === 0}>
+            <Button onClick={handleExport} variant="outline" disabled={displayRows.length === 0}>
               <Download className="h-4 w-4 mr-1" /> Excel
             </Button>
+            {pendingRows.length > 0 && (
+              <Button
+                onClick={() => setBatchPayDialog(true)}
+                variant="default"
+                className="ml-auto"
+              >
+                <CreditCard className="h-4 w-4 mr-1" />
+                Pagar todos ({pendingRows.length})
+              </Button>
+            )}
           </div>
           {campaignData && (periodStart < campaignData.start_date || periodEnd > campaignData.end_date) && (
             <p className="text-xs text-warning">⚠ El periodo excede el rango de campaña ({fmtDate(campaignData.start_date)} — {fmtDate(campaignData.end_date)})</p>
@@ -484,12 +627,98 @@ export default function CommissionsPage() {
         </CardContent>
       </Card>
 
-      {/* Summary */}
+      {/* Enhanced Summary */}
       {rows.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Vendedores</p><p className="text-2xl font-bold font-display">{rows.length}</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Unidades</p><p className="text-2xl font-bold font-display">{totalUnits}</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Total Bs</p><p className="text-2xl font-bold font-display text-primary">Bs {fmtBs(totalBs)}</p></CardContent></Card>
+        <div className="space-y-3">
+          {/* Main KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Vendedores</p><p className="text-2xl font-bold font-display">{rows.length}</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Unidades</p><p className="text-2xl font-bold font-display">{totalUnits}</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Total Bs</p><p className="text-2xl font-bold font-display text-primary">Bs {fmtBs(totalBs)}</p></CardContent></Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground">Pagado</p>
+                <p className="text-2xl font-bold font-display text-success">Bs {fmtBs(paidBs)}</p>
+                <p className="text-[10px] text-muted-foreground">{paidCount} vendedores</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground">Pendiente</p>
+                <p className="text-2xl font-bold font-display text-warning">Bs {fmtBs(pendingBs)}</p>
+                <p className="text-[10px] text-muted-foreground">{pendingCount} vendedores</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Payment Progress */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Progreso de Pagos</span>
+                </div>
+                <span className="text-sm font-bold text-primary">{paymentProgress}%</span>
+              </div>
+              <Progress value={paymentProgress} className="h-2.5" />
+              <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
+                <span>{paidCount} pagados</span>
+                <span>{pendingCount} pendientes</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* City Breakdown */}
+          {cityBreakdown.length > 1 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Desglose por Ciudad
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border/50">
+                  {cityBreakdown.map(([city, data]) => (
+                    <div key={city} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="text-[10px]">{city}</Badge>
+                        <span className="text-xs text-muted-foreground">{data.units} uds</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-bold">Bs {fmtBs(data.bs)}</span>
+                        <div className="flex gap-1.5">
+                          <Badge variant="default" className="text-[9px] px-1.5">{data.paid} ✓</Badge>
+                          {data.pending > 0 && (
+                            <Badge variant="secondary" className="text-[9px] px-1.5">{data.pending} ⏳</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Search bar */}
+      {rows.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar vendedor, ciudad o tienda..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+          {searchQuery && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {displayRows.length} resultados
+            </span>
+          )}
         </div>
       )}
 
@@ -498,14 +727,13 @@ export default function CommissionsPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-          ) : rows.length === 0 ? (
+          ) : displayRows.length === 0 ? (
             <div className="text-center p-8 text-muted-foreground text-sm">
-              Genera una liquidación o consulta un periodo con datos.
+              {rows.length > 0 && searchQuery ? "Sin resultados para la búsqueda." : "Genera una liquidación o consulta un periodo con datos."}
             </div>
           ) : isMobile ? (
-            /* Mobile card layout */
             <div className="divide-y">
-              {rows.map((r) => (
+              {displayRows.map((r) => (
                 <div key={r.id} className="p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -558,22 +786,21 @@ export default function CommissionsPage() {
               ))}
             </div>
           ) : (
-            /* Desktop table */
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead>Ciudad</TableHead>
+                  <TableHead><SortableHeader label="Vendedor" sortKeyName="name" /></TableHead>
+                  <TableHead><SortableHeader label="Ciudad" sortKeyName="city" /></TableHead>
                   <TableHead>Tienda</TableHead>
-                  <TableHead className="text-right">Uds</TableHead>
-                  <TableHead className="text-right">Comisión Bs</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right"><SortableHeader label="Uds" sortKeyName="units" /></TableHead>
+                  <TableHead className="text-right"><SortableHeader label="Comisión Bs" sortKeyName="amount" /></TableHead>
+                  <TableHead><SortableHeader label="Estado" sortKeyName="status" /></TableHead>
                   <TableHead>QR</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
+                {displayRows.map((r) => (
                   <>
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.full_name}</TableCell>
@@ -687,6 +914,41 @@ export default function CommissionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Pay Dialog */}
+      <AlertDialog open={batchPayDialog} onOpenChange={setBatchPayDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              Pago Masivo
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Se marcarán como <strong>pagados</strong> {pendingRows.length} vendedores con un total de{" "}
+                <strong className="text-primary">Bs {fmtBs(pendingRows.reduce((s, r) => s + r.amount_bs, 0))}</strong>.
+              </p>
+              <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm text-warning">
+                <AlertTriangle className="h-4 w-4 inline mr-1" />
+                Esta acción no puede deshacerse. No se adjuntará comprobante individual.
+              </div>
+              {batchPaying && (
+                <div className="space-y-1">
+                  <Progress value={batchProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">{batchProgress}% completado</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchPaying}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchPay} disabled={batchPaying}>
+              {batchPaying && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Confirmar Pago Masivo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* QR Dialog */}
       <Dialog open={qrDialog} onOpenChange={setQrDialog}>
