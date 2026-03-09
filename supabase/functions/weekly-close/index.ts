@@ -2,7 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -35,15 +36,15 @@ Deno.serve(async (req) => {
     const weekEnd = lastSunday.toISOString().split("T")[0];
 
     // Close all pending AND observed sales for that week
-    const { data, error } = await supabase
+    const { count, error } = await supabase
       .from("sales")
       .update({ status: "closed" })
       .in("status", ["pending", "observed"])
       .eq("week_start", weekStart)
       .eq("week_end", weekEnd)
-      .select("id");
+      .select("id", { count: "exact", head: true });
 
-    const closedCount = data?.length || 0;
+    const closedCount = count || 0;
 
     return new Response(
       JSON.stringify({

@@ -92,19 +92,31 @@ export default function MetricsPage() {
     if (selectedCity !== "all") enrollQuery = enrollQuery.eq("vendors.city", selectedCity);
     enrollQuery.then(({ count }) => setEnrolledCount(count || 0));
 
-    let q = supabase
-      .from("sales")
-      .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, products(name, model_code)")
-      .eq("campaign_id", selectedCampaign)
-      .order("week_start", { ascending: true });
+    // Batch-load all sales to avoid 1000-row limit
+    let allSales: any[] = [];
+    const batchSize = 1000;
+    let from = 0;
+    while (true) {
+      let q = supabase
+        .from("sales")
+        .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, products(name, model_code)")
+        .eq("campaign_id", selectedCampaign)
+        .order("week_start", { ascending: true })
+        .range(from, from + batchSize - 1);
 
-    if (effectiveDates.start) q = q.gte("sale_date", effectiveDates.start);
-    if (effectiveDates.end) q = q.lte("sale_date", effectiveDates.end);
-    if (selectedCity !== "all") q = q.eq("city", selectedCity);
+      if (effectiveDates.start) q = q.gte("sale_date", effectiveDates.start);
+      if (effectiveDates.end) q = q.lte("sale_date", effectiveDates.end);
+      if (selectedCity !== "all") q = q.eq("city", selectedCity);
 
-    const { data: sales } = await q;
+      const { data: batch } = await q;
+      if (!batch || batch.length === 0) break;
+      allSales = allSales.concat(batch);
+      if (batch.length < batchSize) break;
+      from += batchSize;
+    }
 
-    if (!sales) { setWeeklyData([]); setCityData([]); setProductData([]); setLoading(false); return; }
+    const sales = allSales;
+    if (sales.length === 0) { setWeeklyData([]); setCityData([]); setProductData([]); setLoading(false); return; }
 
     // Weekly aggregation
     const weekMap = new Map<string, WeekRow>();
