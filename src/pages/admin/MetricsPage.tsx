@@ -9,7 +9,7 @@ import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter, Users }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { exportToExcel } from "@/lib/exportExcel";
+import { exportToExcel, exportMultiSheet, buildSummaryRows } from "@/lib/exportExcel";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
