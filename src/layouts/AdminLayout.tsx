@@ -21,29 +21,30 @@ import {
   ShieldCheck, ClipboardCheck, Mail, Settings, LogOut, UserPlus, DollarSign, FileCode, UserCheck, GitCompare, BookOpen,
 } from "lucide-react";
 
-const adminNav = [
+type NavItem = { title: string; url: string; icon: any; end?: boolean; roles?: string[] };
+
+const adminNav: NavItem[] = [
   { title: "Dashboard", url: "/admin", icon: BarChart3, end: true },
-  { title: "Campañas", url: "/admin/campanias", icon: Target },
-  
-  { title: "Vendedores", url: "/admin/vendedores", icon: Users },
-  { title: "Productos", url: "/admin/productos-modelos", icon: Package },
-  { title: "Seriales", url: "/admin/seriales", icon: Hash },
-  { title: "Restringidos", url: "/admin/restringidos", icon: FileText },
+  { title: "Campañas", url: "/admin/campanias", icon: Target, roles: ["admin"] },
+  { title: "Vendedores", url: "/admin/vendedores", icon: Users, roles: ["admin"] },
+  { title: "Productos", url: "/admin/productos-modelos", icon: Package, roles: ["admin"] },
+  { title: "Seriales", url: "/admin/seriales", icon: Hash, roles: ["admin"] },
+  { title: "Restringidos", url: "/admin/restringidos", icon: FileText, roles: ["admin"] },
   { title: "Revisiones", url: "/admin/revisiones", icon: ClipboardCheck },
-  { title: "Auditoría", url: "/admin/auditoria", icon: ShieldCheck },
+  { title: "Auditoría", url: "/admin/auditoria", icon: ShieldCheck, roles: ["admin", "supervisor"] },
   { title: "Métricas", url: "/admin/metricas", icon: BarChart3 },
-  { title: "Comisiones", url: "/admin/comisiones", icon: DollarSign },
-  { title: "Inscripciones", url: "/admin/inscripciones", icon: UserCheck },
-  { title: "Comparar Campañas", url: "/admin/comparar-campanias", icon: GitCompare },
-  { title: "Correos Ciudad", url: "/admin/correos-ciudad", icon: Mail },
-  { title: "Plantillas Email", url: "/admin/plantillas-email", icon: FileCode },
-  { title: "Usuarios/Roles", url: "/admin/usuarios-roles", icon: Users },
-  { title: "Configuración", url: "/admin/configuracion", icon: Settings },
+  { title: "Comisiones", url: "/admin/comisiones", icon: DollarSign, roles: ["admin"] },
+  { title: "Inscripciones", url: "/admin/inscripciones", icon: UserCheck, roles: ["admin"] },
+  { title: "Comparar Campañas", url: "/admin/comparar-campanias", icon: GitCompare, roles: ["admin"] },
+  { title: "Correos Ciudad", url: "/admin/correos-ciudad", icon: Mail, roles: ["admin"] },
+  { title: "Plantillas Email", url: "/admin/plantillas-email", icon: FileCode, roles: ["admin"] },
+  { title: "Usuarios/Roles", url: "/admin/usuarios-roles", icon: Users, roles: ["admin"] },
+  { title: "Configuración", url: "/admin/configuracion", icon: Settings, roles: ["admin"] },
   { title: "Manual", url: "/admin/manual", icon: BookOpen },
 ];
 
 function AdminSidebar() {
-  const { signOut, user } = useAuth();
+  const { signOut, user, roles } = useAuth();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
@@ -71,9 +72,9 @@ function AdminSidebar() {
     };
   }, []);
 
-  const navItems = compareEnabled
-    ? adminNav
-    : adminNav.filter((i) => i.url !== "/admin/comparar-campanias");
+  const navItems = adminNav
+    .filter((i) => !i.roles || i.roles.some(r => roles.includes(r as any)))
+    .filter((i) => compareEnabled || i.url !== "/admin/comparar-campanias");
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">

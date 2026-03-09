@@ -146,9 +146,10 @@ Deno.serve(async (req) => {
         vendorMap[sale.vendor_id].amount_bs += Number(sale.bonus_bs) || 0;
       }
 
-      // Upsert commission_payments
+      // Upsert commission_payments (only for vendors with sales)
       for (const vendor of vendors || []) {
-        const agg = vendorMap[vendor.id] || { units: 0, amount_bs: 0 };
+        const agg = vendorMap[vendor.id];
+        if (!agg || agg.units === 0) continue; // Skip vendors with no sales
 
         const { data: existing } = await adminClient
           .from("commission_payments")
