@@ -57,7 +57,13 @@ export default function EnrollmentReportPage() {
       .from("campaigns")
       .select("id, name, status")
       .order("created_at", { ascending: false });
-    setCampaigns(data || []);
+    const list = data || [];
+    setCampaigns(list);
+    // Auto-select if there's exactly one active campaign
+    const active = list.filter((c) => c.status === "active");
+    if (active.length === 1) {
+      setSelectedCampaign(active[0].id);
+    }
   };
 
   const loadData = async () => {
