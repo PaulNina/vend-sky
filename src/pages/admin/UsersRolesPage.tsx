@@ -262,6 +262,110 @@ export default function UsersRolesPage() {
     setDeleteLoading(false);
   };
 
+  // --- Export ---
+  const handleExport = () => {
+    const data = enrichedRoles.map(r => ({
+      email: r.email || "",
+      nombre: r.full_name || "",
+      rol: r.role,
+      ciudad: r.city || "",
+      estado: r.is_disabled ? "deshabilitado" : "activo",
+      asignado: r.created_at?.split("T")[0] || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Roles");
+    XLSX.writeFile(wb, `usuarios_roles_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Exportado", description: `${data.length} registros exportados.` });
+  };
+
+  // --- Import ---
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
+
+        const validRoles = ROLES.map(r => r.value);
+        const errors: string[] = [];
+        const parsed: { email: string; role: string; city: string }[] = [];
+
+        rows.forEach((row, i) => {
+          const email = (row.email || "").toString().trim().toLowerCase();
+          const role = (row.rol || row.role || "").toString().trim().toLowerCase();
+          const city = (row.ciudad || row.city || "").toString().trim();
+
+          if (!email) { errors.push(`Fila ${i + 2}: email vacío`); return; }
+          if (!validRoles.includes(role)) { errors.push(`Fila ${i + 2}: rol inválido "${role}" (opciones: ${validRoles.join(", ")})`); return; }
+          if ((role === "revisor_ciudad") && !city) { errors.push(`Fila ${i + 2}: revisor_ciudad requiere ciudad`); return; }
+
+          parsed.push({ email, role, city });
+        });
+
+        setImportPreview(parsed);
+        setImportErrors(errors);
+        setImportDialog(true);
+      } catch (err: any) {
+        toast({ title: "Error al leer archivo", description: err.message, variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleImportConfirm = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+
+    let success = 0;
+    let failed = 0;
+
+    for (const row of importPreview) {
+      const profile = profiles.find(p => p.email.toLowerCase() === row.email);
+      if (!profile) {
+        failed++;
+        continue;
+      }
+
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: profile.user_id,
+        role: row.role as any,
+        city: row.city || null,
+      });
+
+      if (error) failed++;
+      else success++;
+    }
+
+    toast({
+      title: "Importación completada",
+      description: `${success} roles asignados, ${failed} fallidos.`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+
+    setImporting(false);
+    setImportDialog(false);
+    setImportPreview([]);
+    setImportErrors([]);
+    load();
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      { email: "usuario@ejemplo.com", rol: "vendedor", ciudad: "" },
+      { email: "revisor@ejemplo.com", rol: "revisor_ciudad", ciudad: "La Paz" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+    XLSX.writeFile(wb, "plantilla_roles.xlsx");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -269,9 +373,18 @@ export default function UsersRolesPage() {
           <h1 className="text-2xl font-bold">Usuarios y Roles</h1>
           <p className="text-sm text-muted-foreground">Gestión de roles, contraseñas y acceso del sistema</p>
         </div>
-        <Button onClick={() => setAssignDialog(true)}>
-          <Plus className="h-4 w-4 mr-1" />Asignar rol
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-1" />Exportar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-1" />Importar
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+          <Button onClick={() => setAssignDialog(true)}>
+            <Plus className="h-4 w-4 mr-1" />Asignar rol
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter */}
