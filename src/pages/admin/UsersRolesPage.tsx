@@ -71,6 +71,12 @@ export default function UsersRolesPage() {
   const [removeRoleDialog, setRemoveRoleDialog] = useState(false);
   const [removeRoleTarget, setRemoveRoleTarget] = useState<UserRoleRow | null>(null);
 
+  // Import state
+  const [importDialog, setImportDialog] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ email: string; role: string; city: string }[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+
   const load = async () => {
     setLoading(true);
     const [rolesRes, profilesRes, vendorsRes] = await Promise.all([
