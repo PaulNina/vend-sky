@@ -55,11 +55,15 @@ export default function ReviewsPage() {
   const [batchApproving, setBatchApproving] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
 
+  const [page, setPage] = useState(0);
+  const REVIEW_PAGE_SIZE = 200;
+
   const load = async () => {
     setLoading(true);
     let q = supabase.from("sales")
       .select("*, vendors(full_name, store_name), products(name, model_code), campaigns(name)")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .range(page * REVIEW_PAGE_SIZE, (page + 1) * REVIEW_PAGE_SIZE - 1);
 
     if (statusFilter !== "all") q = q.eq("status", statusFilter as any);
     if (cityFilter !== "all") q = q.eq("city", cityFilter);
@@ -71,7 +75,7 @@ export default function ReviewsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [statusFilter, cityFilter]);
+  useEffect(() => { load(); }, [statusFilter, cityFilter, page]);
 
   const viewDetail = async (sale: PendingSale, index?: number) => {
     setDetailSale(sale);
@@ -222,10 +226,10 @@ export default function ReviewsPage() {
           <p className="text-[11px] text-muted-foreground">{sale.vendors?.store_name} · {sale.city}</p>
         </div>
         <Badge
-          variant={sale.status === "approved" ? "default" : sale.status === "rejected" ? "destructive" : "secondary"}
-          className="text-[10px] shrink-0"
+          variant={sale.status === "approved" ? "default" : sale.status === "rejected" ? "destructive" : sale.status === "observed" ? "outline" : "secondary"}
+          className={`text-[10px] shrink-0 ${sale.status === "observed" ? "border-warning text-warning" : ""}`}
         >
-          {sale.status === "pending" ? "Pendiente" : sale.status === "approved" ? "Aprobado" : "Rechazado"}
+          {sale.status === "pending" ? "Pendiente" : sale.status === "approved" ? "Aprobado" : sale.status === "rejected" ? "Rechazado" : sale.status === "observed" ? "Observada" : sale.status}
         </Badge>
       </div>
       <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
@@ -288,6 +292,7 @@ export default function ReviewsPage() {
             <SelectItem value="pending">Pendientes</SelectItem>
             <SelectItem value="approved">Aprobados</SelectItem>
             <SelectItem value="rejected">Rechazados</SelectItem>
+            <SelectItem value="observed">Observadas</SelectItem>
           </SelectContent>
         </Select>
         <Select value={cityFilter} onValueChange={setCityFilter}>
@@ -356,10 +361,10 @@ export default function ReviewsPage() {
                     <TableCell className="font-mono text-xs">{s.serial}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}
-                        className="text-[10px]"
+                        variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : s.status === "observed" ? "outline" : "secondary"}
+                        className={`text-[10px] ${s.status === "observed" ? "border-warning text-warning" : ""}`}
                       >
-                        {s.status === "pending" ? "Pendiente" : s.status === "approved" ? "Aprobado" : "Rechazado"}
+                        {s.status === "pending" ? "Pendiente" : s.status === "approved" ? "Aprobado" : s.status === "rejected" ? "Rechazado" : s.status === "observed" ? "Observada" : s.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -381,6 +386,19 @@ export default function ReviewsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {(sales.length >= REVIEW_PAGE_SIZE || page > 0) && (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+            Anterior
+          </Button>
+          <span className="text-xs text-muted-foreground">Página {page + 1}</span>
+          <Button variant="outline" size="sm" disabled={sales.length < REVIEW_PAGE_SIZE} onClick={() => setPage(p => p + 1)}>
+            Siguiente
+          </Button>
+        </div>
+      )}
 
       {/* Detail / Review Dialog */}
       <Dialog open={!!detailSale} onOpenChange={(open) => !open && setDetailSale(null)}>

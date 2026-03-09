@@ -47,14 +47,19 @@ export default function MySalesPage() {
   const [newNotaFile, setNewNotaFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { loadSales(); }, [user, statusFilter]);
+  const [salePage, setSalePage] = useState(0);
+  const SALES_PAGE_SIZE = 200;
+
+  useEffect(() => { setSalePage(0); }, [statusFilter]);
+  useEffect(() => { loadSales(); }, [user, statusFilter, salePage]);
 
   const loadSales = async () => {
     if (!user) return;
     setLoading(true);
     let query = supabase.from("sales")
       .select("*, products(name, model_code), campaigns(name)")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(salePage * SALES_PAGE_SIZE, (salePage + 1) * SALES_PAGE_SIZE - 1);
     if (statusFilter !== "all") query = query.eq("status", statusFilter as any);
     const { data } = await query;
     setSales((data as any) || []);
@@ -293,6 +298,19 @@ export default function MySalesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {(sales.length >= SALES_PAGE_SIZE || salePage > 0) && (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={salePage === 0} onClick={() => setSalePage(p => p - 1)}>
+            Anterior
+          </Button>
+          <span className="text-xs text-muted-foreground">Página {salePage + 1}</span>
+          <Button variant="outline" size="sm" disabled={sales.length < SALES_PAGE_SIZE} onClick={() => setSalePage(p => p + 1)}>
+            Siguiente
+          </Button>
+        </div>
+      )}
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={(open) => { if (!open) { setDetailOpen(false); setCorrectionMode(false); } }}>
