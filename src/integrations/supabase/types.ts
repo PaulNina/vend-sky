@@ -572,6 +572,7 @@ export type Database = {
           city: string
           created_at: string
           id: string
+          observation_reason: string | null
           points: number
           product_id: string
           sale_date: string
@@ -590,6 +591,7 @@ export type Database = {
           city: string
           created_at?: string
           id?: string
+          observation_reason?: string | null
           points?: number
           product_id: string
           sale_date: string
@@ -608,6 +610,7 @@ export type Database = {
           city?: string
           created_at?: string
           id?: string
+          observation_reason?: string | null
           points?: number
           product_id?: string
           sale_date?: string
