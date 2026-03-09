@@ -79,7 +79,7 @@ const App = () => (
               <Route path="/v/instalar" element={<InstallAppPage />} />
             </Route>
 
-            {/* Admin (protected) */}
+            {/* Admin — shared routes (admin, supervisor, revisor_ciudad) */}
             <Route
               element={
                 <RequireAuth allowedRoles={["admin", "supervisor", "revisor_ciudad"]}>
@@ -88,23 +88,54 @@ const App = () => (
               }
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/campanias" element={<CampaignsPage />} />
-              
-              <Route path="/admin/vendedores" element={<VendorsPage />} />
-              <Route path="/admin/productos-modelos" element={<ProductsPage />} />
-              <Route path="/admin/seriales" element={<SerialsPage />} />
-              <Route path="/admin/restringidos" element={<RestrictedPage />} />
               <Route path="/admin/revisiones" element={<ReviewsPage />} />
-              <Route path="/admin/auditoria" element={<AuditPage />} />
               <Route path="/admin/metricas" element={<MetricsPage />} />
-              <Route path="/admin/comisiones" element={<CommissionsPage />} />
-              <Route path="/admin/plantillas-email" element={<EmailTemplatesPage />} />
-              <Route path="/admin/inscripciones" element={<EnrollmentReportPage />} />
-              <Route path="/admin/comparar-campanias" element={<CampaignComparePage />} />
-              <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
-              <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
-              <Route path="/admin/configuracion" element={<ConfigurationPage />} />
               <Route path="/admin/manual" element={<AdminManualPage />} />
+
+              {/* Supervisor + Admin only */}
+              <Route path="/admin/auditoria" element={
+                <RequireAuth allowedRoles={["admin", "supervisor"]}>
+                  <AuditPage />
+                </RequireAuth>
+              } />
+
+              {/* Admin-only routes */}
+              <Route path="/admin/campanias" element={
+                <RequireAuth allowedRoles={["admin"]}><CampaignsPage /></RequireAuth>
+              } />
+              <Route path="/admin/vendedores" element={
+                <RequireAuth allowedRoles={["admin"]}><VendorsPage /></RequireAuth>
+              } />
+              <Route path="/admin/productos-modelos" element={
+                <RequireAuth allowedRoles={["admin"]}><ProductsPage /></RequireAuth>
+              } />
+              <Route path="/admin/seriales" element={
+                <RequireAuth allowedRoles={["admin"]}><SerialsPage /></RequireAuth>
+              } />
+              <Route path="/admin/restringidos" element={
+                <RequireAuth allowedRoles={["admin"]}><RestrictedPage /></RequireAuth>
+              } />
+              <Route path="/admin/comisiones" element={
+                <RequireAuth allowedRoles={["admin"]}><CommissionsPage /></RequireAuth>
+              } />
+              <Route path="/admin/plantillas-email" element={
+                <RequireAuth allowedRoles={["admin"]}><EmailTemplatesPage /></RequireAuth>
+              } />
+              <Route path="/admin/inscripciones" element={
+                <RequireAuth allowedRoles={["admin"]}><EnrollmentReportPage /></RequireAuth>
+              } />
+              <Route path="/admin/comparar-campanias" element={
+                <RequireAuth allowedRoles={["admin"]}><CampaignComparePage /></RequireAuth>
+              } />
+              <Route path="/admin/correos-ciudad" element={
+                <RequireAuth allowedRoles={["admin"]}><EmailRecipientsPage /></RequireAuth>
+              } />
+              <Route path="/admin/usuarios-roles" element={
+                <RequireAuth allowedRoles={["admin"]}><UsersRolesPage /></RequireAuth>
+              } />
+              <Route path="/admin/configuracion" element={
+                <RequireAuth allowedRoles={["admin"]}><ConfigurationPage /></RequireAuth>
+              } />
             </Route>
 
             <Route path="*" element={<NotFound />} />
