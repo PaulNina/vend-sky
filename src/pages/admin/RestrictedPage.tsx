@@ -197,7 +197,7 @@ export default function RestrictedPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(i.id)}
+                        onClick={() => setDeleteTarget(i)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -218,6 +218,38 @@ export default function RestrictedPage() {
                         </div>
                       </div>
                     </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Eliminar serial restringido
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>¿Estás seguro de eliminar el serial <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-sm">{deleteTarget?.serial}</code>?</p>
+              <p className="text-xs text-muted-foreground">Esta acción permitirá que el serial pueda ser registrado en futuras ventas.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
                   </TableRow>
                 )}
               </TableBody>
