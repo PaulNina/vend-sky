@@ -179,14 +179,18 @@ export default function VendorDashboard() {
     loadStats();
   }, [vendorId, selectedCampaign, currentPeriod]);
 
-  // Load commission payments
+  // Load commission payments (max 1 month back)
   useEffect(() => {
     if (!vendorId || !selectedCampaign) return;
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoStr = oneMonthAgo.toISOString().split("T")[0];
     supabase
       .from("commission_payments")
       .select("id, period_start, period_end, units, amount_bs, status, paid_at, payment_note, period_id")
       .eq("vendor_id", vendorId)
       .eq("campaign_id", selectedCampaign)
+      .gte("period_end", oneMonthAgoStr)
       .order("period_start", { ascending: false })
       .then(({ data }) => setPayments((data || []) as CommissionPayment[]));
   }, [vendorId, selectedCampaign]);
