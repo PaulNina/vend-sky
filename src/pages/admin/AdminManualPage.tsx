@@ -66,6 +66,99 @@ function FlowDiagram({ steps }: { steps: string[] }) {
   );
 }
 
+/** Visual state machine diagram */
+function StateMachine({ states, transitions }: { states: { id: string; label: string; color: string }[]; transitions: { from: string; to: string; label: string }[] }) {
+  return (
+    <div className="my-4 p-5 rounded-xl border bg-gradient-to-br from-muted/20 to-muted/40 space-y-4">
+      {/* States row */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {states.map((s) => (
+          <div key={s.id} className={`px-4 py-2 rounded-lg border-2 font-medium text-sm ${s.color}`}>
+            {s.label}
+          </div>
+        ))}
+      </div>
+      {/* Transitions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {transitions.map((t, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground bg-card/50 rounded-md px-3 py-1.5 border">
+            <Badge variant="outline" className="text-[10px] font-mono">{t.from}</Badge>
+            <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
+            <Badge variant="outline" className="text-[10px] font-mono">{t.to}</Badge>
+            <span className="ml-auto text-[11px] italic">{t.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Architecture box diagram */
+function ArchDiagram({ layers }: { layers: { title: string; items: { icon: any; label: string; desc: string }[] }[] }) {
+  return (
+    <div className="my-4 space-y-3">
+      {layers.map((layer, li) => (
+        <div key={li}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">{layer.title}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {layer.items.map((item, ii) => (
+              <div key={ii} className="p-3 rounded-lg border bg-card hover:border-primary/30 transition-colors text-center">
+                <item.icon className="h-5 w-5 mx-auto mb-1.5 text-primary" />
+                <p className="text-xs font-semibold text-foreground">{item.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          {li < layers.length - 1 && (
+            <div className="flex justify-center my-2">
+              <div className="flex flex-col items-center">
+                <div className="w-px h-4 bg-border" />
+                <ChevronRight className="h-4 w-4 text-primary rotate-90" />
+                <div className="w-px h-4 bg-border" />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Metric card for summary numbers */
+function MetricCard({ label, value, icon: Icon, color = "text-primary" }: { label: string; value: string; icon: any; color?: string }) {
+  return (
+    <div className="p-3 rounded-lg border bg-card text-center">
+      <Icon className={`h-5 w-5 mx-auto mb-1 ${color}`} />
+      <p className="text-lg font-bold font-display">{value}</p>
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+    </div>
+  );
+}
+
+/** Timeline component */
+function Timeline({ items }: { items: { title: string; desc: string; status?: "done" | "active" | "pending" }[] }) {
+  return (
+    <div className="my-4 space-y-0">
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+              item.status === "done" ? "bg-success/20 text-success" :
+              item.status === "active" ? "bg-primary/20 text-primary" :
+              "bg-muted text-muted-foreground"
+            }`}>{i + 1}</div>
+            {i < items.length - 1 && <div className="w-px flex-1 min-h-[24px] bg-border" />}
+          </div>
+          <div className="pb-4">
+            <p className="text-sm font-semibold text-foreground">{item.title}</p>
+            <p className="text-xs text-muted-foreground">{item.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Tip({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 my-3 text-sm">
