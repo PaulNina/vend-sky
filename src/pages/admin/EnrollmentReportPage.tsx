@@ -115,13 +115,26 @@ export default function EnrollmentReportPage() {
 
     // Calculate city stats
     if (selectedCampaign !== "all") {
-      const { data: vendorsByCity } = await supabase
-        .from("vendors")
-        .select("city")
-        .eq("is_active", true);
+      // Batch-load vendors by city to avoid 1000 row limit
+      const allVendorsByCity: { city: string }[] = [];
+      {
+        const batchSize = 1000;
+        let from = 0;
+        while (true) {
+          const { data: batch } = await supabase
+            .from("vendors")
+            .select("city")
+            .eq("is_active", true)
+            .range(from, from + batchSize - 1);
+          if (!batch || batch.length === 0) break;
+          allVendorsByCity.push(...batch);
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
+      }
 
       const cityVendorCount: Record<string, number> = {};
-      (vendorsByCity || []).forEach((v: any) => {
+      allVendorsByCity.forEach((v: any) => {
         cityVendorCount[v.city] = (cityVendorCount[v.city] || 0) + 1;
       });
 
