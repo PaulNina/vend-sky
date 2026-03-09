@@ -43,6 +43,7 @@ import MetricsPage from "@/pages/admin/MetricsPage";
 import CommissionsPage from "@/pages/admin/CommissionsPage";
 import EmailTemplatesPage from "@/pages/admin/EmailTemplatesPage";
 import EnrollmentReportPage from "@/pages/admin/EnrollmentReportPage";
+import CampaignComparePage from "@/pages/admin/CampaignComparePage";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="/admin/comisiones" element={<CommissionsPage />} />
               <Route path="/admin/plantillas-email" element={<EmailTemplatesPage />} />
               <Route path="/admin/inscripciones" element={<EnrollmentReportPage />} />
+              <Route path="/admin/comparar-campanias" element={<CampaignComparePage />} />
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
