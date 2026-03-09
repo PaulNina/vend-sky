@@ -5,9 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, ChevronLeft, ChevronRight, Hash, AlertTriangle } from "lucide-react";
+import { Loader2, Upload, Download, ChevronLeft, ChevronRight, Hash, Plus, Trash2, Search } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import * as XLSX from "xlsx";
 
@@ -20,10 +23,17 @@ interface Serial {
   products?: { name: string; model_code: string } | null;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  model_code: string;
+}
+
 const PAGE_SIZE = 50;
 
 export default function SerialsPage() {
   const [serials, setSerials] = useState<Serial[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -32,6 +42,23 @@ export default function SerialsPage() {
   const [counts, setCounts] = useState({ available: 0, used: 0, blocked: 0, total: 0 });
   const [page, setPage] = useState(0);
   const [totalFiltered, setTotalFiltered] = useState(0);
+
+  // Add serial dialog
+  const [addOpen, setAddOpen] = useState(false);
+  const [newSerial, setNewSerial] = useState("");
+  const [newProductId, setNewProductId] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<Serial | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Load products for dropdown
+  useEffect(() => {
+    supabase.from("products").select("id, name, model_code").eq("is_active", true).order("name").then(({ data }) => {
+      setProducts(data || []);
+    });
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -155,6 +182,54 @@ export default function SerialsPage() {
     })), "seriales");
   };
 
+  const handleAddSerial = async () => {
+    const trimmed = newSerial.trim();
+    if (!trimmed) {
+      toast({ title: "Error", description: "El serial no puede estar vacío.", variant: "destructive" });
+      return;
+    }
+    if (trimmed.length < 5 || trimmed.length > 50) {
+      toast({ title: "Error", description: "El serial debe tener entre 5 y 50 caracteres.", variant: "destructive" });
+      return;
+    }
+
+    setAdding(true);
+    const { error } = await supabase.from("serials").insert({
+      serial: trimmed,
+      product_id: newProductId || null,
+      status: "available",
+    });
+
+    if (error) {
+      if (error.message.includes("duplicate")) {
+        toast({ title: "Error", description: "Este serial ya existe.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Serial agregado", description: `${trimmed} registrado correctamente.` });
+      setAddOpen(false);
+      setNewSerial("");
+      setNewProductId("");
+      load();
+    }
+    setAdding(false);
+  };
+
+  const handleDeleteSerial = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from("serials").delete().eq("id", deleteTarget.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Serial eliminado" });
+      load();
+    }
+    setDeleteTarget(null);
+    setDeleting(false);
+  };
+
   const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
   const statusLabel = (s: string) => s === "available" ? "Disponible" : s === "used" ? "Usado" : "Bloqueado";
   const statusVariant = (s: string) => s === "available" ? "default" as const : s === "used" ? "secondary" as const : "destructive" as const;
@@ -169,12 +244,21 @@ export default function SerialsPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Base nacional — {counts.total.toLocaleString()} seriales registrados</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportAll}><Download className="h-4 w-4 mr-1" />Excel</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExportAll}>
+            <Download className="h-4 w-4 mr-1" />Excel
+          </Button>
           <label>
-            <Button asChild disabled={importing} variant="premium"><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importando..." : "Importar"}</span></Button>
+            <Button asChild disabled={importing} variant="outline" size="sm">
+              <span className="cursor-pointer">
+                <Upload className="h-4 w-4 mr-1" />{importing ? "Importando..." : "Importar"}
+              </span>
+            </Button>
             <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleImport} />
           </label>
+          <Button variant="premium" size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />Agregar
+          </Button>
         </div>
       </div>
 
@@ -207,8 +291,11 @@ export default function SerialsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 items-center">
-        <Input placeholder="Buscar serial..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+      <div className="flex gap-3 items-center flex-wrap">
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input placeholder="Buscar serial..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -229,33 +316,53 @@ export default function SerialsPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Serial</TableHead>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Importado</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Serial</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Producto</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Estado</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Importado</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {serials.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-mono text-sm">{s.serial}</TableCell>
+                  <TableRow key={s.id} className="group">
+                    <TableCell>
+                      <code className="px-2 py-0.5 rounded bg-muted text-xs font-mono font-medium">{s.serial}</code>
+                    </TableCell>
                     <TableCell className="text-sm">
                       {s.products ? (
                         <span>{s.products.name} <span className="text-muted-foreground text-xs">({s.products.model_code})</span></span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(s.status)}>{statusLabel(s.status)}</Badge>
+                      <Badge variant={statusVariant(s.status)} className="text-[11px]">{statusLabel(s.status)}</Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{s.imported_at.split("T")[0]}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTarget(s)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {serials.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">Sin seriales</TableCell>
+                    <TableCell colSpan={5} className="text-center py-16">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-3 rounded-full bg-muted/50">
+                          <Hash className="h-6 w-6 text-muted-foreground/50" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">Sin seriales encontrados</p>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -280,6 +387,80 @@ export default function SerialsPage() {
           </div>
         </div>
       )}
+
+      {/* Add Serial Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display">
+              <Plus className="h-5 w-5 text-primary" />
+              Agregar Serial
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="serial">Serial *</Label>
+              <Input
+                id="serial"
+                placeholder="Ingresa el número de serial..."
+                value={newSerial}
+                onChange={(e) => setNewSerial(e.target.value.toUpperCase())}
+                className="font-mono"
+                maxLength={50}
+              />
+              <p className="text-xs text-muted-foreground">Entre 5 y 50 caracteres</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product">Producto (opcional)</Label>
+              <Select value={newProductId} onValueChange={setNewProductId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar producto..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin producto</SelectItem>
+                  {products.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.model_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAddSerial} disabled={adding || !newSerial.trim()}>
+              {adding ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Agregar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Eliminar serial
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>¿Estás seguro de eliminar el serial <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-sm">{deleteTarget?.serial}</code>?</p>
+              {deleteTarget?.status === "used" && (
+                <p className="text-destructive text-sm font-medium">⚠️ Este serial está marcado como usado. Eliminarlo puede causar inconsistencias.</p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSerial} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
