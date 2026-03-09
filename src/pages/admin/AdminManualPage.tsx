@@ -970,13 +970,31 @@ export default function AdminManualPage() {
                 { icon: "🧹 Limpiar filtros", location: "Barra superior", fn: "Resetea todos los filtros a valores por defecto." },
               ]} />
 
-              <h4 className="font-semibold text-foreground text-sm">Pestañas de Métricas</h4>
+              <h4 className="font-semibold text-foreground text-sm">7 Pestañas de Métricas</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-3">
+                {[
+                  { icon: BarChart3, label: "Vista General", desc: "KPIs + gráficos de ciudad y estado" },
+                  { icon: CalendarIcon, label: "Semanal", desc: "Evolución semana a semana con acumulados" },
+                  { icon: Globe, label: "Por Ciudad", desc: "Ventas, vendedores y bonos por ciudad" },
+                  { icon: Package, label: "Productos", desc: "Ranking de modelos más vendidos" },
+                  { icon: Users, label: "Vendedores", desc: "Ranking individual con tasa de aprobación" },
+                  { icon: TrendingUp, label: "Tendencia Diaria", desc: "Gráfico de línea + tabla diaria" },
+                  { icon: Hash, label: "Seriales", desc: "Inventario: usados vs disponibles con % uso" },
+                ].map((tab) => (
+                  <div key={tab.label} className="p-3 rounded-lg border bg-card text-center hover:border-primary/30 transition-colors">
+                    <tab.icon className="h-4 w-4 mx-auto mb-1 text-primary" />
+                    <p className="text-xs font-semibold text-foreground">{tab.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{tab.desc}</p>
+                  </div>
+                ))}
+              </div>
+
               <Accordion type="multiple" className="w-full">
                 <AccordionItem value="weekly">
                   <AccordionTrigger className="text-sm">📅 Semanal</AccordionTrigger>
                   <AccordionContent className="text-sm text-muted-foreground">
-                    Muestra la evolución de ventas semana a semana con gráficos de línea/barra.
-                    Permite identificar tendencias y picos de actividad.
+                    Muestra la evolución de ventas semana a semana. Incluye columnas de acumulados (unidades y Bs).
+                    Permite identificar tendencias y picos de actividad. Exportable a Excel.
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="city">
@@ -992,10 +1010,43 @@ export default function AdminManualPage() {
                     Ranking de productos más vendidos con unidades, bono acumulado y participación porcentual.
                   </AccordionContent>
                 </AccordionItem>
+                <AccordionItem value="vendors">
+                  <AccordionTrigger className="text-sm">👥 Vendedores</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Ranking completo de vendedores por unidades aprobadas. Incluye tienda, ciudad, tasa de aprobación,
+                    bono Bs y puntos. Muestra todos los vendedores inscritos, incluso con 0 ventas.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="daily">
+                  <AccordionTrigger className="text-sm">📈 Tendencia Diaria</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Gráfico de línea con ventas aprobadas vs totales por día. Tabla con desglose por estado.
+                    Ideal para detectar días de mayor actividad o anomalías.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="serials">
+                  <AccordionTrigger className="text-sm">🔢 Seriales</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Resumen de inventario de seriales por producto: total importados, usados, disponibles y bloqueados.
+                    Barra de progreso visual por producto y utilización general. No se filtra por fecha.
+                  </AccordionContent>
+                </AccordionItem>
               </Accordion>
+
+              <h4 className="font-semibold text-foreground text-sm">Reporte Gerencial (Excel)</h4>
+              <p className="text-sm text-muted-foreground">
+                El botón "Reporte Gerencial" genera un archivo Excel multi-hoja con 7 pestañas:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2">
+                {["Resumen", "Por Semana", "Por Ciudad", "Por Producto", "Vendedores", "Tendencia Diaria", "Seriales"].map((s) => (
+                  <Badge key={s} variant="secondary" className="justify-center text-xs">{s}</Badge>
+                ))}
+              </div>
+              <Tip>Los revisores de ciudad solo ven métricas de su ciudad asignada. El filtro de ciudad queda bloqueado automáticamente.</Tip>
 
               <ButtonRef rows={[
                 { icon: "📥 Exportar", location: "Cada pestaña", fn: "Descarga los datos de la pestaña actual en formato Excel." },
+                { icon: "📊 Reporte Gerencial", location: "Barra superior", fn: "Descarga Excel multi-hoja con las 7 pestañas consolidadas." },
               ]} />
             </CardContent>
           </Card>
