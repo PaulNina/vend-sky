@@ -5,6 +5,7 @@ import {
   UserCheck, GitCompare, ArrowRight, CheckCircle2, XCircle, Eye,
   Upload, Download, Search, Filter, Keyboard, AlertTriangle, QrCode,
   Globe, Layers, Database, RefreshCw, ChevronRight, Info, Zap,
+  Rocket, Lock, Trash2, UserX, ShieldAlert, Clock, Star, TriangleAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -70,6 +71,47 @@ function Tip({ children }: { children: React.ReactNode }) {
     <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 my-3 text-sm">
       <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
       <span className="text-muted-foreground">{children}</span>
+    </div>
+  );
+}
+
+function Warning({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20 my-3 text-sm">
+      <TriangleAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+      <span className="text-muted-foreground">{children}</span>
+    </div>
+  );
+}
+
+function StepList({ steps }: { steps: { n: number; text: string }[] }) {
+  return (
+    <ol className="space-y-2 my-3">
+      {steps.map((s) => (
+        <li key={s.n} className="flex items-start gap-3">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary text-[10px] font-bold mt-0.5">{s.n}</span>
+          <span className="text-sm text-muted-foreground">{s.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function SaleStateMap() {
+  const states = [
+    { label: "Pendiente", color: "bg-yellow-500/20 text-yellow-600 border-yellow-500/40", desc: "Recién registrada, esperando revisión." },
+    { label: "Aprobada", color: "bg-green-500/20 text-green-600 border-green-500/40", desc: "Revisada y aprobada. Genera comisión." },
+    { label: "Rechazada", color: "bg-red-500/20 text-red-600 border-red-500/40", desc: "Rechazada con motivo. No genera comisión." },
+    { label: "Cerrada", color: "bg-muted text-muted-foreground border-border", desc: "Periodo cerrado sin ser revisada." },
+  ];
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
+      {states.map((s) => (
+        <div key={s.label} className={`p-3 rounded-lg border ${s.color}`}>
+          <p className="text-sm font-semibold">{s.label}</p>
+          <p className="text-xs mt-0.5 opacity-80">{s.desc}</p>
+        </div>
+      ))}
     </div>
   );
 }
