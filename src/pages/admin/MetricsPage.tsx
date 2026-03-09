@@ -5,15 +5,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter, Users } from "lucide-react";
+import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter, Users, Package } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Progress } from "@/components/ui/progress";
 import { exportToExcel, exportMultiSheet, buildSummaryRows } from "@/lib/exportExcel";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 
 interface Campaign { id: string; name: string; start_date: string; end_date: string; }
 
@@ -32,6 +33,20 @@ interface ProductRow {
   product_name: string; model_code: string; total_units: number; total_bonus_bs: number;
 }
 
+interface VendorRow {
+  vendor_id: string; full_name: string; store_name: string; city: string;
+  total_units: number; approved_units: number; rejected_units: number; observed_units: number; pending_units: number;
+  bonus_bs: number; points: number; approval_rate: number;
+}
+
+interface DailyRow {
+  date: string; total: number; approved: number; pending: number; rejected: number; observed: number; bonus_bs: number;
+}
+
+interface SerialRow {
+  product_name: string; model_code: string; total: number; used: number; available: number; blocked: number; usage_pct: number;
+}
+
 type QuickRange = "all" | "week" | "month" | "year" | "custom";
 
 export default function MetricsPage() {
@@ -40,6 +55,9 @@ export default function MetricsPage() {
   const [weeklyData, setWeeklyData] = useState<WeekRow[]>([]);
   const [cityData, setCityData] = useState<CityRow[]>([]);
   const [productData, setProductData] = useState<ProductRow[]>([]);
+  const [vendorData, setVendorData] = useState<VendorRow[]>([]);
+  const [dailyData, setDailyData] = useState<DailyRow[]>([]);
+  const [serialData, setSerialData] = useState<SerialRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrolledCount, setEnrolledCount] = useState(0);
 
@@ -92,14 +110,38 @@ export default function MetricsPage() {
     if (selectedCity !== "all") enrollQuery = enrollQuery.eq("vendors.city", selectedCity);
     enrollQuery.then(({ count }) => setEnrolledCount(count || 0));
 
-    // Batch-load all sales to avoid 1000-row limit
+    // Load vendors for this campaign (via enrollments)
+    const vendorMap = new Map<string, { full_name: string; store_name: string; city: string }>();
+    {
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        let q = supabase
+          .from("vendor_campaign_enrollments")
+          .select("vendor_id, vendors!inner(full_name, store_name, city)")
+          .eq("campaign_id", selectedCampaign)
+          .eq("status", "active")
+          .range(from, from + batchSize - 1);
+        if (selectedCity !== "all") q = q.eq("vendors.city", selectedCity);
+        const { data: batch } = await q;
+        if (!batch || batch.length === 0) break;
+        for (const e of batch) {
+          const v = e.vendors as any;
+          vendorMap.set(e.vendor_id, { full_name: v?.full_name || "", store_name: v?.store_name || "", city: v?.city || "" });
+        }
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
+    }
+
+    // Batch-load all sales
     let allSales: any[] = [];
     const batchSize = 1000;
     let from = 0;
     while (true) {
       let q = supabase
         .from("sales")
-        .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, products(name, model_code)")
+        .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, sale_date, products(name, model_code)")
         .eq("campaign_id", selectedCampaign)
         .order("week_start", { ascending: true })
         .range(from, from + batchSize - 1);
@@ -116,7 +158,19 @@ export default function MetricsPage() {
     }
 
     const sales = allSales;
-    if (sales.length === 0) { setWeeklyData([]); setCityData([]); setProductData([]); setLoading(false); return; }
+    if (sales.length === 0) {
+      setWeeklyData([]); setCityData([]); setProductData([]);
+      // Still show vendors with 0 sales
+      const emptyVendors: VendorRow[] = Array.from(vendorMap.entries()).map(([vid, v]) => ({
+        vendor_id: vid, full_name: v.full_name, store_name: v.store_name, city: v.city,
+        total_units: 0, approved_units: 0, rejected_units: 0, observed_units: 0, pending_units: 0,
+        bonus_bs: 0, points: 0, approval_rate: 0,
+      })).sort((a, b) => a.full_name.localeCompare(b.full_name));
+      setVendorData(emptyVendors);
+      setDailyData([]);
+      setLoading(false);
+      return;
+    }
 
     // Weekly aggregation
     const weekMap = new Map<string, WeekRow>();
@@ -158,7 +212,105 @@ export default function MetricsPage() {
     }
     setProductData(Array.from(prodMap.values()).sort((a, b) => b.total_units - a.total_units));
 
+    // Vendor aggregation (include all enrolled vendors with 0s)
+    const vendorAgg = new Map<string, VendorRow>();
+    for (const [vid, v] of vendorMap) {
+      vendorAgg.set(vid, {
+        vendor_id: vid, full_name: v.full_name, store_name: v.store_name, city: v.city,
+        total_units: 0, approved_units: 0, rejected_units: 0, observed_units: 0, pending_units: 0,
+        bonus_bs: 0, points: 0, approval_rate: 0,
+      });
+    }
+    for (const s of sales) {
+      const existing = vendorAgg.get(s.vendor_id);
+      const row = existing || {
+        vendor_id: s.vendor_id, full_name: vendorMap.get(s.vendor_id)?.full_name || s.vendor_id.substring(0, 8),
+        store_name: vendorMap.get(s.vendor_id)?.store_name || "", city: s.city,
+        total_units: 0, approved_units: 0, rejected_units: 0, observed_units: 0, pending_units: 0,
+        bonus_bs: 0, points: 0, approval_rate: 0,
+      };
+      row.total_units++;
+      if (s.status === "approved") { row.approved_units++; row.bonus_bs += Number(s.bonus_bs); row.points += Number(s.points); }
+      else if (s.status === "rejected") { row.rejected_units++; }
+      else if (s.status === "observed") { row.observed_units++; }
+      else if (s.status === "pending") { row.pending_units++; }
+      vendorAgg.set(s.vendor_id, row);
+    }
+    const vendorRows = Array.from(vendorAgg.values()).map(v => ({
+      ...v,
+      approval_rate: v.total_units > 0 ? Math.round((v.approved_units / v.total_units) * 100) : 0,
+    })).sort((a, b) => b.approved_units - a.approved_units || b.points - a.points);
+    setVendorData(vendorRows);
+
+    // Daily aggregation
+    const dayMap = new Map<string, DailyRow>();
+    for (const s of sales) {
+      const key = s.sale_date;
+      const row = dayMap.get(key) || { date: key, total: 0, approved: 0, pending: 0, rejected: 0, observed: 0, bonus_bs: 0 };
+      row.total++;
+      if (s.status === "approved") { row.approved++; row.bonus_bs += Number(s.bonus_bs); }
+      else if (s.status === "pending") { row.pending++; }
+      else if (s.status === "rejected") { row.rejected++; }
+      else if (s.status === "observed") { row.observed++; }
+      dayMap.set(key, row);
+    }
+    setDailyData(Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date)));
+
     setLoading(false);
+  };
+
+  // Load serials data separately (not filtered by date)
+  useEffect(() => {
+    if (!selectedCampaign) return;
+    loadSerials();
+  }, [selectedCampaign]);
+
+  const loadSerials = async () => {
+    // Load products
+    const { data: products } = await supabase.from("products").select("id, name, model_code").eq("is_active", true);
+    if (!products) { setSerialData([]); return; }
+
+    // Count serials per product grouped by status using pagination
+    const serialCounts = new Map<string, { total: number; used: number; available: number; blocked: number }>();
+
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      const { data: batch } = await supabase
+        .from("serials")
+        .select("product_id, status")
+        .range(from, from + batchSize - 1);
+      if (!batch || batch.length === 0) break;
+      for (const s of batch) {
+        const pid = s.product_id || "__none__";
+        const row = serialCounts.get(pid) || { total: 0, used: 0, available: 0, blocked: 0 };
+        row.total++;
+        if (s.status === "used") row.used++;
+        else if (s.status === "available") row.available++;
+        else if (s.status === "blocked") row.blocked++;
+        serialCounts.set(pid, row);
+      }
+      if (batch.length < batchSize) break;
+      from += batchSize;
+    }
+
+    const rows: SerialRow[] = products
+      .map(p => {
+        const counts = serialCounts.get(p.id) || { total: 0, used: 0, available: 0, blocked: 0 };
+        return {
+          product_name: p.name,
+          model_code: p.model_code,
+          total: counts.total,
+          used: counts.used,
+          available: counts.available,
+          blocked: counts.blocked,
+          usage_pct: counts.total > 0 ? Math.round((counts.used / counts.total) * 100) : 0,
+        };
+      })
+      .filter(r => r.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    setSerialData(rows);
   };
 
   const weeklyWithAccum = useMemo(() => {
@@ -175,6 +327,16 @@ export default function MetricsPage() {
     (acc, c) => ({ vendors: acc.vendors + c.vendor_count, units: acc.units + c.total_units, approved: acc.approved + c.approved_units, bs: acc.bs + c.total_bonus_bs, pts: acc.pts + c.total_points }),
     { vendors: 0, units: 0, approved: 0, bs: 0, pts: 0 }
   ), [cityData]);
+
+  const vendorTotals = useMemo(() => vendorData.reduce(
+    (acc, v) => ({ total: acc.total + v.total_units, approved: acc.approved + v.approved_units, bs: acc.bs + v.bonus_bs, pts: acc.pts + v.points }),
+    { total: 0, approved: 0, bs: 0, pts: 0 }
+  ), [vendorData]);
+
+  const serialTotals = useMemo(() => serialData.reduce(
+    (acc, s) => ({ total: acc.total + s.total, used: acc.used + s.used, available: acc.available + s.available, blocked: acc.blocked + s.blocked }),
+    { total: 0, used: 0, available: 0, blocked: 0 }
+  ), [serialData]);
 
   const activeCampaign = campaigns.find((c) => c.id === selectedCampaign);
 
@@ -200,6 +362,30 @@ export default function MetricsPage() {
     })), "metricas_ciudad");
   };
 
+  const exportVendors = () => {
+    exportToExcel(vendorData.map((v, i) => ({
+      "#": i + 1, Vendedor: v.full_name, Tienda: v.store_name, Ciudad: v.city,
+      Total: v.total_units, Aprobadas: v.approved_units, Pendientes: v.pending_units,
+      Rechazadas: v.rejected_units, Observadas: v.observed_units,
+      "% Aprob.": `${v.approval_rate}%`, "Bono Bs": v.bonus_bs, Puntos: v.points,
+    })), "metricas_vendedores");
+  };
+
+  const exportDaily = () => {
+    exportToExcel(dailyData.map((d) => ({
+      Fecha: d.date, Total: d.total, Aprobadas: d.approved, Pendientes: d.pending,
+      Rechazadas: d.rejected, Observadas: d.observed, "Bono Bs": d.bonus_bs,
+    })), "metricas_diario");
+  };
+
+  const exportSerials = () => {
+    exportToExcel(serialData.map((s, i) => ({
+      "#": i + 1, Producto: s.product_name, Modelo: s.model_code,
+      "Total Seriales": s.total, Usados: s.used, Disponibles: s.available, Bloqueados: s.blocked,
+      "% Uso": `${s.usage_pct}%`,
+    })), "metricas_seriales");
+  };
+
   const exportFullReport = () => {
     const campaignName = activeCampaign?.name || "campaña";
     const dateStr = new Date().toISOString().split("T")[0];
@@ -221,40 +407,47 @@ export default function MetricsPage() {
       { label: "Ciudades", value: cityData.length },
       { label: "Vendedores participantes", value: cityTotals.vendors },
       { label: "Inscritos activos", value: enrolledCount },
+      { label: "", value: "" },
+      { label: "Total Seriales", value: serialTotals.total },
+      { label: "Seriales Usados", value: serialTotals.used },
+      { label: "Seriales Disponibles", value: serialTotals.available },
     ]);
 
     const weeklySheet = weeklyWithAccum.map((w) => ({
-      "#": w.weekNum,
-      "Inicio": w.week_start,
-      "Fin": w.week_end,
-      "Total": w.total_units,
-      "Aprobadas": w.approved_units,
-      "Pendientes": w.pending_units,
-      "Rechazadas": w.rejected_units,
-      "Observadas": w.observed_units,
-      "Bono Bs": w.total_bonus_bs,
-      "Puntos": w.total_points,
-      "Acum. Uds": w.accumUnits,
-      "Acum. Bs": w.accumBs,
+      "#": w.weekNum, "Inicio": w.week_start, "Fin": w.week_end, "Total": w.total_units,
+      "Aprobadas": w.approved_units, "Pendientes": w.pending_units, "Rechazadas": w.rejected_units,
+      "Observadas": w.observed_units, "Bono Bs": w.total_bonus_bs, "Puntos": w.total_points,
+      "Acum. Uds": w.accumUnits, "Acum. Bs": w.accumBs,
     }));
 
     const citySheet = cityData.map((c) => ({
-      "Ciudad": c.city,
-      "Vendedores": c.vendor_count,
-      "Total Ventas": c.total_units,
-      "Aprobadas": c.approved_units,
-      "Bono Bs": c.total_bonus_bs,
-      "Puntos": c.total_points,
+      "Ciudad": c.city, "Vendedores": c.vendor_count, "Total Ventas": c.total_units,
+      "Aprobadas": c.approved_units, "Bono Bs": c.total_bonus_bs, "Puntos": c.total_points,
       "% Aprobación": c.total_units > 0 ? `${Math.round((c.approved_units / c.total_units) * 100)}%` : "0%",
     }));
 
     const productSheet = productData.map((p, i) => ({
-      "#": i + 1,
-      "Producto": p.product_name,
-      "Modelo": p.model_code,
-      "Unidades": p.total_units,
+      "#": i + 1, "Producto": p.product_name, "Modelo": p.model_code, "Unidades": p.total_units,
       "Bono Bs": p.total_bonus_bs,
       "% del Total": weeklyTotals.approved > 0 ? `${Math.round((p.total_units / weeklyTotals.approved) * 100)}%` : "0%",
+    }));
+
+    const vendorSheet = vendorData.map((v, i) => ({
+      "#": i + 1, "Vendedor": v.full_name, "Tienda": v.store_name, "Ciudad": v.city,
+      "Total": v.total_units, "Aprobadas": v.approved_units, "Pendientes": v.pending_units,
+      "Rechazadas": v.rejected_units, "Observadas": v.observed_units,
+      "% Aprob.": `${v.approval_rate}%`, "Bono Bs": v.bonus_bs, "Puntos": v.points,
+    }));
+
+    const dailySheet = dailyData.map((d) => ({
+      "Fecha": d.date, "Total": d.total, "Aprobadas": d.approved, "Pendientes": d.pending,
+      "Rechazadas": d.rejected, "Observadas": d.observed, "Bono Bs": d.bonus_bs,
+    }));
+
+    const serialSheet = serialData.map((s, i) => ({
+      "#": i + 1, "Producto": s.product_name, "Modelo": s.model_code,
+      "Total Seriales": s.total, "Usados": s.used, "Disponibles": s.available, "Bloqueados": s.blocked,
+      "% Uso": `${s.usage_pct}%`,
     }));
 
     exportMultiSheet(
@@ -263,6 +456,9 @@ export default function MetricsPage() {
         { name: "Por Semana", data: weeklySheet },
         { name: "Por Ciudad", data: citySheet },
         { name: "Por Producto", data: productSheet },
+        { name: "Vendedores", data: vendorSheet },
+        { name: "Tendencia Diaria", data: dailySheet },
+        { name: "Seriales", data: serialSheet },
       ],
       `reporte_gerencial_${campaignName.replace(/\s+/g, "_")}_${dateStr}`
     );
@@ -430,11 +626,14 @@ export default function MetricsPage() {
         <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : (
         <Tabs defaultValue="overview">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Vista General</TabsTrigger>
             <TabsTrigger value="weekly">Semanal</TabsTrigger>
             <TabsTrigger value="city">Por Ciudad</TabsTrigger>
             <TabsTrigger value="products">Productos</TabsTrigger>
+            <TabsTrigger value="vendors">Vendedores</TabsTrigger>
+            <TabsTrigger value="daily">Tendencia Diaria</TabsTrigger>
+            <TabsTrigger value="serials">Seriales</TabsTrigger>
           </TabsList>
 
           {/* Overview tab with charts */}
@@ -653,6 +852,222 @@ export default function MetricsPage() {
                         <TableCell colSpan={3} className="font-bold font-display">TOTAL</TableCell>
                         <TableCell className="text-right font-bold">{productData.reduce((a, p) => a + p.total_units, 0)}</TableCell>
                         <TableCell className="text-right font-bold">Bs {productData.reduce((a, p) => a + p.total_bonus_bs, 0).toLocaleString()}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Vendors tab */}
+          <TabsContent value="vendors" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{vendorData.length} vendedores</p>
+              <Button variant="outline" size="sm" onClick={exportVendors}><Download className="h-4 w-4 mr-1.5" />Exportar Excel</Button>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead>Tienda</TableHead>
+                      <TableHead>Ciudad</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Aprob.</TableHead>
+                      <TableHead className="text-right">% Aprob.</TableHead>
+                      <TableHead className="text-right">Bono Bs</TableHead>
+                      <TableHead className="text-right">Puntos</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorData.length === 0 ? (
+                      <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-12">Sin vendedores inscritos</TableCell></TableRow>
+                    ) : vendorData.map((v, i) => (
+                      <TableRow key={v.vendor_id}>
+                        <TableCell className="font-bold text-primary">{i + 1}</TableCell>
+                        <TableCell className="font-medium">{v.full_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{v.store_name || "—"}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[11px]">{v.city}</Badge></TableCell>
+                        <TableCell className="text-right font-medium">{v.total_units}</TableCell>
+                        <TableCell className="text-right text-success font-medium">{v.approved_units}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={v.approval_rate >= 80 ? "default" : v.approval_rate >= 50 ? "secondary" : "outline"} className="text-[11px]">
+                            {v.approval_rate}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">Bs {v.bonus_bs.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold">{v.points}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  {vendorData.length > 0 && (
+                    <TableFooter>
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={4} className="font-bold font-display">TOTAL</TableCell>
+                        <TableCell className="text-right font-bold">{vendorTotals.total}</TableCell>
+                        <TableCell className="text-right font-bold text-success">{vendorTotals.approved}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {vendorTotals.total > 0 ? `${Math.round((vendorTotals.approved / vendorTotals.total) * 100)}%` : "0%"}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">Bs {vendorTotals.bs.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold">{vendorTotals.pts}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Daily trend tab */}
+          <TabsContent value="daily" className="mt-4 space-y-4">
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={exportDaily}><Download className="h-4 w-4 mr-1.5" />Exportar Excel</Button>
+            </div>
+
+            {/* Line chart */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Ventas Aprobadas por Día</CardTitle></CardHeader>
+              <CardContent>
+                {dailyData.length === 0 ? <p className="text-center text-muted-foreground py-8">Sin datos</p> : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 30%, 18%)" />
+                      <XAxis dataKey="date" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
+                      <YAxis tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }} />
+                      <Tooltip contentStyle={{ background: "hsl(216, 50%, 12%)", border: "1px solid hsl(150, 30%, 18%)", borderRadius: 8, color: "hsl(210, 40%, 96%)" }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="approved" name="Aprobadas" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="total" name="Total" stroke="hsl(215, 20%, 55%)" strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Daily table */}
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Aprob.</TableHead>
+                      <TableHead className="text-right">Pend.</TableHead>
+                      <TableHead className="text-right">Rech.</TableHead>
+                      <TableHead className="text-right">Obs.</TableHead>
+                      <TableHead className="text-right">Bono Bs</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyData.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">Sin datos</TableCell></TableRow>
+                    ) : dailyData.map((d) => (
+                      <TableRow key={d.date}>
+                        <TableCell className="font-medium">{d.date}</TableCell>
+                        <TableCell className="text-right font-medium">{d.total}</TableCell>
+                        <TableCell className="text-right text-success">{d.approved}</TableCell>
+                        <TableCell className="text-right text-warning">{d.pending}</TableCell>
+                        <TableCell className="text-right text-destructive">{d.rejected}</TableCell>
+                        <TableCell className="text-right">{d.observed}</TableCell>
+                        <TableCell className="text-right">Bs {d.bonus_bs.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  {dailyData.length > 0 && (
+                    <TableFooter>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="font-bold font-display">TOTAL ({dailyData.length} días)</TableCell>
+                        <TableCell className="text-right font-bold">{dailyData.reduce((a, d) => a + d.total, 0)}</TableCell>
+                        <TableCell className="text-right font-bold text-success">{dailyData.reduce((a, d) => a + d.approved, 0)}</TableCell>
+                        <TableCell className="text-right font-bold text-warning">{dailyData.reduce((a, d) => a + d.pending, 0)}</TableCell>
+                        <TableCell className="text-right font-bold text-destructive">{dailyData.reduce((a, d) => a + d.rejected, 0)}</TableCell>
+                        <TableCell className="text-right font-bold">{dailyData.reduce((a, d) => a + d.observed, 0)}</TableCell>
+                        <TableCell className="text-right font-bold">Bs {dailyData.reduce((a, d) => a + d.bonus_bs, 0).toLocaleString()}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Serials tab */}
+          <TabsContent value="serials" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Package className="h-4 w-4" />
+                <span>{serialTotals.total.toLocaleString()} seriales totales · {serialTotals.used.toLocaleString()} usados · {serialTotals.available.toLocaleString()} disponibles</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportSerials}><Download className="h-4 w-4 mr-1.5" />Exportar Excel</Button>
+            </div>
+
+            {/* Overall usage bar */}
+            <Card>
+              <CardContent className="py-4 px-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Utilización General</span>
+                  <span className="text-sm font-bold text-primary">
+                    {serialTotals.total > 0 ? `${Math.round((serialTotals.used / serialTotals.total) * 100)}%` : "0%"}
+                  </span>
+                </div>
+                <Progress value={serialTotals.total > 0 ? (serialTotals.used / serialTotals.total) * 100 : 0} className="h-3" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Modelo</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Usados</TableHead>
+                      <TableHead className="text-right">Disponibles</TableHead>
+                      <TableHead className="text-right">Bloqueados</TableHead>
+                      <TableHead className="w-[140px]">% Uso</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {serialData.length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-12">Sin seriales importados</TableCell></TableRow>
+                    ) : serialData.map((s, i) => (
+                      <TableRow key={s.model_code}>
+                        <TableCell className="font-bold text-primary">{i + 1}</TableCell>
+                        <TableCell className="font-medium">{s.product_name}</TableCell>
+                        <TableCell className="font-mono text-xs">{s.model_code}</TableCell>
+                        <TableCell className="text-right font-medium">{s.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-success">{s.used.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{s.available.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-destructive">{s.blocked.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={s.usage_pct} className="h-2 flex-1" />
+                            <span className="text-xs font-medium w-10 text-right">{s.usage_pct}%</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  {serialData.length > 0 && (
+                    <TableFooter>
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={3} className="font-bold font-display">TOTAL</TableCell>
+                        <TableCell className="text-right font-bold">{serialTotals.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-success">{serialTotals.used.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold">{serialTotals.available.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-destructive">{serialTotals.blocked.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <span className="text-xs font-bold">
+                            {serialTotals.total > 0 ? `${Math.round((serialTotals.used / serialTotals.total) * 100)}%` : "0%"}
+                          </span>
+                        </TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
