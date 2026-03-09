@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate, Link, useNavigate } from "react-router-dom";
+import { Navigate, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,27 +12,36 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
-function useRegistrationStatus() {
+function useRegistrationStatus(campaignId?: string) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
+  const [campaignSubtitle, setCampaignSubtitle] = useState("");
   const [message, setMessage] = useState("");
+  
   useEffect(() => {
     const check = async () => {
-      const { data: campaign } = await supabase
+      let query = supabase
         .from("campaigns")
-        .select("name, registration_enabled, registration_open_at, registration_close_at")
+        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at")
         .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("status", "active");
+
+      if (campaignId) {
+        query = query.eq("id", campaignId);
+      } else {
+        query = query.order("created_at", { ascending: false }).limit(1);
+      }
+
+      const { data: campaign } = await query.maybeSingle();
 
       if (!campaign) {
         setAllowed(false);
-        setMessage("No hay campañas activas en este momento.");
+        setMessage(campaignId ? "Esta campaña no existe o no está activa." : "No hay campañas activas en este momento.");
         return;
       }
 
       setCampaignName(campaign.name);
+      setCampaignSubtitle(campaign.subtitle || "");
       const now = new Date();
 
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
@@ -57,16 +66,18 @@ function useRegistrationStatus() {
       setAllowed(true);
     };
     check();
-  }, []);
+  }, [campaignId]);
 
-  return { allowed, campaignName, message };
+  return { allowed, campaignName, campaignSubtitle, message };
 }
 
 export default function RegisterPage() {
   const { user, loading: authLoading, refreshRoles } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const campaignId = searchParams.get("campaign") || undefined;
   const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, message } = useRegistrationStatus();
+  const { allowed, campaignName, campaignSubtitle, message } = useRegistrationStatus(campaignId);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -228,6 +239,12 @@ export default function RegisterPage() {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold text-primary">SKYWORTH</h1>
           <p className="text-sm text-muted-foreground">Registro de Vendedor</p>
+          {campaignName && (
+            <div className="pt-2">
+              <p className="text-xs font-medium text-primary">{campaignName}</p>
+              {campaignSubtitle && <p className="text-xs text-muted-foreground">{campaignSubtitle}</p>}
+            </div>
+          )}
         </div>
 
         <Card className="border-border/50">
