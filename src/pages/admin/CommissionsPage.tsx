@@ -158,28 +158,39 @@ export default function CommissionsPage() {
     if (!selectedCampaign || !periodStart || !periodEnd) return;
     setLoading(true);
 
-    let query = supabase
-      .from("commission_payments")
-      .select("id, vendor_id, units, amount_bs, status, paid_at, payment_proof_url, payment_note, vendors(full_name, city, store_name, qr_url, qr_expires_at)")
-      .eq("campaign_id", selectedCampaign)
-      .eq("period_start", periodStart)
-      .eq("period_end", periodEnd);
+    // Paginate to avoid 1000-row limit
+    let allData: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      let query = supabase
+        .from("commission_payments")
+        .select("id, vendor_id, units, amount_bs, status, paid_at, payment_proof_url, payment_note, vendors(full_name, city, store_name, qr_url, qr_expires_at)")
+        .eq("campaign_id", selectedCampaign)
+        .eq("period_start", periodStart)
+        .eq("period_end", periodEnd)
+        .range(from, from + batchSize - 1);
 
-    if (selectedCity !== "all") {
-      query = query.eq("vendors.city", selectedCity);
-    }
-    if (statusFilter === "pending" || statusFilter === "paid") {
-      query = query.eq("status", statusFilter as "pending" | "paid");
+      if (selectedCity !== "all") {
+        query = query.eq("vendors.city", selectedCity);
+      }
+      if (statusFilter === "pending" || statusFilter === "paid") {
+        query = query.eq("status", statusFilter as "pending" | "paid");
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < batchSize) break;
+      from += batchSize;
     }
 
-    const { data, error } = await query;
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    const mapped: CommissionRow[] = (data || [])
+    const mapped: CommissionRow[] = allData
       .filter((r: any) => r.vendors)
       .map((r: any) => ({
         id: r.id,
