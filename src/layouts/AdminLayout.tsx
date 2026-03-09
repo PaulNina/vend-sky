@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   BarChart3, Target, Package, Hash, FileText, Users,
-  ShieldCheck, ClipboardCheck, Mail, Settings, LogOut, UserPlus, DollarSign, FileCode,
+  ShieldCheck, ClipboardCheck, Mail, Settings, LogOut, UserPlus, DollarSign, FileCode, UserCheck,
 } from "lucide-react";
 
 const adminNav = [
@@ -31,6 +31,7 @@ const adminNav = [
   { title: "Auditoría", url: "/admin/auditoria", icon: ShieldCheck },
   { title: "Métricas", url: "/admin/metricas", icon: BarChart3 },
   { title: "Comisiones", url: "/admin/comisiones", icon: DollarSign },
+  { title: "Inscripciones", url: "/admin/inscripciones", icon: UserCheck },
   { title: "Correos Ciudad", url: "/admin/correos-ciudad", icon: Mail },
   { title: "Plantillas Email", url: "/admin/plantillas-email", icon: FileCode },
   { title: "Usuarios/Roles", url: "/admin/usuarios-roles", icon: Users },
