@@ -198,11 +198,116 @@ export default function VendorsPage() {
     })), "vendedores");
   };
 
+  // --- Import functions ---
+  const loadActiveCampaigns = async () => {
+    const { data } = await supabase.from("campaigns").select("id, name, is_active").eq("is_active", true);
+    setActiveCampaigns(data || []);
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { nombre: "Juan Pérez", email: "juan@ejemplo.com", telefono: "70012345", ciudad: "La Paz", tienda: "Tienda Centro", talla: "M" },
+      { nombre: "María López", email: "maria@ejemplo.com", telefono: "71098765", ciudad: "Santa Cruz", tienda: "Tienda Norte", talla: "S" },
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Vendedores");
+    XLSX.writeFile(wb, "plantilla_vendedores.xlsx");
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportParsing(true);
+    setImportResult(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
+
+      const parsed: ImportVendorRow[] = raw.map((row) => {
+        const full_name = String(row.nombre || row.full_name || row.Nombre || row.Name || "").trim();
+        const email = String(row.email || row.Email || row.correo || row.Correo || "").trim().toLowerCase();
+        const phone = String(row.telefono || row.phone || row.Teléfono || row.Phone || "").trim();
+        const city = String(row.ciudad || row.city || row.Ciudad || row.City || "").trim();
+        const store_name = String(row.tienda || row.store_name || row.Tienda || row.Store || "").trim();
+        const talla_polera = String(row.talla || row.talla_polera || row.Talla || "").trim();
+
+        let error: string | undefined;
+        if (!full_name) error = "Nombre vacío";
+        else if (!email) error = "Email vacío";
+        else if (!email.includes("@")) error = "Email inválido";
+        else if (!city) error = "Ciudad vacía";
+
+        return { full_name, email, phone, city, store_name, talla_polera, error };
+      });
+
+      setImportRows(parsed);
+    } catch (err: any) {
+      toast({ title: "Error al leer archivo", description: err.message, variant: "destructive" });
+    }
+
+    setImportParsing(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeImport = async () => {
+    const valid = importRows.filter(r => !r.error);
+    if (valid.length === 0) {
+      toast({ title: "No hay registros válidos", variant: "destructive" });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      const { data, error } = await supabase.functions.invoke("import-vendors", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          vendors: valid.map(r => ({
+            full_name: r.full_name,
+            email: r.email,
+            phone: r.phone || undefined,
+            city: r.city,
+            store_name: r.store_name || undefined,
+            talla_polera: r.talla_polera || undefined,
+          })),
+          campaign_id: importCampaignId !== "none" ? importCampaignId : undefined,
+        },
+      });
+
+      if (error) throw error;
+
+      setImportResult({ created: data.created, skipped: data.skipped, errors: data.errors || [] });
+      if (data.created > 0) {
+        toast({ title: "Importación completada", description: `${data.created} vendedores creados.` });
+        load();
+        loadGlobalStats();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setImporting(false);
+  };
+
+  const openImport = () => {
+    setImportRows([]);
+    setImportResult(null);
+    setImportCampaignId("none");
+    setImportDialog(true);
+    loadActiveCampaigns();
+  };
+
+  const validImportCount = importRows.filter(r => !r.error).length;
+  const errorImportCount = importRows.filter(r => r.error).length;
+
   const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
 
   const stats = globalStats;
 
-  return (
     <div className="space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
