@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign, Target, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, AlertTriangle, DollarSign, Target, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Campaign { id: string; name: string; subtitle?: string | null; slug?: string | null; start_date: string; end_date: string; }
