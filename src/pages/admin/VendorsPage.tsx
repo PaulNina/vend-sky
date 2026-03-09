@@ -58,6 +58,7 @@ export default function VendorsPage() {
   const [qrSignedUrl, setQrSignedUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [page, setPage] = useState(0);
+  const [totalFiltered, setTotalFiltered] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -66,12 +67,15 @@ export default function VendorsPage() {
 
   useEffect(() => { setPage(0); }, [cityFilter, statusFilter, debouncedSearch]);
 
+  // Load cities from cities table (not from vendors)
+  useEffect(() => {
+    supabase.from("cities").select("name").eq("is_active", true).order("display_order").then(({ data }) => {
+      setCities((data || []).map(c => c.name));
+    });
+  }, []);
+
   const load = async () => {
     setLoading(true);
-    // Get all cities first
-    const { data: allVendors } = await supabase.from("vendors").select("city");
-    const uniqueCities = [...new Set((allVendors || []).map((v) => v.city))].sort();
-    setCities(uniqueCities);
 
     let q = supabase.from("vendors").select("*", { count: "exact" }).order("full_name")
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -82,6 +86,7 @@ export default function VendorsPage() {
     if (debouncedSearch) q = q.ilike("full_name", `%${debouncedSearch}%`);
     const { data, count } = await q;
     setVendors(data || []);
+    setTotalFiltered(count || 0);
     setLoading(false);
   };
 
@@ -150,16 +155,14 @@ export default function VendorsPage() {
     })), "vendedores");
   };
 
-  // Stats from current loaded data
+  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
+
+  // Stats from current loaded data (note: page-level only, not global)
   const stats = useMemo(() => {
     const totalActive = vendors.filter((v) => v.is_active).length;
     const totalInactive = vendors.filter((v) => !v.is_active).length;
     const totalPending = vendors.filter((v) => v.pending_approval).length;
-    const cityCounts = vendors.reduce<Record<string, number>>((acc, v) => {
-      acc[v.city] = (acc[v.city] || 0) + 1;
-      return acc;
-    }, {});
-    return { totalActive, totalInactive, totalPending, cityCounts };
+    return { totalActive, totalInactive, totalPending };
   }, [vendors]);
 
   return (
@@ -171,7 +174,7 @@ export default function VendorsPage() {
             <Users className="h-6 w-6 text-primary" />
             Vendedores (Kardex)
           </h1>
-          <p className="text-sm text-muted-foreground">{vendors.length} vendedores en vista</p>
+          <p className="text-sm text-muted-foreground">{totalFiltered} vendedores encontrados</p>
         </div>
         <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
       </div>
@@ -324,15 +327,17 @@ export default function VendorsPage() {
       </Card>
 
       {/* Pagination */}
-      {vendors.length >= PAGE_SIZE && (
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-            <ChevronLeft className="h-4 w-4 mr-1" />Anterior
-          </Button>
-          <span className="text-xs text-muted-foreground">Página {page + 1}</span>
-          <Button variant="outline" size="sm" disabled={vendors.length < PAGE_SIZE} onClick={() => setPage(p => p + 1)}>
-            Siguiente<ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft className="h-4 w-4 mr-1" />Anterior
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+              Siguiente<ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
 

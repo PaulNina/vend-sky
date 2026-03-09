@@ -52,12 +52,20 @@ export default function VendorDashboard() {
     loadCampaigns();
   }, [user]);
 
+  const [vendorId, setVendorId] = useState<string | null>(null);
+
+  // Cache vendor id
   useEffect(() => {
-    if (!user || !selectedCampaign) return;
+    if (!user) return;
+    supabase.from("vendors").select("id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+      if (data) setVendorId(data.id);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!vendorId || !selectedCampaign) return;
     const loadStats = async () => {
-      const { data: vendor } = await supabase.from("vendors").select("id").eq("user_id", user.id).maybeSingle();
-      if (!vendor) return;
-      const { data: sales } = await supabase.from("sales").select("status, points, bonus_bs").eq("vendor_id", vendor.id).eq("campaign_id", selectedCampaign);
+      const { data: sales } = await supabase.from("sales").select("status, points, bonus_bs").eq("vendor_id", vendorId).eq("campaign_id", selectedCampaign);
       if (sales) {
         setStats({
           approved: sales.filter(s => s.status === 'approved').length,
@@ -70,7 +78,7 @@ export default function VendorDashboard() {
       }
     };
     loadStats();
-  }, [user, selectedCampaign]);
+  }, [vendorId, selectedCampaign]);
 
   useEffect(() => {
     const updateCountdown = () => {
