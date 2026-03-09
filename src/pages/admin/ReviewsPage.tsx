@@ -322,8 +322,8 @@ export default function ReviewsPage() {
           ) : isMobile ? (
             // Mobile: card list
             <div>
-              {sales.map((s, i) => <SaleCard key={s.id} sale={s} index={i} />)}
-              {sales.length === 0 && (
+              {filteredSales.map((s, i) => <SaleCard key={s.id} sale={s} index={i} />)}
+              {filteredSales.length === 0 && (
                 <p className="text-center text-muted-foreground py-12 text-sm">Sin registros</p>
               )}
             </div>
