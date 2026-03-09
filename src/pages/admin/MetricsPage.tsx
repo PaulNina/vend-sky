@@ -176,7 +176,7 @@ export default function MetricsPage() {
   const exportWeekly = () => {
     exportToExcel(weeklyWithAccum.map((w) => ({
       Semana: w.weekNum, Inicio: w.week_start, Fin: w.week_end, Total: w.total_units, Aprobadas: w.approved_units,
-      Pendientes: w.pending_units, Rechazadas: w.rejected_units, "Bono Bs": w.total_bonus_bs, Puntos: w.total_points,
+      Pendientes: w.pending_units, Rechazadas: w.rejected_units, Observadas: w.observed_units, "Bono Bs": w.total_bonus_bs, Puntos: w.total_points,
       "Acum. Uds": w.accumUnits, "Acum. Bs": w.accumBs,
     })), "metricas_semanal");
   };
