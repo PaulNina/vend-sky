@@ -24,6 +24,7 @@ interface CityData {
   pending_units: number;
   approved_units: number;
   rejected_units: number;
+  observed_units: number;
 }
 
 interface TopProduct {
@@ -159,8 +160,9 @@ export default function AdminDashboardPage() {
         pending: acc.pending + Number(c.pending_units),
         approved: acc.approved + Number(c.approved_units),
         rejected: acc.rejected + Number(c.rejected_units),
+        observed: acc.observed + Number(c.observed_units || 0),
       }),
-      { units: 0, bonus: 0, points: 0, pending: 0, approved: 0, rejected: 0 }
+      { units: 0, bonus: 0, points: 0, pending: 0, approved: 0, rejected: 0, observed: 0 }
     );
   }, [cityData]);
 
@@ -170,6 +172,7 @@ export default function AdminDashboardPage() {
     { name: "Aprobadas", value: totals.approved, color: "hsl(152, 60%, 42%)" },
     { name: "Pendientes", value: totals.pending, color: "hsl(43, 96%, 56%)" },
     { name: "Rechazadas", value: totals.rejected, color: "hsl(0, 72%, 51%)" },
+    { name: "Observadas", value: totals.observed, color: "hsl(25, 95%, 53%)" },
   ].filter((d) => d.value > 0);
 
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
