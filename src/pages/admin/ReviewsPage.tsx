@@ -257,7 +257,7 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{sales.length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{filteredSales.length}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Pendientes</p>
