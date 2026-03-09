@@ -158,6 +158,11 @@ export default function ConfigurationPage() {
   }>({ totalUsers: 0, totalSales: 0, totalSerials: 0, pendingReviews: 0, lastAuditLog: null });
   const [loadingHealth, setLoadingHealth] = useState(false);
 
+  // Reset state
+  const [resetDialog, setResetDialog] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   // Email config state
   const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
   const [smtpHost, setSmtpHost] = useState("");
