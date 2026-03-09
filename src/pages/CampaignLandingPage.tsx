@@ -1,14 +1,16 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { LANDING_DEFAULTS, type LandingConfig } from "@/components/admin/LandingConfigSection";
 import { Button } from "@/components/ui/button";
-import { Trophy, UserCheck, Tv, Zap, DollarSign, PartyPopper } from "lucide-react";
+import { Trophy, UserCheck, Tv, Zap, DollarSign, PartyPopper, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import skyworthTv from "@/assets/skyworth-tv-hero.png";
 import celebrationMoney from "@/assets/celebration-money.png";
 import { Loader2 } from "lucide-react";
 import { Confetti, FloatingCoins, fadeUp, scaleIn } from "@/components/landing/LandingAnimations";
+import { toast } from "@/hooks/use-toast";
 
 interface CampaignInfo {
   id: string;
@@ -20,11 +22,16 @@ interface CampaignInfo {
 
 export default function CampaignLandingPage() {
   const { slug } = useParams<{ slug: string }>();
+  const { user, roles } = useAuth();
+  const navigate = useNavigate();
   const [campaign, setCampaign] = useState<CampaignInfo | null>(null);
   const [cfg, setCfg] = useState<LandingConfig>({ ...LANDING_DEFAULTS });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showBurst, setShowBurst] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [vendorId, setVendorId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowBurst(true), 1000);
@@ -83,11 +90,33 @@ export default function CampaignLandingPage() {
         }
       }
 
+      // Check enrollment status if user is logged in as vendor
+      if (user && roles.includes("vendedor") && camp) {
+        const { data: vendor } = await supabase
+          .from("vendors")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (vendor) {
+          setVendorId(vendor.id);
+          const { data: enrollment } = await supabase
+            .from("vendor_campaign_enrollments")
+            .select("id")
+            .eq("vendor_id", vendor.id)
+            .eq("campaign_id", camp.id)
+            .eq("status", "active")
+            .maybeSingle();
+          
+          setIsEnrolled(!!enrollment);
+        }
+      }
+
       setLoading(false);
     })();
 
     return () => clearTimeout(timer);
-  }, [slug]);
+  }, [slug, user, roles]);
 
   if (loading) {
     return (
@@ -107,8 +136,39 @@ export default function CampaignLandingPage() {
     );
   }
 
+  const handleEnroll = async () => {
+    if (!vendorId || !campaign) return;
+    setEnrolling(true);
+    
+    try {
+      await supabase.from("vendor_campaign_enrollments").insert({
+        vendor_id: vendorId,
+        campaign_id: campaign.id,
+        status: "active",
+      });
+      
+      setIsEnrolled(true);
+      toast({
+        title: "¡Inscripción exitosa!",
+        description: `Te has inscrito en ${campaign.name}. Ahora puedes registrar ventas.`,
+      });
+      
+      // Redirect to dashboard after successful enrollment
+      setTimeout(() => navigate("/v"), 1500);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo completar la inscripción.",
+        variant: "destructive",
+      });
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   const showConfetti = cfg.landing_show_confetti === "true";
   const registerUrl = `/register?campaign=${campaign?.id}`;
+  const isVendor = user && roles.includes("vendedor");
 
   const steps = [
     { icon: Tv, title: cfg.landing_step1_title, desc: cfg.landing_step1_desc },
@@ -130,12 +190,30 @@ export default function CampaignLandingPage() {
           <p className="text-[10px] text-muted-foreground">{campaign?.name}{campaign?.subtitle ? ` · ${campaign.subtitle}` : ""}</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/login">Ingresar</Link>
-          </Button>
-          {campaign?.registration_enabled && (
-            <Button size="sm" asChild>
-              <Link to={registerUrl}>Crear cuenta</Link>
+          {!user && (
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/login">Ingresar</Link>
+              </Button>
+              {campaign?.registration_enabled && (
+                <Button size="sm" asChild>
+                  <Link to={registerUrl}>Crear cuenta</Link>
+                </Button>
+              )}
+            </>
+          )}
+          {isVendor && isEnrolled && (
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/v">
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Ir al Panel
+              </Link>
+            </Button>
+          )}
+          {isVendor && !isEnrolled && (
+            <Button size="sm" onClick={handleEnroll} disabled={enrolling}>
+              {enrolling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Inscribirme
             </Button>
           )}
         </div>
@@ -195,7 +273,7 @@ export default function CampaignLandingPage() {
               variants={fadeUp} initial="hidden" animate="visible" custom={3}
               className="flex flex-col sm:flex-row gap-3"
             >
-              {campaign?.registration_enabled && (
+              {!user && campaign?.registration_enabled && (
                 <Button size="lg" variant="premium" className="text-base" asChild>
                   <Link to={registerUrl}>
                     <Zap className="h-5 w-5 mr-1" />
@@ -203,9 +281,26 @@ export default function CampaignLandingPage() {
                   </Link>
                 </Button>
               )}
-              <Button size="lg" variant="outline" asChild>
-                <Link to="/login">{cfg.landing_cta_login_text}</Link>
-              </Button>
+              {!user && (
+                <Button size="lg" variant="outline" asChild>
+                  <Link to="/login">{cfg.landing_cta_login_text}</Link>
+                </Button>
+              )}
+              {isVendor && !isEnrolled && (
+                <Button size="lg" variant="premium" className="text-base" onClick={handleEnroll} disabled={enrolling}>
+                  {enrolling && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                  <Zap className="h-5 w-5 mr-1" />
+                  Inscribirme ahora
+                </Button>
+              )}
+              {isVendor && isEnrolled && (
+                <Button size="lg" variant="outline" asChild>
+                  <Link to="/v">
+                    <CheckCircle2 className="h-5 w-5 mr-1" />
+                    Ir a mi Panel
+                  </Link>
+                </Button>
+              )}
             </motion.div>
           </div>
 
@@ -304,9 +399,20 @@ export default function CampaignLandingPage() {
             </motion.div>
             <h3 className="text-xl md:text-2xl font-bold font-display">{cfg.landing_cta_final_title}</h3>
             <p className="text-sm text-muted-foreground">{cfg.landing_cta_final_desc}</p>
-            {campaign?.registration_enabled && (
+            {!user && campaign?.registration_enabled && (
               <Button size="lg" variant="premium" className="text-base px-8" asChild>
                 <Link to={registerUrl}>{cfg.landing_cta_final_button}</Link>
+              </Button>
+            )}
+            {isVendor && !isEnrolled && (
+              <Button size="lg" variant="premium" className="text-base px-8" onClick={handleEnroll} disabled={enrolling}>
+                {enrolling && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                {cfg.landing_cta_final_button}
+              </Button>
+            )}
+            {isVendor && isEnrolled && (
+              <Button size="lg" variant="outline" className="text-base px-8" asChild>
+                <Link to="/v">Ver mi Panel</Link>
               </Button>
             )}
           </div>
