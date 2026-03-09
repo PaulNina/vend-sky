@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,8 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, KeyRound, UserX, Search, ShieldAlert, Copy, Ban } from "lucide-react";
+import { Loader2, Plus, Trash2, KeyRound, UserX, Search, ShieldAlert, Copy, Ban, Download, Upload } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
+import * as XLSX from "xlsx";
 
 const ROLES: { value: string; label: string }[] = [
   { value: "vendedor", label: "Vendedor" },
@@ -40,6 +41,7 @@ interface UserProfile {
 
 export default function UsersRolesPage() {
   const { cityNames: CITIES } = useCities();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [roles, setRoles] = useState<UserRoleRow[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,12 @@ export default function UsersRolesPage() {
   // Remove role confirm
   const [removeRoleDialog, setRemoveRoleDialog] = useState(false);
   const [removeRoleTarget, setRemoveRoleTarget] = useState<UserRoleRow | null>(null);
+
+  // Import state
+  const [importDialog, setImportDialog] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ email: string; role: string; city: string }[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -254,6 +262,110 @@ export default function UsersRolesPage() {
     setDeleteLoading(false);
   };
 
+  // --- Export ---
+  const handleExport = () => {
+    const data = enrichedRoles.map(r => ({
+      email: r.email || "",
+      nombre: r.full_name || "",
+      rol: r.role,
+      ciudad: r.city || "",
+      estado: r.is_disabled ? "deshabilitado" : "activo",
+      asignado: r.created_at?.split("T")[0] || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Roles");
+    XLSX.writeFile(wb, `usuarios_roles_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Exportado", description: `${data.length} registros exportados.` });
+  };
+
+  // --- Import ---
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
+
+        const validRoles = ROLES.map(r => r.value);
+        const errors: string[] = [];
+        const parsed: { email: string; role: string; city: string }[] = [];
+
+        rows.forEach((row, i) => {
+          const email = (row.email || "").toString().trim().toLowerCase();
+          const role = (row.rol || row.role || "").toString().trim().toLowerCase();
+          const city = (row.ciudad || row.city || "").toString().trim();
+
+          if (!email) { errors.push(`Fila ${i + 2}: email vacío`); return; }
+          if (!validRoles.includes(role)) { errors.push(`Fila ${i + 2}: rol inválido "${role}" (opciones: ${validRoles.join(", ")})`); return; }
+          if ((role === "revisor_ciudad") && !city) { errors.push(`Fila ${i + 2}: revisor_ciudad requiere ciudad`); return; }
+
+          parsed.push({ email, role, city });
+        });
+
+        setImportPreview(parsed);
+        setImportErrors(errors);
+        setImportDialog(true);
+      } catch (err: any) {
+        toast({ title: "Error al leer archivo", description: err.message, variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleImportConfirm = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+
+    let success = 0;
+    let failed = 0;
+
+    for (const row of importPreview) {
+      const profile = profiles.find(p => p.email.toLowerCase() === row.email);
+      if (!profile) {
+        failed++;
+        continue;
+      }
+
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: profile.user_id,
+        role: row.role as any,
+        city: row.city || null,
+      });
+
+      if (error) failed++;
+      else success++;
+    }
+
+    toast({
+      title: "Importación completada",
+      description: `${success} roles asignados, ${failed} fallidos.`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+
+    setImporting(false);
+    setImportDialog(false);
+    setImportPreview([]);
+    setImportErrors([]);
+    load();
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      { email: "usuario@ejemplo.com", rol: "vendedor", ciudad: "" },
+      { email: "revisor@ejemplo.com", rol: "revisor_ciudad", ciudad: "La Paz" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+    XLSX.writeFile(wb, "plantilla_roles.xlsx");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -261,9 +373,18 @@ export default function UsersRolesPage() {
           <h1 className="text-2xl font-bold">Usuarios y Roles</h1>
           <p className="text-sm text-muted-foreground">Gestión de roles, contraseñas y acceso del sistema</p>
         </div>
-        <Button onClick={() => setAssignDialog(true)}>
-          <Plus className="h-4 w-4 mr-1" />Asignar rol
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-1" />Exportar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-1" />Importar
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+          <Button onClick={() => setAssignDialog(true)}>
+            <Plus className="h-4 w-4 mr-1" />Asignar rol
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -562,6 +683,63 @@ export default function UsersRolesPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Importar Roles desde Excel</DialogTitle>
+            <DialogDescription>
+              Previsualización de los roles a importar. Columnas requeridas: <code>email</code>, <code>rol</code>, <code>ciudad</code> (opcional).
+            </DialogDescription>
+          </DialogHeader>
+
+          {importErrors.length > 0 && (
+            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm max-h-32 overflow-y-auto">
+              <p className="font-medium text-destructive mb-1">Errores encontrados:</p>
+              {importErrors.map((e, i) => <p key={i} className="text-xs text-destructive/80">• {e}</p>)}
+            </div>
+          )}
+
+          {importPreview.length > 0 ? (
+            <div className="max-h-60 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Ciudad</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {importPreview.map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs font-mono">{row.email}</TableCell>
+                      <TableCell><Badge variant="outline">{getRoleLabel(row.role)}</Badge></TableCell>
+                      <TableCell>{row.city || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No hay registros válidos para importar.</p>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+              <Download className="h-4 w-4 mr-1" />Descargar plantilla
+            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setImportDialog(false)}>Cancelar</Button>
+              <Button onClick={handleImportConfirm} disabled={importing || importPreview.length === 0}>
+                {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Importar {importPreview.length} roles
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
