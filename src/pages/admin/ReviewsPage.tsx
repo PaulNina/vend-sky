@@ -1,16 +1,19 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, Eye, Download, ClipboardCheck, AlertTriangle, ChevronLeft, ChevronRight, Keyboard } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Eye, Download, ClipboardCheck, AlertTriangle, ChevronLeft, ChevronRight, Keyboard, Search, CheckCheck } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -39,12 +42,18 @@ export default function ReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("pending");
+  const [searchQuery, setSearchQuery] = useState("");
   const [cities, setCities] = useState<string[]>([]);
   const [detailSale, setDetailSale] = useState<PendingSale | null>(null);
   const [attachments, setAttachments] = useState<Attachment | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processing, setProcessing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Batch approve
+  const [batchApproveDialog, setBatchApproveDialog] = useState(false);
+  const [batchApproving, setBatchApproving] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -135,14 +144,71 @@ export default function ReviewsPage() {
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
   const handleExport = () => {
-    exportToExcel(sales.map((s) => ({
+    exportToExcel(filteredSales.map((s) => ({
       Fecha: s.sale_date, Vendedor: s.vendors?.full_name || "", Ciudad: s.city, Producto: s.products?.name || "",
       Serial: s.serial, Estado: s.status, Puntos: s.points, "Bono Bs": s.bonus_bs,
     })), "revisiones");
   };
 
-  const pendingCount = sales.filter((s) => s.status === "pending").length;
-  const flaggedCount = sales.filter((s) => s.ai_flag).length;
+  // Filtered sales
+  const filteredSales = useMemo(() => {
+    if (!searchQuery.trim()) return sales;
+    const q = searchQuery.toLowerCase();
+    return sales.filter(s =>
+      (s.vendors?.full_name || "").toLowerCase().includes(q) ||
+      s.serial.toLowerCase().includes(q) ||
+      s.city.toLowerCase().includes(q) ||
+      (s.products?.name || "").toLowerCase().includes(q)
+    );
+  }, [sales, searchQuery]);
+
+  const pendingCount = filteredSales.filter((s) => s.status === "pending").length;
+  const flaggedCount = filteredSales.filter((s) => s.ai_flag).length;
+  const nonFlaggedPending = filteredSales.filter(s => s.status === "pending" && !s.ai_flag);
+
+  // City counts for filter labels
+  const cityCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    sales.filter(s => s.status === "pending").forEach(s => {
+      map[s.city] = (map[s.city] || 0) + 1;
+    });
+    return map;
+  }, [sales]);
+
+  // Batch approve non-flagged
+  const handleBatchApprove = async () => {
+    if (!user) return;
+    setBatchApproving(true);
+    setBatchProgress(0);
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < nonFlaggedPending.length; i++) {
+      const sale = nonFlaggedPending[i];
+      const { error } = await supabase.from("sales").update({ status: "approved" as any }).eq("id", sale.id);
+      if (error) {
+        failed++;
+      } else {
+        await supabase.from("reviews").insert({
+          sale_id: sale.id,
+          reviewer_user_id: user.id,
+          decision: "approved" as any,
+          reason: "Aprobación masiva",
+        });
+        success++;
+      }
+      setBatchProgress(Math.round(((i + 1) / nonFlaggedPending.length) * 100));
+    }
+
+    toast({
+      title: "Aprobación masiva completada",
+      description: `${success} ventas aprobadas${failed > 0 ? `, ${failed} fallidas` : ""}.`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+    setBatchApproving(false);
+    setBatchApproveDialog(false);
+    load();
+  };
 
   // Mobile card view for sales list
   const SaleCard = ({ sale, index }: { sale: PendingSale; index: number }) => (
@@ -191,7 +257,7 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{sales.length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{filteredSales.length}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Pendientes</p>
@@ -199,12 +265,18 @@ export default function ReviewsPage() {
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{sales.filter((s) => s.status === "approved").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{filteredSales.filter((s) => s.status === "approved").length}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Rechazadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{sales.filter((s) => s.status === "rejected").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{filteredSales.filter((s) => s.status === "rejected").length}</p>
         </CardContent></Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Buscar por vendedor, serial, ciudad o producto..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
       </div>
 
       {/* Filters */}
@@ -222,7 +294,7 @@ export default function ReviewsPage() {
           <SelectTrigger className="w-[140px] sm:w-[180px] text-xs sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las ciudades</SelectItem>
-            {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {cities.map((c) => <SelectItem key={c} value={c}>{c}{cityCounts[c] ? ` (${cityCounts[c]})` : ""}</SelectItem>)}
           </SelectContent>
         </Select>
         {flaggedCount > 0 && (
@@ -230,8 +302,13 @@ export default function ReviewsPage() {
             <AlertTriangle className="h-3 w-3" />{flaggedCount} alerta IA
           </Badge>
         )}
+        {nonFlaggedPending.length > 1 && (
+          <Button size="sm" variant="outline" onClick={() => setBatchApproveDialog(true)} className="text-xs">
+            <CheckCheck className="h-4 w-4 mr-1" />Aprobar todas sin alerta ({nonFlaggedPending.length})
+          </Button>
+        )}
         {pendingCount > 0 && !isMobile && (
-          <Button size="sm" variant="premium" onClick={() => viewDetail(sales[0], 0)} className="ml-auto">
+          <Button size="sm" variant="premium" onClick={() => viewDetail(filteredSales[0], 0)} className="ml-auto">
             <Eye className="h-4 w-4 mr-1.5" />Revisar ({pendingCount})
           </Button>
         )}
@@ -245,8 +322,8 @@ export default function ReviewsPage() {
           ) : isMobile ? (
             // Mobile: card list
             <div>
-              {sales.map((s, i) => <SaleCard key={s.id} sale={s} index={i} />)}
-              {sales.length === 0 && (
+              {filteredSales.map((s, i) => <SaleCard key={s.id} sale={s} index={i} />)}
+              {filteredSales.length === 0 && (
                 <p className="text-center text-muted-foreground py-12 text-sm">Sin registros</p>
               )}
             </div>
@@ -265,7 +342,7 @@ export default function ReviewsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.map((s, i) => (
+                {filteredSales.map((s, i) => (
                   <TableRow key={s.id} className={`cursor-pointer hover:bg-muted/50 ${s.ai_flag ? "bg-warning/5" : ""}`} onClick={() => viewDetail(s, i)}>
                     <TableCell className="text-sm">{fmtDate(s.sale_date)}</TableCell>
                     <TableCell>
@@ -404,6 +481,35 @@ export default function ReviewsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Batch Approve Dialog */}
+      <AlertDialog open={batchApproveDialog} onOpenChange={setBatchApproveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCheck className="h-5 w-5 text-success" />
+              Aprobación Masiva
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Se aprobarán <strong>{nonFlaggedPending.length}</strong> ventas pendientes que <strong>no tienen alerta IA</strong>.</p>
+              <p className="text-xs text-muted-foreground">Las ventas con alerta IA se omitirán y deberán revisarse manualmente.</p>
+              {batchApproving && (
+                <div className="space-y-1">
+                  <Progress value={batchProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">{batchProgress}%</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchApproving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchApprove} disabled={batchApproving}>
+              {batchApproving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Aprobar {nonFlaggedPending.length} ventas
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
