@@ -51,12 +51,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { campaign_id, force } = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    const { campaign_id, force, dry_run } = body;
+
+    // Health-check / diagnostics path: don't require campaign_id
+    if (dry_run) {
+      return new Response(JSON.stringify({ success: true, message: "dry_run ok" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!campaign_id) {
-      return new Response(
-        JSON.stringify({ error: "campaign_id required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "campaign_id required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Get campaign
