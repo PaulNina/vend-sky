@@ -272,6 +272,142 @@ export default function AdminManualPage() {
           <TabsTrigger value="glossary" className="text-xs">📖 Glosario</TabsTrigger>
         </TabsList>
 
+        {/* ═══════════ INICIO RÁPIDO ═══════════ */}
+        <TabsContent value="quickstart" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={Rocket} title="Guía de Inicio Rápido" description="Todo lo que necesitas hacer para poner en marcha una campaña desde cero." />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Sigue este checklist en orden para lanzar una nueva campaña correctamente.
+                Cada paso es obligatorio para que el sistema funcione sin errores.
+              </p>
+
+              {[
+                {
+                  n: 1, icon: Target, title: "Crear la Campaña",
+                  where: "/admin/campanias",
+                  steps: [
+                    "Clic en '+ Nueva Campaña'.",
+                    "Ingresar nombre, fechas de inicio y fin.",
+                    "Configurar slug para la URL de inscripción pública.",
+                    "Elegir modo de periodo (semanal recomendado).",
+                    "Activar 'Registro habilitado' si los vendedores se inscriben solos.",
+                    "Guardar la campaña.",
+                  ],
+                },
+                {
+                  n: 2, icon: Package, title: "Configurar Productos",
+                  where: "/admin/productos-modelos",
+                  steps: [
+                    "Agregar los modelos de TV que participan en la campaña.",
+                    "Definir Bono Bs y Puntos para cada producto.",
+                    "Verificar que los códigos de modelo coinciden con los seriales.",
+                  ],
+                },
+                {
+                  n: 3, icon: Hash, title: "Importar Seriales",
+                  where: "/admin/seriales",
+                  steps: [
+                    "Descargar la plantilla de importación.",
+                    "Completar el archivo con seriales y su producto asociado.",
+                    "Usar el botón 'Importar' y esperar a que finalice.",
+                    "Verificar conteo de seriales importados.",
+                  ],
+                },
+                {
+                  n: 4, icon: Users, title: "Preparar Revisores",
+                  where: "/admin/usuarios-roles",
+                  steps: [
+                    "Crear cuentas para revisores si no existen.",
+                    "Asignar el rol 'revisor_ciudad' y la ciudad correspondiente.",
+                    "Verificar que el revisor puede iniciar sesión.",
+                  ],
+                },
+                {
+                  n: 5, icon: Mail, title: "Configurar Correos de Ciudad",
+                  where: "/admin/correos-ciudad",
+                  steps: [
+                    "Seleccionar la campaña recién creada.",
+                    "Agregar los emails que recibirán reportes por cada ciudad.",
+                  ],
+                },
+                {
+                  n: 6, icon: UserCheck, title: "Inscripción de Vendedores",
+                  where: "/c/[slug]",
+                  steps: [
+                    "Compartir el link público de inscripción con los vendedores.",
+                    "Si la campaña requiere aprobación, aprobar las inscripciones en /admin/campanias → Inscritos.",
+                  ],
+                },
+                {
+                  n: 7, icon: CheckCircle2, title: "¡Campaña Activa!",
+                  where: "/admin",
+                  steps: [
+                    "Los vendedores ya pueden registrar ventas.",
+                    "Monitorear desde el Dashboard.",
+                    "Los revisores aprueban ventas de su ciudad.",
+                    "Al final del periodo, generar la liquidación en /admin/comisiones.",
+                  ],
+                },
+              ].map((step) => (
+                <div key={step.n} className="flex items-start gap-3 p-4 rounded-lg border bg-card">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-sm font-bold mt-0.5">{step.n}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <step.icon className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                      <Badge variant="outline" className="font-mono text-[10px]">{step.where}</Badge>
+                    </div>
+                    <ul className="space-y-1">
+                      {step.steps.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <span className="text-primary mt-0.5">›</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={ClipboardCheck} title="Estados de una Venta" description="Todos los estados posibles y cuándo ocurren." />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <SaleStateMap />
+              <FlowDiagram steps={[
+                "Vendedor registra → Pendiente",
+                "Revisor aprueba → Aprobada",
+                "ó rechaza → Rechazada",
+                "ó periodo cierra sin revisión → Cerrada",
+              ]} />
+              <Tip>Solo las ventas en estado <strong>Aprobada</strong> generan comisión. Las Pendientes al cierre pasan a Cerradas sin comisión.</Tip>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <SectionHeader icon={Clock} title="Checklist de Cierre de Periodo" description="Pasos para cerrar un periodo semanal correctamente." />
+            </CardHeader>
+            <CardContent>
+              <StepList steps={[
+                { n: 1, text: "Verificar que no haya ventas Pendientes importantes sin revisar (/admin/revisiones)." },
+                { n: 2, text: "Confirmar que el periodo ya venció o cerrarlo manualmente si es necesario." },
+                { n: 3, text: "Ir a Comisiones y seleccionar la campaña + periodo." },
+                { n: 4, text: "Clic en 'Generar Liquidación' y verificar los montos." },
+                { n: 5, text: "Marcar pagos como pagados y subir comprobantes." },
+                { n: 6, text: "Exportar la liquidación para registro interno." },
+                { n: 7, text: "Verificar que el email de reporte fue enviado a los correos de ciudad." },
+              ]} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ═══════════ VISIÓN GENERAL ═══════════ */}
         <TabsContent value="overview" className="space-y-4 mt-4">
           <Card>
