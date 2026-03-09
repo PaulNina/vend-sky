@@ -58,6 +58,13 @@ export default function ReviewsPage() {
   const [page, setPage] = useState(0);
   const REVIEW_PAGE_SIZE = 200;
 
+  // Load cities from cities table
+  useEffect(() => {
+    supabase.from("cities").select("name").eq("is_active", true).order("display_order").then(({ data }) => {
+      setCities((data || []).map(c => c.name));
+    });
+  }, []);
+
   const load = async () => {
     setLoading(true);
     let q = supabase.from("sales")
@@ -70,8 +77,6 @@ export default function ReviewsPage() {
 
     const { data } = await q;
     setSales((data as any) || []);
-    const uniqueCities = [...new Set((data || []).map((s: any) => s.city))];
-    setCities(uniqueCities);
     setLoading(false);
   };
 
