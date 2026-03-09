@@ -572,6 +572,7 @@ export type Database = {
           city: string
           created_at: string
           id: string
+          observation_reason: string | null
           points: number
           product_id: string
           sale_date: string
@@ -590,6 +591,7 @@ export type Database = {
           city: string
           created_at?: string
           id?: string
+          observation_reason?: string | null
           points?: number
           product_id: string
           sale_date: string
@@ -608,6 +610,7 @@ export type Database = {
           city?: string
           created_at?: string
           id?: string
+          observation_reason?: string | null
           points?: number
           product_id?: string
           sale_date?: string
@@ -988,10 +991,10 @@ export type Database = {
     }
     Enums: {
       app_role: "vendedor" | "revisor_ciudad" | "supervisor" | "admin"
-      audit_action: "ok" | "revert"
+      audit_action: "ok" | "revert" | "observe"
       commission_payment_status: "pending" | "paid"
       review_decision: "approved" | "rejected"
-      sale_status: "pending" | "approved" | "rejected" | "closed"
+      sale_status: "pending" | "approved" | "rejected" | "closed" | "observed"
       serial_status: "available" | "used" | "blocked"
     }
     CompositeTypes: {
@@ -1121,10 +1124,10 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["vendedor", "revisor_ciudad", "supervisor", "admin"],
-      audit_action: ["ok", "revert"],
+      audit_action: ["ok", "revert", "observe"],
       commission_payment_status: ["pending", "paid"],
       review_decision: ["approved", "rejected"],
-      sale_status: ["pending", "approved", "rejected", "closed"],
+      sale_status: ["pending", "approved", "rejected", "closed", "observed"],
       serial_status: ["available", "used", "blocked"],
     },
   },

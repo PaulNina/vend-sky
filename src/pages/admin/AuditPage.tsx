@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Eye, RotateCcw, Shuffle, ShieldCheck, Download, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Eye, RotateCcw, Shuffle, ShieldCheck, Download, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 
 interface ApprovedSale {
@@ -34,12 +34,13 @@ export default function AuditPage() {
   const [detailSale, setDetailSale] = useState<ApprovedSale | null>(null);
   const [attachments, setAttachments] = useState<Attachment | null>(null);
   const [revertReason, setRevertReason] = useState("");
+  const [observeReason, setObserveReason] = useState("");
   const [processing, setProcessing] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("all");
-  const [auditStats, setAuditStats] = useState({ ok: 0, reverted: 0, total: 0 });
+  const [auditStats, setAuditStats] = useState({ ok: 0, reverted: 0, observed: 0, total: 0 });
+  const [actionMode, setActionMode] = useState<"idle" | "observe" | "revert">("idle");
 
-  // Load campaigns
   useEffect(() => {
     supabase.from("campaigns").select("id, name").eq("is_active", true).then(({ data }) => {
       setCampaigns(data || []);
@@ -53,6 +54,7 @@ export default function AuditPage() {
       setAuditStats({
         ok: data.filter(a => a.action === "ok").length,
         reverted: data.filter(a => a.action === "revert").length,
+        observed: data.filter(a => a.action === "observe").length,
         total: data.length,
       });
     }
@@ -81,6 +83,8 @@ export default function AuditPage() {
   const viewDetail = async (sale: ApprovedSale) => {
     setDetailSale(sale);
     setRevertReason("");
+    setObserveReason("");
+    setActionMode("idle");
     const { data } = await supabase.from("sale_attachments").select("tag_url, poliza_url, nota_url").eq("sale_id", sale.id).maybeSingle();
     setAttachments(data);
   };
@@ -96,6 +100,29 @@ export default function AuditPage() {
     await supabase.from("sales").update({ status: "rejected" as any }).eq("id", detailSale.id);
     await supabase.from("supervisor_audits").insert({ sale_id: detailSale.id, supervisor_user_id: user.id, action: "revert" as any, reason: revertReason });
     toast({ title: "Venta revertida", description: "La aprobación fue revertida." });
+    setDetailSale(null);
+    setProcessing(false);
+    loadSample();
+    loadAuditStats();
+  };
+
+  const handleObserve = async () => {
+    if (!detailSale || !user || !observeReason.trim()) {
+      toast({ title: "Error", description: "La observación es obligatoria.", variant: "destructive" });
+      return;
+    }
+    setProcessing(true);
+    await supabase.from("sales").update({
+      status: "observed" as any,
+      observation_reason: observeReason,
+    }).eq("id", detailSale.id);
+    await supabase.from("supervisor_audits").insert({
+      sale_id: detailSale.id,
+      supervisor_user_id: user.id,
+      action: "observe" as any,
+      reason: observeReason,
+    });
+    toast({ title: "Observación enviada", description: "El vendedor recibirá la observación para subsanar." });
     setDetailSale(null);
     setProcessing(false);
     loadSample();
@@ -155,11 +182,11 @@ export default function AuditPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card className="hover:border-primary/20 transition-colors">
           <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Muestra Actual</p>
-            <p className="text-xl font-bold font-display mt-0.5">{sales.length} ventas</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Muestra</p>
+            <p className="text-xl font-bold font-display mt-0.5">{sales.length}</p>
           </CardContent>
         </Card>
         <Card className="hover:border-primary/20 transition-colors">
@@ -173,7 +200,16 @@ export default function AuditPage() {
             <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
             <div>
               <p className="text-xl font-bold font-display">{auditStats.ok}</p>
-              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Auditorías OK</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">OK</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-warning/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+            <div>
+              <p className="text-xl font-bold font-display text-warning">{auditStats.observed}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Observadas</p>
             </div>
           </CardContent>
         </Card>
@@ -271,20 +307,79 @@ export default function AuditPage() {
                 </div>
               )}
 
+              {/* Actions */}
               <div className="space-y-4 pt-3 border-t border-border">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider">Motivo de reversión (obligatorio)</Label>
-                  <Textarea value={revertReason} onChange={(e) => setRevertReason(e.target.value)} placeholder="Motivo..." className="min-h-[80px]" />
-                </div>
-                <div className="flex gap-3">
+                {/* Action buttons row */}
+                <div className="flex gap-2">
                   <Button onClick={handleOk} disabled={processing} className="flex-1" variant="outline">
+                    <CheckCircle2 className="h-4 w-4 mr-1.5 text-success" />
                     Auditoría OK
                   </Button>
-                  <Button variant="destructive" onClick={handleRevert} disabled={processing} className="flex-1">
-                    {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RotateCcw className="h-4 w-4 mr-1.5" />}
+                  <Button
+                    variant={actionMode === "observe" ? "default" : "outline"}
+                    onClick={() => setActionMode(actionMode === "observe" ? "idle" : "observe")}
+                    disabled={processing}
+                    className="flex-1"
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-1.5 text-warning" />
+                    Observar
+                  </Button>
+                  <Button
+                    variant={actionMode === "revert" ? "destructive" : "outline"}
+                    onClick={() => setActionMode(actionMode === "revert" ? "idle" : "revert")}
+                    disabled={processing}
+                    className="flex-1"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1.5" />
                     Revertir
                   </Button>
                 </div>
+
+                {/* Observe form */}
+                {actionMode === "observe" && (
+                  <div className="space-y-3 p-4 rounded-lg border border-warning/30 bg-warning/5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-warning">
+                      <AlertTriangle className="h-4 w-4" />
+                      Enviar observación al vendedor
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      La venta quedará en estado "Observada" y el vendedor podrá corregir las fotos o datos desde su panel.
+                    </p>
+                    <Textarea
+                      value={observeReason}
+                      onChange={(e) => setObserveReason(e.target.value)}
+                      placeholder="Ej: La foto del TAG está borrosa, por favor subir una foto más clara..."
+                      className="min-h-[80px]"
+                    />
+                    <Button onClick={handleObserve} disabled={processing || !observeReason.trim()} className="w-full" variant="default">
+                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <AlertTriangle className="h-4 w-4 mr-1.5" />}
+                      Enviar Observación
+                    </Button>
+                  </div>
+                )}
+
+                {/* Revert form */}
+                {actionMode === "revert" && (
+                  <div className="space-y-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                      <RotateCcw className="h-4 w-4" />
+                      Revertir aprobación
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      La venta será rechazada definitivamente y el serial liberado.
+                    </p>
+                    <Textarea
+                      value={revertReason}
+                      onChange={(e) => setRevertReason(e.target.value)}
+                      placeholder="Motivo de la reversión..."
+                      className="min-h-[80px]"
+                    />
+                    <Button variant="destructive" onClick={handleRevert} disabled={processing || !revertReason.trim()} className="w-full">
+                      {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RotateCcw className="h-4 w-4 mr-1.5" />}
+                      Revertir Definitivamente
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
