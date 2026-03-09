@@ -542,6 +542,140 @@ export default function VendorsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Importar Vendedores desde Excel
+            </DialogTitle>
+            <DialogDescription>
+              Sube un archivo Excel (.xlsx) con las columnas: <strong>nombre</strong>, <strong>email</strong>, <strong>telefono</strong>, <strong>ciudad</strong>, <strong>tienda</strong>, <strong>talla</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-1" />Descargar plantilla
+              </Button>
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileSelect}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Campaign enrollment */}
+            {activeCampaigns.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Inscribir automáticamente en campaña (opcional)</Label>
+                <Select value={importCampaignId} onValueChange={setImportCampaignId}>
+                  <SelectTrigger className="text-sm max-w-md">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No inscribir</SelectItem>
+                    {activeCampaigns.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {importParsing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />Procesando archivo...
+              </div>
+            )}
+
+            {importRows.length > 0 && !importResult && (
+              <>
+                <div className="flex items-center gap-3 text-sm">
+                  <Badge variant="default">{validImportCount} válidos</Badge>
+                  {errorImportCount > 0 && <Badge variant="destructive">{errorImportCount} con errores</Badge>}
+                  <span className="text-muted-foreground">{importRows.length} filas totales</span>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Nombre</TableHead>
+                        <TableHead className="text-xs">Email</TableHead>
+                        <TableHead className="text-xs">Ciudad</TableHead>
+                        <TableHead className="text-xs">Tienda</TableHead>
+                        <TableHead className="text-xs">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importRows.slice(0, 100).map((r, i) => (
+                        <TableRow key={i} className={r.error ? "bg-destructive/5" : ""}>
+                          <TableCell className="text-xs py-1.5">{r.full_name || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.email || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.city || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.store_name || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">
+                            {r.error ? (
+                              <span className="text-destructive flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />{r.error}
+                              </span>
+                            ) : (
+                              <span className="text-success flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />OK
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {importRows.length > 100 && (
+                  <p className="text-xs text-muted-foreground">Mostrando 100 de {importRows.length} filas</p>
+                )}
+              </>
+            )}
+
+            {importResult && (
+              <div className="space-y-3">
+                <div className="p-4 bg-success/10 border border-success/30 rounded-lg text-sm space-y-1">
+                  <p className="font-medium text-success">✅ Importación completada</p>
+                  <p>{importResult.created} vendedores creados</p>
+                  {importResult.skipped > 0 && <p className="text-muted-foreground">{importResult.skipped} omitidos</p>}
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto border border-destructive/20 rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-destructive">Errores:</p>
+                    {importResult.errors.map((err, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialog(false)}>
+              {importResult ? "Cerrar" : "Cancelar"}
+            </Button>
+            {!importResult && importRows.length > 0 && (
+              <Button onClick={executeImport} disabled={importing || validImportCount === 0}>
+                {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+                Importar {validImportCount} vendedores
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
