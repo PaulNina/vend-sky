@@ -117,6 +117,7 @@ export default function VendorDashboard() {
     { label: "Bono", value: `Bs ${stats.bonusBs.toLocaleString()}`, icon: DollarSign, color: "text-primary" },
     { label: "Puntos", value: String(stats.points), icon: Trophy, color: "text-warning" },
     { label: "Pendientes", value: String(stats.pending), icon: AlertCircle, color: "text-muted-foreground" },
+    ...(stats.observed > 0 ? [{ label: "Observadas", value: String(stats.observed), icon: AlertTriangle, color: "text-orange-500" }] : []),
     { label: "Rechazados", value: String(stats.rejected), icon: XCircle, color: "text-destructive" },
   ];
 
