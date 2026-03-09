@@ -265,12 +265,18 @@ export default function ReviewsPage() {
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{sales.filter((s) => s.status === "approved").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{filteredSales.filter((s) => s.status === "approved").length}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Rechazadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{sales.filter((s) => s.status === "rejected").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{filteredSales.filter((s) => s.status === "rejected").length}</p>
         </CardContent></Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Buscar por vendedor, serial, ciudad o producto..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
       </div>
 
       {/* Filters */}
@@ -288,7 +294,7 @@ export default function ReviewsPage() {
           <SelectTrigger className="w-[140px] sm:w-[180px] text-xs sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las ciudades</SelectItem>
-            {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {cities.map((c) => <SelectItem key={c} value={c}>{c}{cityCounts[c] ? ` (${cityCounts[c]})` : ""}</SelectItem>)}
           </SelectContent>
         </Select>
         {flaggedCount > 0 && (
@@ -296,8 +302,13 @@ export default function ReviewsPage() {
             <AlertTriangle className="h-3 w-3" />{flaggedCount} alerta IA
           </Badge>
         )}
+        {nonFlaggedPending.length > 1 && (
+          <Button size="sm" variant="outline" onClick={() => setBatchApproveDialog(true)} className="text-xs">
+            <CheckCheck className="h-4 w-4 mr-1" />Aprobar todas sin alerta ({nonFlaggedPending.length})
+          </Button>
+        )}
         {pendingCount > 0 && !isMobile && (
-          <Button size="sm" variant="premium" onClick={() => viewDetail(sales[0], 0)} className="ml-auto">
+          <Button size="sm" variant="premium" onClick={() => viewDetail(filteredSales[0], 0)} className="ml-auto">
             <Eye className="h-4 w-4 mr-1.5" />Revisar ({pendingCount})
           </Button>
         )}
