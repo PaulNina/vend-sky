@@ -187,60 +187,73 @@ export default function RegisterPage() {
 
       const userId = authData.user.id;
 
-      if (existingVendor && !existingVendor.user_id) {
-        await supabase
-          .from("vendors")
-          .update({
+      // Respect campaign's require_vendor_approval flag
+      const needsApproval = campaignData?.require_vendor_approval ?? false;
+
+      try {
+        if (existingVendor && !existingVendor.user_id) {
+          const { error: vendorErr } = await supabase
+            .from("vendors")
+            .update({
+              user_id: userId,
+              full_name: fullName,
+              phone,
+              city,
+              store_name: storeName || null,
+              pending_approval: needsApproval,
+              is_active: !needsApproval,
+            })
+            .eq("id", existingVendor.id);
+          if (vendorErr) throw vendorErr;
+        } else {
+          const { error: vendorErr } = await supabase.from("vendors").insert({
             user_id: userId,
             full_name: fullName,
-            phone,
+            email,
+            phone: phone || null,
             city,
             store_name: storeName || null,
-            pending_approval: false,
-            is_active: true,
-          })
-          .eq("id", existingVendor.id);
-      } else {
-        await supabase.from("vendors").insert({
-          user_id: userId,
-          full_name: fullName,
-          email,
-          phone: phone || null,
-          city,
-          store_name: storeName || null,
-          pending_approval: false,
-          is_active: true,
-        });
-      }
-
-      await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: "vendedor" as any,
-        city,
-      });
-
-      // Insert user_profiles for admin visibility
-      await supabase.from("user_profiles").insert({
-        user_id: userId,
-        email,
-        full_name: fullName,
-      } as any);
-
-      // Auto-enroll in campaign if registering from campaign page
-      if (campaignId) {
-        const vendorId = existingVendor?.id || (await supabase
-          .from("vendors")
-          .select("id")
-          .eq("user_id", userId)
-          .maybeSingle()).data?.id;
-
-        if (vendorId) {
-          await supabase.from("vendor_campaign_enrollments").insert({
-            vendor_id: vendorId,
-            campaign_id: campaignId,
-            status: "active",
+            pending_approval: needsApproval,
+            is_active: !needsApproval,
           });
+          if (vendorErr) throw vendorErr;
         }
+
+        const { error: roleErr } = await supabase.from("user_roles").insert({
+          user_id: userId,
+          role: "vendedor" as any,
+          city,
+        });
+        if (roleErr) throw roleErr;
+
+        // Insert user_profiles for admin visibility
+        await supabase.from("user_profiles").insert({
+          user_id: userId,
+          email,
+          full_name: fullName,
+        } as any);
+
+        // Auto-enroll in campaign if registering from campaign page
+        if (campaignId) {
+          const vendorId = existingVendor?.id || (await supabase
+            .from("vendors")
+            .select("id")
+            .eq("user_id", userId)
+            .maybeSingle()).data?.id;
+
+          if (vendorId) {
+            await supabase.from("vendor_campaign_enrollments").insert({
+              vendor_id: vendorId,
+              campaign_id: campaignId,
+              status: needsApproval ? "pending" : "active",
+            });
+          }
+        }
+      } catch (insertError: any) {
+        // Auth user was created but data inserts failed — clean up by signing out
+        console.error("Registration data insert failed, cleaning up:", insertError);
+        await supabase.auth.signOut();
+        throw new Error("Error al completar el registro. Por favor intenta nuevamente. Si el problema persiste, contacta al administrador.");
       }
 
       await refreshRoles();
