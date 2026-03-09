@@ -70,26 +70,38 @@ export default function EnrollmentReportPage() {
       .eq("is_active", true);
     setTotalVendors(vendorCount || 0);
 
-    // Get enrollments with vendor and campaign data
-    let query = supabase
-      .from("vendor_campaign_enrollments")
-      .select(`
-        vendor_id,
-        campaign_id,
-        enrolled_at,
-        status,
-        vendors!inner(full_name, city, store_name),
-        campaigns!inner(name)
-      `)
-      .order("enrolled_at", { ascending: false });
+    // Batch-load enrollments to avoid 1000 row limit
+    const allEnrollments: any[] = [];
+    {
+      const batchSize = 1000;
+      let from = 0;
+      while (true) {
+        let query = supabase
+          .from("vendor_campaign_enrollments")
+          .select(`
+            vendor_id,
+            campaign_id,
+            enrolled_at,
+            status,
+            vendors!inner(full_name, city, store_name),
+            campaigns!inner(name)
+          `)
+          .order("enrolled_at", { ascending: false })
+          .range(from, from + batchSize - 1);
 
-    if (selectedCampaign !== "all") {
-      query = query.eq("campaign_id", selectedCampaign);
+        if (selectedCampaign !== "all") {
+          query = query.eq("campaign_id", selectedCampaign);
+        }
+
+        const { data: batch } = await query;
+        if (!batch || batch.length === 0) break;
+        allEnrollments.push(...batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
     }
 
-    const { data: enrollmentData } = await query;
-
-    const mapped: EnrollmentData[] = (enrollmentData || []).map((e: any) => ({
+    const mapped: EnrollmentData[] = allEnrollments.map((e: any) => ({
       vendor_id: e.vendor_id,
       vendor_name: e.vendors.full_name,
       city: e.vendors.city,

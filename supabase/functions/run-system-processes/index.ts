@@ -128,13 +128,27 @@ Deno.serve(async (req) => {
         .select("id, full_name, city, store_name")
         .eq("is_active", true);
 
-      const { data: sales } = await adminClient
-        .from("sales")
-        .select("vendor_id, bonus_bs")
-        .eq("campaign_id", campaign_id)
-        .eq("status", "approved")
-        .gte("sale_date", period.period_start)
-        .lte("sale_date", period.period_end);
+      // Batch-load sales to avoid 1000 row limit
+      const allPeriodSales: { vendor_id: string; bonus_bs: number }[] = [];
+      {
+        const batchSize = 1000;
+        let from = 0;
+        while (true) {
+          const { data: batch } = await adminClient
+            .from("sales")
+            .select("vendor_id, bonus_bs")
+            .eq("campaign_id", campaign_id)
+            .eq("status", "approved")
+            .gte("sale_date", period.period_start)
+            .lte("sale_date", period.period_end)
+            .range(from, from + batchSize - 1);
+          if (!batch || batch.length === 0) break;
+          allPeriodSales.push(...batch);
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
+      }
+      const sales = allPeriodSales;
 
       // Aggregate per vendor
       const vendorMap: Record<string, { units: number; amount_bs: number }> = {};
