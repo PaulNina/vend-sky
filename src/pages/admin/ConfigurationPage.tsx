@@ -160,18 +160,37 @@ export default function ConfigurationPage() {
   const [closeTime, setCloseTime] = useState("23:59");
   const [reportOnClose, setReportOnClose] = useState(true);
 
+  // Feature flags
+  const [enableCampaignCompare, setEnableCampaignCompare] = useState(true);
+  const [savingCampaignCompare, setSavingCampaignCompare] = useState(false);
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [campRes, prodCount, serialCount, vendorCount, recipientCount, settingRes, emailSettingsRes] = await Promise.all([
+    const [
+      campRes,
+      prodCount,
+      serialCount,
+      vendorCount,
+      recipientCount,
+      settingRes,
+      compareSettingRes,
+      emailSettingsRes,
+    ] = await Promise.all([
       supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("serials").select("id", { count: "exact", head: true }).eq("status", "available"),
       supabase.from("vendors").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("report_recipients").select("id", { count: "exact", head: true }),
       supabase.from("app_settings").select("value").eq("key", "gemini_api_key").maybeSingle(),
+      supabase.from("app_settings").select("value").eq("key", "enable_campaign_compare").maybeSingle(),
       supabase.from("app_settings").select("key, value").in("key", [
-        "email_provider", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email", "smtp_secure"
+        "email_provider",
+        "smtp_host",
+        "smtp_port",
+        "smtp_user",
+        "smtp_password",
+        "smtp_from_email",
+        "smtp_secure",
       ]),
     ]);
     const camps = (campRes.data || []) as CampaignFull[];
@@ -185,6 +204,10 @@ export default function ConfigurationPage() {
     if (settingRes.data?.value) {
       setGeminiKeyExists(true);
       setGeminiKey(settingRes.data.value);
+    }
+
+    if (compareSettingRes.data?.value != null) {
+      setEnableCampaignCompare(compareSettingRes.data.value === "true");
     }
     // Load email settings
     const emailMap: Record<string, string> = {};
@@ -205,6 +228,25 @@ export default function ConfigurationPage() {
       syncConfigForm(active);
     }
     setLoading(false);
+  };
+
+  const saveEnableCampaignCompare = async (next: boolean) => {
+    setEnableCampaignCompare(next);
+    setSavingCampaignCompare(true);
+
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        { key: "enable_campaign_compare", value: String(next), updated_at: new Date().toISOString() },
+        { onConflict: "key" },
+      );
+
+    if (error) {
+      setEnableCampaignCompare((prev) => !prev);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+
+    setSavingCampaignCompare(false);
   };
 
   const syncConfigForm = (c: CampaignFull) => {
@@ -674,6 +716,38 @@ export default function ConfigurationPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Feature flags */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display">
+                <Zap className="h-4 w-4 text-primary" />
+                Funcionalidades
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Comparador de Campañas</p>
+                  <p className="text-xs text-muted-foreground">
+                    Muestra/oculta la opción “Comparar Campañas” en el panel de administración.
+                  </p>
+                </div>
+                <Switch
+                  id="enable-campaign-compare"
+                  checked={enableCampaignCompare}
+                  onCheckedChange={saveEnableCampaignCompare}
+                  disabled={savingCampaignCompare}
+                />
+              </div>
+              {savingCampaignCompare && (
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Guardando...
+                </p>
+              )}
             </CardContent>
           </Card>
 

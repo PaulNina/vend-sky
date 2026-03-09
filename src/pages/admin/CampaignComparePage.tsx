@@ -43,15 +43,43 @@ export default function CampaignComparePage() {
   const [metrics, setMetrics] = useState<CampaignMetrics[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [compareEnabled, setCompareEnabled] = useState<boolean | null>(null);
+
   useEffect(() => {
-    loadCampaigns();
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "enable_campaign_compare")
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (error || data?.value == null) {
+        setCompareEnabled(true);
+        return;
+      }
+
+      setCompareEnabled(data.value === "true");
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    if (compareEnabled !== true) return;
+    loadCampaigns();
+  }, [compareEnabled]);
+
+  useEffect(() => {
+    if (compareEnabled !== true) return;
     if (selectedCampaigns.length > 0) {
       loadMetrics();
     }
-  }, [selectedCampaigns]);
+  }, [selectedCampaigns, compareEnabled]);
 
   const loadCampaigns = async () => {
     const { data } = await supabase
@@ -167,6 +195,24 @@ export default function CampaignComparePage() {
     "Bonos Totales": m.total_bonus_bs,
     "Promedio/Vendedor": m.avg_bonus_per_vendor,
   }));
+
+  if (compareEnabled === null) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (compareEnabled === false) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-muted-foreground text-sm">
+          El comparador de campañas está deshabilitado desde Configuración.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl">
