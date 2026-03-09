@@ -173,12 +173,16 @@ const searchIndex: SearchEntry[] = [
   { tab: "faq", tabLabel: "FAQ", title: "Respaldo completo", keywords: "backup respaldo exportar todo Excel tablas" },
   // Glosario
   { tab: "glossary", tabLabel: "Glosario", title: "Glosario de Términos", keywords: "glosario definición término bono campaña cierre ciudad feature flag grupo inscripción kardex landing liquidación nota periodo póliza puntos QR ranking revisor RLS serial slug supervisor TAG talla tienda validación" },
+  // Inicio Rápido
+  { tab: "quickstart", tabLabel: "Inicio Rápido", title: "Guía de Inicio Rápido", keywords: "inicio rápido checklist lanzar campaña crear productos seriales revisores correos inscripción activa" },
+  { tab: "quickstart", tabLabel: "Inicio Rápido", title: "Estados de una Venta", keywords: "estados venta pendiente aprobada rechazada cerrada flujo" },
+  { tab: "quickstart", tabLabel: "Inicio Rápido", title: "Checklist de Cierre de Periodo", keywords: "cierre periodo liquidación pago exportar reporte semanal" },
 ];
 
 /* ─── PAGE ─── */
 export default function AdminManualPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("quickstart");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const searchResults = useMemo(() => {
