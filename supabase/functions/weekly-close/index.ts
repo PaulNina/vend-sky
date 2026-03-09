@@ -34,11 +34,11 @@ Deno.serve(async (req) => {
     const weekStart = lastMonday.toISOString().split("T")[0];
     const weekEnd = lastSunday.toISOString().split("T")[0];
 
-    // Close all pending sales for that week
+    // Close all pending AND observed sales for that week
     const { data, error } = await supabase
       .from("sales")
       .update({ status: "closed" })
-      .eq("status", "pending")
+      .in("status", ["pending", "observed"])
       .eq("week_start", weekStart)
       .eq("week_end", weekEnd)
       .select("id");

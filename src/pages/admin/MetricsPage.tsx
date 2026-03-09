@@ -19,7 +19,7 @@ interface Campaign { id: string; name: string; start_date: string; end_date: str
 
 interface WeekRow {
   week_start: string; week_end: string;
-  total_units: number; approved_units: number; pending_units: number; rejected_units: number;
+  total_units: number; approved_units: number; pending_units: number; rejected_units: number; observed_units: number;
   total_bonus_bs: number; total_points: number;
 }
 
@@ -110,11 +110,12 @@ export default function MetricsPage() {
     const weekMap = new Map<string, WeekRow>();
     for (const s of sales) {
       const key = s.week_start;
-      const row = weekMap.get(key) || { week_start: s.week_start, week_end: s.week_end, total_units: 0, approved_units: 0, pending_units: 0, rejected_units: 0, total_bonus_bs: 0, total_points: 0 };
+      const row = weekMap.get(key) || { week_start: s.week_start, week_end: s.week_end, total_units: 0, approved_units: 0, pending_units: 0, rejected_units: 0, observed_units: 0, total_bonus_bs: 0, total_points: 0 };
       row.total_units++;
       if (s.status === "approved") { row.approved_units++; row.total_bonus_bs += Number(s.bonus_bs); row.total_points += Number(s.points); }
       else if (s.status === "pending") { row.pending_units++; }
       else if (s.status === "rejected") { row.rejected_units++; }
+      else if (s.status === "observed") { row.observed_units++; }
       weekMap.set(key, row);
     }
     setWeeklyData(Array.from(weekMap.values()));
@@ -154,8 +155,8 @@ export default function MetricsPage() {
   }, [weeklyData]);
 
   const weeklyTotals = useMemo(() => weeklyData.reduce(
-    (acc, w) => ({ units: acc.units + w.total_units, approved: acc.approved + w.approved_units, pending: acc.pending + w.pending_units, rejected: acc.rejected + w.rejected_units, bs: acc.bs + w.total_bonus_bs, pts: acc.pts + w.total_points }),
-    { units: 0, approved: 0, pending: 0, rejected: 0, bs: 0, pts: 0 }
+    (acc, w) => ({ units: acc.units + w.total_units, approved: acc.approved + w.approved_units, pending: acc.pending + w.pending_units, rejected: acc.rejected + w.rejected_units, observed: acc.observed + w.observed_units, bs: acc.bs + w.total_bonus_bs, pts: acc.pts + w.total_points }),
+    { units: 0, approved: 0, pending: 0, rejected: 0, observed: 0, bs: 0, pts: 0 }
   ), [weeklyData]);
 
   const cityTotals = useMemo(() => cityData.reduce(
@@ -169,6 +170,7 @@ export default function MetricsPage() {
     { name: "Aprobadas", value: weeklyTotals.approved, color: "hsl(142, 76%, 36%)" },
     { name: "Pendientes", value: weeklyTotals.pending, color: "hsl(43, 96%, 56%)" },
     { name: "Rechazadas", value: weeklyTotals.rejected, color: "hsl(0, 72%, 51%)" },
+    { name: "Observadas", value: weeklyTotals.observed, color: "hsl(25, 95%, 53%)" },
   ].filter((d) => d.value > 0);
 
   const exportWeekly = () => {
