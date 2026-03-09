@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Outlet, NavLink } from "react-router-dom";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +45,34 @@ function AdminSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
+  const [compareEnabled, setCompareEnabled] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "enable_campaign_compare")
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (error) return;
+      if (data?.value == null) return;
+
+      setCompareEnabled(data.value === "true");
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const navItems = compareEnabled
+    ? adminNav
+    : adminNav.filter((i) => i.url !== "/admin/comparar-campanias");
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
@@ -74,7 +103,7 @@ function AdminSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="px-2 space-y-0.5">
-              {adminNav.map((item) => (
+              {navItems.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
                     <NavLink
