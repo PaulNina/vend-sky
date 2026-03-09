@@ -64,17 +64,34 @@ export default function AuditPage() {
 
   const loadSample = async () => {
     setLoading(true);
+
+    // 1) Fetch paid commission periods to exclude from audit
+    const { data: paidComms } = await supabase.from("commission_payments")
+      .select("vendor_id, campaign_id, period_start, period_end")
+      .eq("status", "paid");
+
+    // 2) Fetch approved sales
     let q = supabase.from("sales")
-      .select("id, serial, sale_date, city, bonus_bs, points, status, campaign_id, vendors(full_name), products(name)")
+      .select("id, serial, sale_date, city, bonus_bs, points, status, campaign_id, vendor_id, vendors(full_name), products(name)")
       .eq("status", "approved")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (selectedCampaign !== "all") q = q.eq("campaign_id", selectedCampaign);
 
     const { data } = await q;
     if (data) {
-      const shuffled = [...data].sort(() => Math.random() - 0.5);
+      // Filter out sales covered by paid commissions
+      const filtered = paidComms?.length
+        ? data.filter(s => !paidComms.some(pc =>
+            pc.vendor_id === s.vendor_id &&
+            pc.campaign_id === s.campaign_id &&
+            s.sale_date >= pc.period_start &&
+            s.sale_date <= pc.period_end
+          ))
+        : data;
+
+      const shuffled = [...filtered].sort(() => Math.random() - 0.5);
       setSales(shuffled.slice(0, sampleSize) as any);
     }
     setLoading(false);
