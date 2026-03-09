@@ -705,6 +705,38 @@ export default function ConfigurationPage() {
     }
   };
 
+  // --- Reset system function ---
+  const executeReset = async () => {
+    if (resetConfirmText !== "RESET TOTAL") {
+      toast({ title: "Texto de confirmación incorrecto", variant: "destructive" });
+      return;
+    }
+    setResetting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      const { data, error } = await supabase.functions.invoke("reset-system", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { confirm_text: "RESET TOTAL" },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Sistema reiniciado",
+        description: "Todos los datos transaccionales han sido eliminados.",
+      });
+      setResetDialog(false);
+      setResetConfirmText("");
+      loadData();
+      runHealthChecks();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setResetting(false);
+  };
+
   // Bolivia week info
   const now = new Date();
   const boliviaOffset = -4 * 60;
