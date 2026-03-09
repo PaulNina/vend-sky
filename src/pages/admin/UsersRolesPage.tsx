@@ -41,6 +41,7 @@ interface UserProfile {
 
 export default function UsersRolesPage() {
   const { cityNames: CITIES } = useCities();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [roles, setRoles] = useState<UserRoleRow[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
