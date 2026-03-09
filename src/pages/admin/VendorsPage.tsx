@@ -78,6 +78,16 @@ export default function VendorsPage() {
   const [totalFiltered, setTotalFiltered] = useState(0);
   const [globalStats, setGlobalStats] = useState({ active: 0, inactive: 0, pending: 0 });
 
+  // Import state
+  const [importDialog, setImportDialog] = useState(false);
+  const [importRows, setImportRows] = useState<ImportVendorRow[]>([]);
+  const [importParsing, setImportParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [importCampaignId, setImportCampaignId] = useState<string>("none");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(t);
