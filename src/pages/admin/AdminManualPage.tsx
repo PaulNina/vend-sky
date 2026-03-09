@@ -801,10 +801,10 @@ export default function AdminManualPage() {
               <p className="text-sm text-muted-foreground">Al presionar "Eliminar", el sistema presenta un diálogo con dos opciones:</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-2">
-                <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                <div className="p-3 rounded-lg border border-border bg-muted/30">
                   <div className="flex items-center gap-2 mb-2">
-                    <Lock className="h-4 w-4 text-yellow-600" />
-                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Bloquear</p>
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-foreground">Bloquear</p>
                   </div>
                   <p className="text-xs text-muted-foreground">Desactiva el acceso del usuario preservando todo su historial de ventas, comisiones y revisiones. Recomendado para ex-empleados.</p>
                 </div>
