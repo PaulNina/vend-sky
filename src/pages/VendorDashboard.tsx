@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign, Target, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, AlertTriangle, DollarSign, Target, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Campaign { id: string; name: string; subtitle?: string | null; slug?: string | null; start_date: string; end_date: string; }
@@ -14,7 +14,7 @@ interface EnrolledCampaign extends Campaign { enrolled_at: string; status: strin
 export default function VendorDashboard() {
   const { user } = useAuth();
   const [countdown, setCountdown] = useState("");
-  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0, observed: 0 });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [enrolledCampaigns, setEnrolledCampaigns] = useState<EnrolledCampaign[]>([]);
@@ -65,6 +65,7 @@ export default function VendorDashboard() {
           points: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + s.points, 0),
           pending: sales.filter(s => s.status === 'pending').length,
           rejected: sales.filter(s => s.status === 'rejected').length,
+          observed: sales.filter(s => s.status === 'observed').length,
         });
       }
     };
@@ -116,6 +117,7 @@ export default function VendorDashboard() {
     { label: "Bono", value: `Bs ${stats.bonusBs.toLocaleString()}`, icon: DollarSign, color: "text-primary" },
     { label: "Puntos", value: String(stats.points), icon: Trophy, color: "text-warning" },
     { label: "Pendientes", value: String(stats.pending), icon: AlertCircle, color: "text-muted-foreground" },
+    ...(stats.observed > 0 ? [{ label: "Observadas", value: String(stats.observed), icon: AlertTriangle, color: "text-orange-500" }] : []),
     { label: "Rechazados", value: String(stats.rejected), icon: XCircle, color: "text-destructive" },
   ];
 

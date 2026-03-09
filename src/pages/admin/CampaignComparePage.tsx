@@ -26,6 +26,7 @@ interface CampaignMetrics {
   approved_sales: number;
   pending_sales: number;
   rejected_sales: number;
+  observed_sales: number;
   total_bonus_bs: number;
   total_points: number;
   unique_vendors: number;
@@ -117,6 +118,7 @@ export default function CampaignComparePage() {
       const approvedSales = sales?.filter(s => s.status === "approved").length || 0;
       const pendingSales = sales?.filter(s => s.status === "pending").length || 0;
       const rejectedSales = sales?.filter(s => s.status === "rejected").length || 0;
+      const observedSales = sales?.filter(s => s.status === "observed").length || 0;
       const totalBonus = sales?.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.bonus_bs || 0), 0) || 0;
       const totalPoints = sales?.filter(s => s.status === "approved").reduce((sum, s) => sum + (s.points || 0), 0) || 0;
       const uniqueVendors = new Set(sales?.filter(s => s.status === "approved").map(s => s.vendor_id)).size;
@@ -134,6 +136,7 @@ export default function CampaignComparePage() {
         approved_sales: approvedSales,
         pending_sales: pendingSales,
         rejected_sales: rejectedSales,
+        observed_sales: observedSales,
         total_bonus_bs: totalBonus,
         total_points: totalPoints,
         unique_vendors: uniqueVendors,
@@ -173,6 +176,7 @@ export default function CampaignComparePage() {
       "Aprobadas": m.approved_sales,
       "Pendientes": m.pending_sales,
       "Rechazadas": m.rejected_sales,
+      "Observadas": m.observed_sales,
       "Tasa Aprobación (%)": m.approval_rate,
       "Bonos Totales (Bs)": m.total_bonus_bs,
       "Puntos Totales": m.total_points,
@@ -188,6 +192,7 @@ export default function CampaignComparePage() {
     "Aprobadas": m.approved_sales,
     "Pendientes": m.pending_sales,
     "Rechazadas": m.rejected_sales,
+    "Observadas": m.observed_sales,
   }));
 
   const bonusChartData = metrics.map(m => ({
@@ -381,6 +386,7 @@ export default function CampaignComparePage() {
                       <Bar dataKey="Aprobadas" fill="hsl(var(--chart-2))" />
                       <Bar dataKey="Pendientes" fill="hsl(var(--chart-3))" />
                       <Bar dataKey="Rechazadas" fill="hsl(var(--chart-4))" />
+                      <Bar dataKey="Observadas" fill="hsl(25, 95%, 53%)" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
