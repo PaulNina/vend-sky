@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   BarChart3, Target, Package, Hash, FileText, Users,
-  ShieldCheck, ClipboardCheck, Mail, Settings, LogOut, UserPlus, DollarSign, FileCode, UserCheck, GitCompare,
+  ShieldCheck, ClipboardCheck, Mail, Settings, LogOut, UserPlus, DollarSign, FileCode, UserCheck, GitCompare, BookOpen,
 } from "lucide-react";
 
 const adminNav = [
@@ -39,6 +39,7 @@ const adminNav = [
   { title: "Plantillas Email", url: "/admin/plantillas-email", icon: FileCode },
   { title: "Usuarios/Roles", url: "/admin/usuarios-roles", icon: Users },
   { title: "Configuración", url: "/admin/configuracion", icon: Settings },
+  { title: "Manual", url: "/admin/manual", icon: BookOpen },
 ];
 
 function AdminSidebar() {

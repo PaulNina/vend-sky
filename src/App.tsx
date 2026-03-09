@@ -44,6 +44,7 @@ import CommissionsPage from "@/pages/admin/CommissionsPage";
 import EmailTemplatesPage from "@/pages/admin/EmailTemplatesPage";
 import EnrollmentReportPage from "@/pages/admin/EnrollmentReportPage";
 import CampaignComparePage from "@/pages/admin/CampaignComparePage";
+import AdminManualPage from "@/pages/admin/AdminManualPage";
 
 const queryClient = new QueryClient();
 
@@ -103,6 +104,7 @@ const App = () => (
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
+              <Route path="/admin/manual" element={<AdminManualPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
