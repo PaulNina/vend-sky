@@ -224,6 +224,23 @@ export default function RegisterPage() {
         full_name: fullName,
       } as any);
 
+      // Auto-enroll in campaign if registering from campaign page
+      if (campaignId) {
+        const vendorId = existingVendor?.id || (await supabase
+          .from("vendors")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle()).data?.id;
+
+        if (vendorId) {
+          await supabase.from("vendor_campaign_enrollments").insert({
+            vendor_id: vendorId,
+            campaign_id: campaignId,
+            status: "active",
+          });
+        }
+      }
+
       await refreshRoles();
       navigate("/v", { replace: true });
     } catch (error: any) {
