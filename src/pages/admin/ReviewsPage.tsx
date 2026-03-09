@@ -481,6 +481,35 @@ export default function ReviewsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Batch Approve Dialog */}
+      <AlertDialog open={batchApproveDialog} onOpenChange={setBatchApproveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCheck className="h-5 w-5 text-success" />
+              Aprobación Masiva
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Se aprobarán <strong>{nonFlaggedPending.length}</strong> ventas pendientes que <strong>no tienen alerta IA</strong>.</p>
+              <p className="text-xs text-muted-foreground">Las ventas con alerta IA se omitirán y deberán revisarse manualmente.</p>
+              {batchApproving && (
+                <div className="space-y-1">
+                  <Progress value={batchProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">{batchProgress}%</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchApproving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchApprove} disabled={batchApproving}>
+              {batchApproving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Aprobar {nonFlaggedPending.length} ventas
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
