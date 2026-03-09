@@ -1505,6 +1505,49 @@ export default function ConfigurationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reset System Dialog */}
+      <Dialog open={resetDialog} onOpenChange={setResetDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-destructive">⚠️ Reiniciar Sistema a Cero</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Esta acción eliminará permanentemente todos los datos transaccionales:
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+              <li>Todas las ventas y adjuntos</li>
+              <li>Todas las revisiones y auditorías</li>
+              <li>Todos los pagos de comisión</li>
+              <li>Todas las inscripciones de vendedores</li>
+              <li>Todas las notificaciones</li>
+              <li>Todos los bloqueos e historial de tiendas</li>
+              <li>Todos los periodos de campaña</li>
+              <li>Los seriales se reiniciarán a "disponible"</li>
+              <li>Las campañas se reactivarán</li>
+            </ul>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Escribe <strong>RESET TOTAL</strong> para confirmar:</Label>
+              <Input
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="RESET TOTAL"
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialog(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={executeReset}
+              disabled={resetting || resetConfirmText !== "RESET TOTAL"}
+            >
+              {resetting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Reiniciar Todo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
