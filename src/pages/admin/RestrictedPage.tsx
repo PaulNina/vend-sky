@@ -69,10 +69,12 @@ export default function RestrictedPage() {
     exportToExcel(items.map((i) => ({ Serial: i.serial, Motivo: i.reason, Campaña: i.source_campaign || "", Fecha: i.imported_at.split("T")[0] })), "restringidos");
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("restricted_serials").delete().eq("id", id);
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from("restricted_serials").delete().eq("id", deleteTarget.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { toast({ title: "Eliminado" }); load(); }
+    setDeleteTarget(null);
   };
 
   const fmtDate = (d: string) => {
