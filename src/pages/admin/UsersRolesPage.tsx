@@ -685,6 +685,63 @@ export default function UsersRolesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Importar Roles desde Excel</DialogTitle>
+            <DialogDescription>
+              Previsualización de los roles a importar. Columnas requeridas: <code>email</code>, <code>rol</code>, <code>ciudad</code> (opcional).
+            </DialogDescription>
+          </DialogHeader>
+
+          {importErrors.length > 0 && (
+            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm max-h-32 overflow-y-auto">
+              <p className="font-medium text-destructive mb-1">Errores encontrados:</p>
+              {importErrors.map((e, i) => <p key={i} className="text-xs text-destructive/80">• {e}</p>)}
+            </div>
+          )}
+
+          {importPreview.length > 0 ? (
+            <div className="max-h-60 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Ciudad</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {importPreview.map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs font-mono">{row.email}</TableCell>
+                      <TableCell><Badge variant="outline">{getRoleLabel(row.role)}</Badge></TableCell>
+                      <TableCell>{row.city || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No hay registros válidos para importar.</p>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+              <Download className="h-4 w-4 mr-1" />Descargar plantilla
+            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setImportDialog(false)}>Cancelar</Button>
+              <Button onClick={handleImportConfirm} disabled={importing || importPreview.length === 0}>
+                {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Importar {importPreview.length} roles
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
