@@ -59,13 +59,28 @@ export default function MySalesPage() {
 
   const loadTotalStats = async () => {
     if (!user) return;
-    const [totalRes, approvedRes, observedRes, bsRes] = await Promise.all([
+    const [totalRes, approvedRes, observedRes] = await Promise.all([
       supabase.from("sales").select("*", { head: true, count: "exact" }),
       supabase.from("sales").select("*", { head: true, count: "exact" }).eq("status", "approved" as any),
       supabase.from("sales").select("*", { head: true, count: "exact" }).eq("status", "observed" as any),
-      supabase.from("sales").select("bonus_bs").eq("status", "approved" as any),
     ]);
-    const bsTotal = (bsRes.data || []).reduce((a, s) => a + Number(s.bonus_bs), 0);
+
+    // Batch-load all approved bonus_bs to avoid 1000-row truncation
+    let bsTotal = 0;
+    const batchSize = 1000;
+    let from = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("sales")
+        .select("bonus_bs")
+        .eq("status", "approved" as any)
+        .range(from, from + batchSize - 1);
+      if (!data || data.length === 0) break;
+      bsTotal += data.reduce((a, s) => a + Number(s.bonus_bs), 0);
+      if (data.length < batchSize) break;
+      from += batchSize;
+    }
+
     setTotalStats({
       total: totalRes.count || 0,
       approved: approvedRes.count || 0,
