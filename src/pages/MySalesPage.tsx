@@ -202,7 +202,7 @@ export default function MySalesPage() {
         <Card className="hover:border-primary/20 transition-colors">
           <CardContent className="py-2.5 sm:py-3 px-3 sm:px-4">
             <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Registros</p>
-            <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{sales.length}</p>
+            <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{totalStats.total}</p>
           </CardContent>
         </Card>
         <Card className="hover:border-success/20 transition-colors">
