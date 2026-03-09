@@ -327,9 +327,9 @@ export default function CampaignComparePage() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="Aprobadas" fill="hsl(var(--chart-2))" />
@@ -347,9 +347,9 @@ export default function CampaignComparePage() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={bonusChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="Bonos Totales" fill="hsl(var(--chart-1))" />
