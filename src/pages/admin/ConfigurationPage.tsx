@@ -1452,6 +1452,34 @@ export default function ConfigurationPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Reset System */}
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                Zona de Peligro — Reiniciar Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Elimina <strong>todos los datos transaccionales</strong> del sistema: ventas, revisiones, comisiones,
+                auditorías, inscripciones, notificaciones y bloqueos. Los seriales se reinician a "disponible".
+                Las campañas se reactivan. <strong>Vendedores, productos, seriales y configuración se conservan.</strong>
+              </p>
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                <p className="text-xs text-destructive font-medium">⚠️ Esta acción es irreversible. Se recomienda hacer un backup completo antes de continuar.</p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setResetConfirmText(""); setResetDialog(true); }}
+              >
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                Reiniciar Sistema a Cero
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
