@@ -260,6 +260,7 @@ export default function AdminManualPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="quickstart" className="text-xs">🚀 Inicio Rápido</TabsTrigger>
           <TabsTrigger value="overview" className="text-xs">🏠 Visión General</TabsTrigger>
           <TabsTrigger value="dashboard" className="text-xs">📊 Dashboard</TabsTrigger>
           <TabsTrigger value="sales" className="text-xs">🛒 Ventas</TabsTrigger>
@@ -784,17 +785,57 @@ export default function AdminManualPage() {
           {/* Usuarios/Roles */}
           <Card>
             <CardHeader>
-              <SectionHeader icon={Users} title="Usuarios y Roles" description="Gestión de cuentas de usuario y asignación de roles del sistema." />
+              <SectionHeader icon={Users} title="Usuarios y Roles" description="Gestión de cuentas de usuario, asignación de roles y control de acceso." />
             </CardHeader>
             <CardContent className="space-y-4">
               <ButtonRef rows={[
-                { icon: "🔍 Buscar", location: "Barra superior", fn: "Busca usuarios por email." },
-                { icon: "🏷️ Asignar Rol", location: "Fila del usuario", fn: "Asigna uno o más roles: vendedor, revisor_ciudad, supervisor, admin." },
-                { icon: "🏙️ Ciudad (Revisor)", location: "Modal de rol", fn: "Para revisores de ciudad, asigna la ciudad que pueden revisar." },
-                { icon: "🔑 Resetear Contraseña", location: "Menú de acciones", fn: "Envía email de reseteo de contraseña al usuario." },
-                { icon: "🚫 Bloquear", location: "Menú de acciones", fn: "Deshabilita la cuenta del usuario (no puede iniciar sesión)." },
-                { icon: "🗑️ Eliminar", location: "Menú de acciones", fn: "Elimina permanentemente la cuenta del usuario." },
+                { icon: "🔍 Buscar por email", location: "Barra superior", fn: "Busca usuarios por dirección de correo electrónico." },
+                { icon: "🏷️ Asignar Rol", location: "Fila del usuario", fn: "Abre modal para asignar roles: vendedor, revisor_ciudad, supervisor, admin." },
+                { icon: "🏙️ Ciudad (Revisor)", location: "Modal de rol", fn: "Obligatorio para revisores: define qué ciudad puede revisar." },
+                { icon: "🔑 Resetear Contraseña", location: "Menú ⋯ del usuario", fn: "Envía link de recuperación al email del usuario." },
+                { icon: "🚫 Bloquear / Desbloquear", location: "Menú ⋯ del usuario", fn: "Deshabilita o rehabilita la cuenta (is_disabled). El historial se preserva." },
+                { icon: "🗑️ Eliminar", location: "Menú ⋯ del usuario", fn: "Abre diálogo de elección: Bloquear o Eliminar permanentemente." },
               ]} />
+
+              <h4 className="font-semibold text-foreground text-sm">Flujo de Eliminación de Usuario</h4>
+              <p className="text-sm text-muted-foreground">Al presionar "Eliminar", el sistema presenta un diálogo con dos opciones:</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-2">
+                <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock className="h-4 w-4 text-yellow-600" />
+                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Bloquear</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Desactiva el acceso del usuario preservando todo su historial de ventas, comisiones y revisiones. Recomendado para ex-empleados.</p>
+                </div>
+                <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <p className="text-sm font-semibold text-destructive">Eliminar permanentemente</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Eliminación en cascada: borra ventas, revisiones, pagos y datos del usuario. Los seriales asociados vuelven a estado "disponible".</p>
+                </div>
+              </div>
+
+              <Warning>
+                La eliminación permanente <strong>no se puede deshacer</strong>. Todo el historial del usuario desaparece. 
+                Usar solo cuando el usuario fue creado por error. Para ex-vendedores, preferir "Bloquear".
+              </Warning>
+
+              <FlowDiagram steps={[
+                "Clic en ⋯ del usuario",
+                "Seleccionar Eliminar",
+                "Diálogo: ¿Bloquear o Eliminar?",
+                "Bloquear → is_disabled = true",
+                "Eliminar → cascada completa + seriales liberados",
+              ]} />
+
+              <h4 className="font-semibold text-foreground text-sm">Estados de Reseteo de Contraseña</h4>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>• <strong>Link por email:</strong> El sistema envía un enlace de recuperación que expira en 1 hora.</p>
+                <p>• Si el usuario no recibe el email, verificar que la dirección sea correcta y revisar spam.</p>
+                <p>• El admin no puede ver ni establecer contraseñas directamente por seguridad.</p>
+              </div>
 
               <h4 className="font-semibold text-foreground text-sm">Permisos por Rol</h4>
               <div className="rounded-lg border overflow-hidden my-3">
@@ -811,12 +852,14 @@ export default function AdminManualPage() {
                   <tbody className="text-muted-foreground">
                     {[
                       ["Registrar ventas", "✅", "—", "—", "—"],
-                      ["Ver ranking", "✅", "—", "—", "✅"],
-                      ["Revisar ventas", "—", "✅", "—", "✅"],
+                      ["Ver ranking propio", "✅", "—", "—", "✅"],
+                      ["Revisar ventas de su ciudad", "—", "✅", "—", "✅"],
                       ["Auditar aprobaciones", "—", "—", "✅", "✅"],
+                      ["Ver métricas y reportes", "—", "—", "✅", "✅"],
                       ["Gestionar campañas", "—", "—", "—", "✅"],
-                      ["Gestionar usuarios", "—", "—", "—", "✅"],
-                      ["Configuración", "—", "—", "—", "✅"],
+                      ["Gestionar usuarios/roles", "—", "—", "—", "✅"],
+                      ["Configuración del sistema", "—", "—", "—", "✅"],
+                      ["Exportar respaldos", "—", "—", "—", "✅"],
                     ].map((row, i) => (
                       <tr key={i} className="border-t">
                         <td className="px-3 py-2 text-foreground">{row[0]}</td>
@@ -829,6 +872,7 @@ export default function AdminManualPage() {
                   </tbody>
                 </table>
               </div>
+              <Tip>Un usuario puede tener múltiples roles simultáneamente (ej: vendedor + revisor_ciudad). Los accesos se suman.</Tip>
             </CardContent>
           </Card>
 
