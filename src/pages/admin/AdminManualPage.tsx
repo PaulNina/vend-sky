@@ -169,6 +169,118 @@ function Tip({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Visual Commission Flow Diagram */
+function CommissionFlowDiagram() {
+  const stages = [
+    {
+      phase: "Fase 1: Acumulación",
+      color: "border-blue-500 bg-blue-500/10",
+      steps: [
+        { icon: Target, label: "Campaña Activa", desc: "Vendedores registran ventas" },
+        { icon: Eye, label: "Revisión", desc: "Revisores aprueban ventas" },
+        { icon: CheckCircle2, label: "Ventas Aprobadas", desc: "Solo estas generan comisión" },
+      ],
+    },
+    {
+      phase: "Fase 2: Liquidación",
+      color: "border-amber-500 bg-amber-500/10",
+      steps: [
+        { icon: Clock, label: "Cierre de Periodo", desc: "Automático o manual" },
+        { icon: Zap, label: "Generar Liquidación", desc: "Sistema calcula bonus" },
+        { icon: FileText, label: "Registros Pending", desc: "commission_payments creados" },
+      ],
+    },
+    {
+      phase: "Fase 3: Pago",
+      color: "border-green-500 bg-green-500/10",
+      steps: [
+        { icon: QrCode, label: "Consultar QR", desc: "Admin ve QR del vendedor" },
+        { icon: DollarSign, label: "Transferir", desc: "Pago al vendedor" },
+        { icon: Upload, label: "Subir Comprobante", desc: "Evidencia de pago" },
+      ],
+    },
+    {
+      phase: "Fase 4: Confirmación",
+      color: "border-purple-500 bg-purple-500/10",
+      steps: [
+        { icon: CheckCircle2, label: "Marcar Pagado", desc: "Estado → paid" },
+        { icon: Mail, label: "Notificación", desc: "Email + In-App al vendedor" },
+        { icon: Database, label: "Auditable", desc: "Registro con comprobante" },
+      ],
+    },
+  ];
+
+  return (
+    <div className="my-4 space-y-4">
+      {/* Phases */}
+      {stages.map((stage, si) => (
+        <div key={si} className={`rounded-xl border-2 ${stage.color} p-4`}>
+          <div className="flex items-center gap-2 mb-3">
+            <Badge variant="secondary" className="text-xs font-bold">{stage.phase}</Badge>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {stage.steps.map((step, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-3 rounded-lg bg-card/80 border">
+                <step.icon className="h-6 w-6 text-primary mb-2" />
+                <p className="text-xs font-semibold text-foreground">{step.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+          {si < stages.length - 1 && (
+            <div className="flex justify-center mt-3">
+              <ChevronRight className="h-5 w-5 text-muted-foreground rotate-90" />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Summary Flow */}
+      <div className="p-4 rounded-lg bg-muted/30 border">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Resumen del Flujo</p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {[
+            { label: "Ventas Aprobadas", icon: CheckCircle2 },
+            { label: "Cierre Periodo", icon: Clock },
+            { label: "Liquidación", icon: Zap },
+            { label: "Ver QR Cobro", icon: QrCode },
+            { label: "Transferir", icon: DollarSign },
+            { label: "Subir Comprobante", icon: Upload },
+            { label: "Marcar Pagado", icon: CheckCircle2 },
+            { label: "Notificar", icon: Mail },
+          ].map((item, i, arr) => (
+            <span key={i} className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-card border text-xs">
+                <item.icon className="h-3 w-3 text-primary" />
+                <span className="text-foreground">{item.label}</span>
+              </div>
+              {i < arr.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Status Legend */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-yellow-500" />
+            <p className="text-xs font-semibold text-yellow-600">Pending (Pendiente)</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Liquidación generada, aún no pagada.</p>
+        </div>
+        <div className="p-3 rounded-lg border border-green-500/40 bg-green-500/10">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <p className="text-xs font-semibold text-green-600">Paid (Pagado)</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Transferencia realizada y comprobante adjunto.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Warning({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20 my-3 text-sm">
