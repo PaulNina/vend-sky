@@ -72,19 +72,28 @@ Deno.serve(async (req) => {
     const { data: vendors, error: vendorsError } = await vendorsQuery;
     if (vendorsError) throw vendorsError;
 
-    // Get approved sales in the period for the campaign
-    let salesQuery = adminClient
-      .from("sales")
-      .select("vendor_id, bonus_bs")
-      .eq("campaign_id", campaign_id)
-      .eq("status", "approved")
-      .gte("sale_date", period_start)
-      .lte("sale_date", period_end);
-    if (city) {
-      salesQuery = salesQuery.eq("city", city);
+    // Get approved sales in the period for the campaign (batch to avoid 1000 row limit)
+    const allSales: { vendor_id: string; bonus_bs: number }[] = [];
+    const batchSize = 1000;
+    let from = 0;
+    while (true) {
+      let q = adminClient
+        .from("sales")
+        .select("vendor_id, bonus_bs")
+        .eq("campaign_id", campaign_id)
+        .eq("status", "approved")
+        .gte("sale_date", period_start)
+        .lte("sale_date", period_end)
+        .range(from, from + batchSize - 1);
+      if (city) q = q.eq("city", city);
+      const { data: batch, error: batchErr } = await q;
+      if (batchErr) throw batchErr;
+      if (!batch || batch.length === 0) break;
+      allSales.push(...batch);
+      if (batch.length < batchSize) break;
+      from += batchSize;
     }
-    const { data: sales, error: salesError } = await salesQuery;
-    if (salesError) throw salesError;
+    const sales = allSales;
 
     // Aggregate per vendor
     const vendorMap: Record<string, { units: number; amount_bs: number }> = {};
@@ -101,7 +110,8 @@ Deno.serve(async (req) => {
     let skipped = 0;
 
     for (const vendor of vendors || []) {
-      const agg = vendorMap[vendor.id] || { units: 0, amount_bs: 0 };
+      const agg = vendorMap[vendor.id];
+      if (!agg || agg.units === 0) { skipped++; continue; }
 
       // Check if already paid — don't overwrite
       const { data: existing } = await adminClient
