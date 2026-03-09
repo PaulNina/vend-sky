@@ -50,8 +50,29 @@ export default function MySalesPage() {
   const [salePage, setSalePage] = useState(0);
   const SALES_PAGE_SIZE = 200;
 
+  // Real totals from DB (independent of pagination)
+  const [totalStats, setTotalStats] = useState({ total: 0, approved: 0, observed: 0, totalBs: 0 });
+
   useEffect(() => { setSalePage(0); }, [statusFilter]);
   useEffect(() => { loadSales(); }, [user, statusFilter, salePage]);
+  useEffect(() => { loadTotalStats(); }, [user]);
+
+  const loadTotalStats = async () => {
+    if (!user) return;
+    const [totalRes, approvedRes, observedRes, bsRes] = await Promise.all([
+      supabase.from("sales").select("*", { head: true, count: "exact" }),
+      supabase.from("sales").select("*", { head: true, count: "exact" }).eq("status", "approved" as any),
+      supabase.from("sales").select("*", { head: true, count: "exact" }).eq("status", "observed" as any),
+      supabase.from("sales").select("bonus_bs").eq("status", "approved" as any),
+    ]);
+    const bsTotal = (bsRes.data || []).reduce((a, s) => a + Number(s.bonus_bs), 0);
+    setTotalStats({
+      total: totalRes.count || 0,
+      approved: approvedRes.count || 0,
+      observed: observedRes.count || 0,
+      totalBs: bsTotal,
+    });
+  };
 
   const loadSales = async () => {
     if (!user) return;
@@ -132,9 +153,9 @@ export default function MySalesPage() {
     }
   };
 
-  const observedCount = sales.filter(s => s.status === "observed").length;
-  const approvedCount = sales.filter(s => s.status === "approved").length;
-  const totalBs = sales.filter(s => s.status === "approved").reduce((a, s) => a + Number(s.bonus_bs), 0);
+  const observedCount = totalStats.observed;
+  const approvedCount = totalStats.approved;
+  const totalBs = totalStats.totalBs;
 
   return (
     <div className="space-y-4 sm:space-y-6">

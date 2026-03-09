@@ -80,11 +80,24 @@ Deno.serve(async (req) => {
 
       if (!recipients || recipients.length === 0) continue;
 
-      const { data: allSales } = await supabase
-        .from("sales")
-        .select("week_start, week_end, bonus_bs, points, city, status")
-        .eq("campaign_id", campaign.id)
-        .eq("status", "approved");
+      // Batch-load all approved sales to avoid 1000 row limit
+      const allSales: { week_start: string; week_end: string; bonus_bs: number; points: number; city: string; status: string }[] = [];
+      {
+        const batchSize = 1000;
+        let from = 0;
+        while (true) {
+          const { data: batch } = await supabase
+            .from("sales")
+            .select("week_start, week_end, bonus_bs, points, city, status")
+            .eq("campaign_id", campaign.id)
+            .eq("status", "approved")
+            .range(from, from + batchSize - 1);
+          if (!batch || batch.length === 0) break;
+          allSales.push(...batch);
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
+      }
 
       // Build weekly summary
       const weekMap = new Map<string, { units: number; bonusBs: number }>();
