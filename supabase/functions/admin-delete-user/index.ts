@@ -174,6 +174,7 @@ Deno.serve(async (req) => {
         }
 
         await adminClient.from("commission_payments").delete().eq("vendor_id", vendorRecord.id);
+        await adminClient.from("vendor_campaign_enrollments").delete().eq("vendor_id", vendorRecord.id);
         await adminClient.from("vendor_blocks").delete().eq("vendor_id", vendorRecord.id);
         await adminClient.from("vendor_store_history").delete().eq("vendor_id", vendorRecord.id);
         await adminClient.from("vendors").delete().eq("id", vendorRecord.id);
