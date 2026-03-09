@@ -412,12 +412,12 @@ export default function SerialsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="product">Producto (opcional)</Label>
-              <Select value={newProductId} onValueChange={setNewProductId}>
+              <Select value={newProductId || "none"} onValueChange={(v) => setNewProductId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar producto..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin producto</SelectItem>
+                  <SelectItem value="none">Sin producto</SelectItem>
                   {products.map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name} ({p.model_code})
