@@ -9,7 +9,7 @@ import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter, Users }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { exportToExcel } from "@/lib/exportExcel";
+import { exportToExcel, exportMultiSheet, buildSummaryRows } from "@/lib/exportExcel";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -201,36 +201,71 @@ export default function MetricsPage() {
   };
 
   const exportFullReport = () => {
-    // Export a comprehensive report with all tabs as sheets... using single sheet with all data
-    const reportRows = [
-      { Sección: "RESUMEN GENERAL", Dato: "Campaña", Valor: activeCampaign?.name || "" },
-      { Sección: "", Dato: "Período", Valor: activeCampaign ? `${activeCampaign.start_date} → ${activeCampaign.end_date}` : "" },
-      { Sección: "", Dato: "Total Ventas", Valor: weeklyTotals.units },
-      { Sección: "", Dato: "Aprobadas", Valor: weeklyTotals.approved },
-      { Sección: "", Dato: "Pendientes", Valor: weeklyTotals.pending },
-      { Sección: "", Dato: "Rechazadas", Valor: weeklyTotals.rejected },
-      { Sección: "", Dato: "Bono Total (Bs)", Valor: weeklyTotals.bs },
-      { Sección: "", Dato: "Puntos Totales", Valor: weeklyTotals.pts },
-      { Sección: "", Dato: "Semanas activas", Valor: weeklyData.length },
-      { Sección: "", Dato: "Ciudades", Valor: cityData.length },
-      { Sección: "", Dato: "Vendedores participantes", Valor: cityTotals.vendors },
-      { Sección: "", Dato: "", Valor: "" },
-      ...weeklyWithAccum.map((w) => ({
-        Sección: `SEMANA ${w.weekNum}`, Dato: `${w.week_start} → ${w.week_end}`,
-        Valor: `${w.approved_units} aprob. / ${w.total_units} total — Bs ${w.total_bonus_bs.toLocaleString()}`,
-      })),
-      { Sección: "", Dato: "", Valor: "" },
-      ...cityData.map((c) => ({
-        Sección: "POR CIUDAD", Dato: c.city,
-        Valor: `${c.approved_units} aprob. / ${c.total_units} total — Bs ${c.total_bonus_bs.toLocaleString()} — ${c.vendor_count} vendedores`,
-      })),
-      { Sección: "", Dato: "", Valor: "" },
-      ...productData.map((p) => ({
-        Sección: "POR PRODUCTO", Dato: `${p.product_name} (${p.model_code})`,
-        Valor: `${p.total_units} uds — Bs ${p.total_bonus_bs.toLocaleString()}`,
-      })),
-    ];
-    exportToExcel(reportRows, `reporte_gerencial_${activeCampaign?.name || "campaña"}`);
+    const campaignName = activeCampaign?.name || "campaña";
+    const dateStr = new Date().toISOString().split("T")[0];
+
+    const summaryData = buildSummaryRows([
+      { label: "Campaña", value: campaignName },
+      { label: "Período", value: activeCampaign ? `${activeCampaign.start_date} → ${activeCampaign.end_date}` : "" },
+      { label: "Fecha de reporte", value: dateStr },
+      { label: "", value: "" },
+      { label: "Total Ventas", value: weeklyTotals.units },
+      { label: "Aprobadas", value: weeklyTotals.approved },
+      { label: "Pendientes", value: weeklyTotals.pending },
+      { label: "Rechazadas", value: weeklyTotals.rejected },
+      { label: "Observadas", value: weeklyTotals.observed },
+      { label: "", value: "" },
+      { label: "Bono Total (Bs)", value: weeklyTotals.bs },
+      { label: "Puntos Totales", value: weeklyTotals.pts },
+      { label: "Semanas activas", value: weeklyData.length },
+      { label: "Ciudades", value: cityData.length },
+      { label: "Vendedores participantes", value: cityTotals.vendors },
+      { label: "Inscritos activos", value: enrolledCount },
+    ]);
+
+    const weeklySheet = weeklyWithAccum.map((w) => ({
+      "#": w.weekNum,
+      "Inicio": w.week_start,
+      "Fin": w.week_end,
+      "Total": w.total_units,
+      "Aprobadas": w.approved_units,
+      "Pendientes": w.pending_units,
+      "Rechazadas": w.rejected_units,
+      "Observadas": w.observed_units,
+      "Bono Bs": w.total_bonus_bs,
+      "Puntos": w.total_points,
+      "Acum. Uds": w.accumUnits,
+      "Acum. Bs": w.accumBs,
+    }));
+
+    const citySheet = cityData.map((c) => ({
+      "Ciudad": c.city,
+      "Vendedores": c.vendor_count,
+      "Total Ventas": c.total_units,
+      "Aprobadas": c.approved_units,
+      "Bono Bs": c.total_bonus_bs,
+      "Puntos": c.total_points,
+      "% Aprobación": c.total_units > 0 ? `${Math.round((c.approved_units / c.total_units) * 100)}%` : "0%",
+    }));
+
+    const productSheet = productData.map((p, i) => ({
+      "#": i + 1,
+      "Producto": p.product_name,
+      "Modelo": p.model_code,
+      "Unidades": p.total_units,
+      "Bono Bs": p.total_bonus_bs,
+      "% del Total": weeklyTotals.approved > 0 ? `${Math.round((p.total_units / weeklyTotals.approved) * 100)}%` : "0%",
+    }));
+
+    exportMultiSheet(
+      [
+        { name: "Resumen", data: summaryData },
+        { name: "Por Semana", data: weeklySheet },
+        { name: "Por Ciudad", data: citySheet },
+        { name: "Por Producto", data: productSheet },
+      ],
+      `reporte_gerencial_${campaignName.replace(/\s+/g, "_")}_${dateStr}`
+    );
   };
 
   const clearDateRange = () => { setDateFrom(undefined); setDateTo(undefined); setQuickRange("all"); };
