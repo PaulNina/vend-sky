@@ -1374,6 +1374,45 @@ export default function AdminManualPage() {
                   </AccordionContent>
                 </AccordionItem>
 
+                <AccordionItem value="faq-registration-error">
+                  <AccordionTrigger className="text-sm font-medium">Un vendedor reporta error al registrarse</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Contexto:</strong> Si ocurre un error durante el registro (por ejemplo, fallo de red), la cuenta puede quedar en un estado parcial.</p>
+                    <p><strong>Solución:</strong></p>
+                    <p>1. El sistema limpia automáticamente las sesiones parciales y muestra un mensaje claro al vendedor.</p>
+                    <p>2. El vendedor debe intentar registrarse nuevamente con los mismos datos.</p>
+                    <p>3. Si el email aparece como "ya registrado" pero el vendedor no puede ingresar, ve a <strong>Usuarios/Roles</strong> y verifica si la cuenta existe pero le falta el rol de vendedor.</p>
+                    <p>4. Si es necesario, usa <strong>"Resetear Contraseña"</strong> y asigna el rol manualmente.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-vendor-pending-approval">
+                  <AccordionTrigger className="text-sm font-medium">Un vendedor se registró pero no puede registrar ventas</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Causa más probable:</strong> La campaña tiene activado <strong>"Requiere aprobación de vendedor"</strong>.</p>
+                    <p>Cuando esta opción está activa, los vendedores que se registran quedan con estado <strong>pendiente de aprobación</strong> (inactivos). Esto significa que:</p>
+                    <p>• No pueden inscribirse en campañas ni registrar ventas.</p>
+                    <p>• Su inscripción a la campaña queda en estado "pending".</p>
+                    <p><strong>Solución:</strong></p>
+                    <p>1. Ve a <strong>Vendedores (Kardex)</strong> y busca al vendedor.</p>
+                    <p>2. Actívalo manualmente (toggle de "Activo").</p>
+                    <p>3. Si su inscripción a la campaña también está pendiente, apruébala desde <strong>Campañas → Inscritos</strong>.</p>
+                    <Tip>Si no necesitas este control, desactiva "Requiere aprobación" en la configuración de la campaña. Por defecto está deshabilitado.</Tip>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-data-truncation">
+                  <AccordionTrigger className="text-sm font-medium">Los reportes o métricas parecen mostrar datos incompletos</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Contexto:</strong> El sistema maneja automáticamente volúmenes grandes de datos mediante carga por lotes.</p>
+                    <p>Si los datos parecen incompletos:</p>
+                    <p>1. <strong>Espera a que cargue completamente:</strong> Los reportes con muchos datos pueden tomar unos segundos en procesar todos los lotes.</p>
+                    <p>2. <strong>Verifica los filtros:</strong> Asegúrate de que la campaña, periodo y ciudad seleccionados son correctos.</p>
+                    <p>3. <strong>Regenera la liquidación:</strong> Si una liquidación muestra montos incorrectos, presiona "Generar Liquidación" nuevamente para recalcular con los datos actualizados.</p>
+                    <p>4. <strong>Exporta y compara:</strong> Exporta los datos a Excel y compara con los totales del Dashboard para validar.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
                 <AccordionItem value="faq-backup">
                   <AccordionTrigger className="text-sm font-medium">¿Cómo hago un respaldo completo del sistema?</AccordionTrigger>
                   <AccordionContent className="text-sm text-muted-foreground space-y-2">
