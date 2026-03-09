@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, Pencil } from "lucide-react";
+import { Loader2, Plus, Pencil, Users, Trash2 } from "lucide-react";
 
 interface Campaign {
   id: string;
@@ -43,6 +44,10 @@ export default function CampaignsPage() {
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [enrollmentsDialog, setEnrollmentsDialog] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -74,6 +79,22 @@ export default function CampaignsPage() {
     setSaving(false);
     setDialog(false);
     load();
+  };
+
+  const loadEnrollments = async (campaignId: string) => {
+    setLoadingEnrollments(true);
+    const { data } = await supabase.from("vendor_campaign_enrollments").select("id, enrolled_at, status, vendors(id, full_name, city, store_name)").eq("campaign_id", campaignId).order("enrolled_at", { ascending: false });
+    setEnrollments(data || []);
+    setLoadingEnrollments(false);
+  };
+
+  const openEnrollments = (campaignId: string) => { setSelectedCampaignId(campaignId); loadEnrollments(campaignId); setEnrollmentsDialog(true); };
+
+  const removeEnrollment = async (enrollmentId: string) => {
+    const { error } = await supabase.from("vendor_campaign_enrollments").delete().eq("id", enrollmentId);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Inscripción eliminada" });
+    if (selectedCampaignId) loadEnrollments(selectedCampaignId);
   };
 
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
@@ -137,7 +158,12 @@ export default function CampaignsPage() {
                       </div>
                     </TableCell>
                     <TableCell>{c.ai_date_validation ? <Badge>ON</Badge> : <Badge variant="outline">OFF</Badge>}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEnrollments(c.id)}><Users className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -145,6 +171,40 @@ export default function CampaignsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={enrollmentsDialog} onOpenChange={setEnrollmentsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Vendedores Inscritos</DialogTitle></DialogHeader>
+          {loadingEnrollments ? (
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : enrollments.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No hay vendedores inscritos en esta campaña</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead>Ciudad</TableHead>
+                  <TableHead>Tienda</TableHead>
+                  <TableHead>Inscrito</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {enrollments.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell>{e.vendors?.full_name}</TableCell>
+                    <TableCell>{e.vendors?.city}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{e.vendors?.store_name || "—"}</TableCell>
+                    <TableCell className="text-xs">{new Date(e.enrolled_at).toLocaleDateString("es-BO")}</TableCell>
+                    <TableCell><Button variant="ghost" size="icon" onClick={() => removeEnrollment(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent className="max-w-lg">
