@@ -624,10 +624,24 @@ export default function ConfigurationPage() {
     // Storage check (try to list buckets - will fail gracefully if no access)
     const storageCheck = supabase.storage.listBuckets();
 
-    // Edge function check - simple ping
+    // Edge function check - we intentionally pass an invalid campaign_id
+    // If we get a 404 with "Campaign not found", it means the function IS working
+    // (it validated input and responded correctly). Only network/deploy failures are errors.
     const edgeCheck = supabase.functions.invoke("run-system-processes", {
-      body: { dry_run: true, campaign_id: "health-check" },
-    }).catch(() => ({ error: { message: "Edge function unavailable" } }));
+      body: { dry_run: true, campaign_id: "00000000-0000-0000-0000-000000000000" },
+    }).then((res) => {
+      // Function responded - check if it's a business logic error (OK) vs deployment error
+      if (res.error) {
+        const errMsg = res.error.message || "";
+        // "Campaign not found" means function is deployed and working correctly
+        if (errMsg.includes("Campaign not found") || errMsg.includes("404")) {
+          return { ok: true };
+        }
+        // Connection errors, 500s, etc. = real problems
+        return { ok: false, error: res.error };
+      }
+      return { ok: true };
+    }).catch(() => ({ ok: false, error: { message: "Edge function unavailable" } }));
 
     const [dbRes, authRes, storageRes, edgeRes] = await Promise.all([dbCheck, authCheck, storageCheck, edgeCheck]);
 
@@ -635,7 +649,7 @@ export default function ConfigurationPage() {
       database: dbRes.error ? "error" : "ok",
       auth: authRes.error ? "error" : "ok",
       storage: storageRes.error ? "error" : "ok",
-      edgeFunctions: (edgeRes as any).error && (edgeRes as any).error.message?.includes("unavailable") ? "error" : "ok",
+      edgeFunctions: (edgeRes as any).ok ? "ok" : "error",
     });
 
     // Load system stats
