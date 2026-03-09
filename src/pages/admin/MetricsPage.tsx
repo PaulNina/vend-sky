@@ -51,6 +51,9 @@ interface SerialRow {
 type QuickRange = "all" | "week" | "month" | "year" | "custom";
 
 export default function MetricsPage() {
+  const { user, roles } = useAuth();
+  const isRevisor = roles.includes("revisor_ciudad") && !roles.includes("admin") && !roles.includes("supervisor");
+
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [weeklyData, setWeeklyData] = useState<WeekRow[]>([]);
@@ -61,6 +64,7 @@ export default function MetricsPage() {
   const [serialData, setSerialData] = useState<SerialRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrolledCount, setEnrolledCount] = useState(0);
+  const [reviewerCity, setReviewerCity] = useState<string | null>(null);
 
   // Date range state
   const [quickRange, setQuickRange] = useState<QuickRange>("all");
@@ -70,6 +74,17 @@ export default function MetricsPage() {
   // City filter state
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [availableCities, setAvailableCities] = useState<string[]>([]);
+
+  // Fetch reviewer's assigned city and lock filter
+  useEffect(() => {
+    if (!isRevisor || !user) return;
+    supabase.from("user_roles").select("city").eq("user_id", user.id).eq("role", "revisor_ciudad").single().then(({ data }) => {
+      if (data?.city) {
+        setReviewerCity(data.city);
+        setSelectedCity(data.city);
+      }
+    });
+  }, [isRevisor, user]);
 
   useEffect(() => {
     supabase.from("campaigns").select("id, name, start_date, end_date").order("created_at", { ascending: false }).then(({ data }) => {
