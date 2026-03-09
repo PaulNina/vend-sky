@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   BarChart3, Target, Package, Hash, FileText, Users, ShieldCheck,
   ClipboardCheck, Mail, Settings, BookOpen, DollarSign, FileCode,
