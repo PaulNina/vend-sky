@@ -102,6 +102,7 @@ function SaleStateMap() {
     { label: "Pendiente", color: "bg-yellow-500/20 text-yellow-600 border-yellow-500/40", desc: "Recién registrada, esperando revisión." },
     { label: "Aprobada", color: "bg-green-500/20 text-green-600 border-green-500/40", desc: "Revisada y aprobada. Genera comisión." },
     { label: "Rechazada", color: "bg-red-500/20 text-red-600 border-red-500/40", desc: "Rechazada con motivo. No genera comisión." },
+    { label: "Observada", color: "bg-orange-500/20 text-orange-600 border-orange-500/40", desc: "El auditor detectó un problema. El vendedor debe corregir las fotos y reenviar." },
     { label: "Cerrada", color: "bg-muted text-muted-foreground border-border", desc: "Periodo cerrado sin ser revisada." },
   ];
   return (
@@ -138,7 +139,7 @@ const searchIndex: SearchEntry[] = [
   // Ventas
   { tab: "sales", tabLabel: "Ventas", title: "Campañas", keywords: "crear editar campaña slug fechas registro IA fecha periodos semanal quincenal mensual" },
   { tab: "sales", tabLabel: "Ventas", title: "Revisiones", keywords: "revisar aprobar rechazar fotos TAG póliza nota venta evidencia estado ciudad filtro" },
-  { tab: "sales", tabLabel: "Ventas", title: "Auditoría", keywords: "auditar muestreo aleatorio supervisor revertir OK confirmar" },
+  { tab: "sales", tabLabel: "Ventas", title: "Auditoría", keywords: "auditar muestreo aleatorio supervisor revertir OK confirmar observar observación corregir vendedor reenviar foto" },
   { tab: "sales", tabLabel: "Ventas", title: "Vendedores (Kardex)", keywords: "vendedor kardex buscar ciudad talla tienda historial QR cobro exportar" },
   // Datos
   { tab: "data", tabLabel: "Datos", title: "Productos y Modelos", keywords: "producto modelo pulgadas bono puntos importar exportar plantilla CRUD" },
@@ -430,7 +431,8 @@ export default function AdminManualPage() {
                 "Vendedor registra venta",
                 "Sube fotos (TAG + Póliza + Nota)",
                 "Revisor de ciudad aprueba/rechaza",
-                "Auditoría por muestreo",
+                "Auditoría por muestreo (OK / Revertir / Observar)",
+                "Si observada → Vendedor corrige fotos → Re-revisión",
                 "Cierre semanal automático",
                 "Generación de liquidación",
                 "Pago de comisiones",
@@ -632,25 +634,60 @@ export default function AdminManualPage() {
           {/* Auditoría */}
           <Card>
             <CardHeader>
-              <SectionHeader icon={ShieldCheck} title="Auditoría" description="Control de calidad sobre las aprobaciones realizadas por revisores." />
+              <SectionHeader icon={ShieldCheck} title="Auditoría" description="Control de calidad sobre las aprobaciones realizadas por revisores. Incluye observaciones para que el vendedor corrija." />
             </CardHeader>
             <CardContent className="space-y-4">
               <FlowDiagram steps={[
                 "Sistema selecciona muestra aleatoria",
                 "Supervisor revisa fotos de ventas aprobadas",
-                "Marca OK (confirma) o Revierte (con motivo)",
+                "Marca OK, Revierte o marca como Observada",
                 "Se registra auditoría en supervisor_audits",
               ]} />
 
               <ButtonRef rows={[
                 { icon: "✅ OK", location: "Panel de auditoría", fn: "Confirma que la aprobación fue correcta." },
                 { icon: "↩️ Revertir", location: "Panel de auditoría", fn: "Revierte la aprobación. La venta vuelve a 'pendiente' y se registra el motivo." },
+                { icon: "👁️ Observar", location: "Panel de auditoría", fn: "Marca la venta como 'observada' con un motivo detallado. El vendedor verá la observación y podrá corregir las fotos." },
               ]} />
 
               <Tip>
                 La auditoría es por muestreo: no se revisan todas las ventas, solo una selección aleatoria de las aprobadas.
                 Esto permite detectar patrones de revisión incorrecta.
               </Tip>
+
+              <Separator />
+
+              <h4 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                Flujo de Observación y Corrección
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Cuando un auditor detecta que una foto está mal (TAG ilegible, póliza borrosa, nota incorrecta), puede marcar la venta como <strong>"Observada"</strong> en lugar de revertirla directamente. Esto le da al vendedor la oportunidad de corregir el problema.
+              </p>
+
+              <FlowDiagram steps={[
+                "Auditor marca como Observada (con motivo)",
+                "Venta cambia a estado 'observed'",
+                "Vendedor ve alerta en 'Mis Ventas'",
+                "Vendedor abre el detalle y ve la observación",
+                "Sube fotos corregidas (TAG, Póliza o Nota)",
+                "Venta vuelve a estado 'pending'",
+                "Revisor de ciudad la re-evalúa",
+              ]} />
+
+              <h4 className="font-semibold text-foreground text-sm">¿Qué ve el vendedor?</h4>
+              <StepList steps={[
+                { n: 1, text: "En la página 'Mis Ventas' aparece una alerta naranja indicando cuántas ventas tienen observaciones." },
+                { n: 2, text: "Las ventas observadas se muestran con un badge naranja '⚠ Observada' y el motivo truncado en la lista." },
+                { n: 3, text: "Al abrir el detalle, ve un recuadro con la observación del auditor y las instrucciones para corregir." },
+                { n: 4, text: "El vendedor presiona 'Corregir y Reenviar', lo que le permite subir nuevas fotos para reemplazar las originales." },
+                { n: 5, text: "Solo necesita subir las fotos que necesitan corrección (no todas). Las demás se mantienen." },
+                { n: 6, text: "Al presionar 'Reenviar para Revisión', la venta vuelve a 'pendiente' y la observación se borra." },
+              ]} />
+
+              <Warning>
+                Si el vendedor no corrige la observación, la venta permanecerá en estado "Observada" y no generará comisión. Es responsabilidad del vendedor atender las observaciones a tiempo antes del cierre del periodo.
+              </Warning>
             </CardContent>
           </Card>
 
@@ -1197,11 +1234,23 @@ export default function AdminManualPage() {
                 <AccordionItem value="faq-wrong-approval">
                   <AccordionTrigger className="text-sm font-medium">Un revisor aprobó una venta por error</AccordionTrigger>
                   <AccordionContent className="text-sm text-muted-foreground space-y-2">
-                    <p><strong>Solución:</strong> Un supervisor puede revertir la aprobación desde el módulo de <strong>Auditoría</strong>.</p>
+                    <p><strong>Solución:</strong> Un supervisor puede revertir la aprobación o marcarla como observada desde el módulo de <strong>Auditoría</strong>.</p>
                     <p>1. El supervisor busca la venta en el módulo de Auditoría.</p>
-                    <p>2. Presiona "Revertir" e ingresa el motivo.</p>
-                    <p>3. La venta vuelve a estado "pendiente" y puede ser revisada nuevamente.</p>
-                    <p>4. Se registra la acción en <code>supervisor_audits</code> para trazabilidad.</p>
+                    <p>2. Presiona "Revertir" (la venta vuelve a pendiente) o "Observar" (el vendedor debe corregir fotos).</p>
+                    <p>3. Si se observa, el vendedor recibe una alerta en "Mis Ventas" con el motivo y puede subir fotos corregidas.</p>
+                    <p>4. Tras la corrección, la venta vuelve a "pendiente" para re-revisión automática.</p>
+                    <p>5. Se registra la acción en el historial de auditoría para trazabilidad.</p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="faq-observed-sale">
+                  <AccordionTrigger className="text-sm font-medium">Una venta fue observada y el vendedor no la corrigió</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Contexto:</strong> Las ventas en estado "Observada" requieren que el vendedor suba fotos corregidas.</p>
+                    <p>1. Contacta al vendedor y recuérdale que tiene ventas pendientes de corrección en "Mis Ventas".</p>
+                    <p>2. El vendedor debe abrir la venta, presionar "Corregir y Reenviar", subir las fotos nuevas y confirmar.</p>
+                    <p>3. Si el periodo se cierra antes de la corrección, la venta quedará sin generar comisión.</p>
+                    <p><strong>Alternativa:</strong> El supervisor puede revertir la venta desde auditoría para que sea rechazada directamente por un revisor.</p>
                   </AccordionContent>
                 </AccordionItem>
 
