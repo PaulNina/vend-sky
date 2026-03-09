@@ -7,19 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Eye, RotateCcw, Shuffle, ShieldCheck } from "lucide-react";
+import { Loader2, Eye, RotateCcw, Shuffle, ShieldCheck, Download, CheckCircle2, XCircle } from "lucide-react";
+import { exportToExcel } from "@/lib/exportExcel";
 
 interface ApprovedSale {
   id: string; serial: string; sale_date: string; city: string;
   bonus_bs: number; points: number; status: string;
   vendors: { full_name: string } | null;
   products: { name: string } | null;
+  campaign_id: string;
 }
 
 interface Attachment { tag_url: string; poliza_url: string; nota_url: string; }
+
+interface Campaign { id: string; name: string; }
 
 export default function AuditPage() {
   const { user } = useAuth();
@@ -30,15 +35,40 @@ export default function AuditPage() {
   const [attachments, setAttachments] = useState<Attachment | null>(null);
   const [revertReason, setRevertReason] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("all");
+  const [auditStats, setAuditStats] = useState({ ok: 0, reverted: 0, total: 0 });
+
+  // Load campaigns
+  useEffect(() => {
+    supabase.from("campaigns").select("id, name").eq("is_active", true).then(({ data }) => {
+      setCampaigns(data || []);
+    });
+    loadAuditStats();
+  }, []);
+
+  const loadAuditStats = async () => {
+    const { data } = await supabase.from("supervisor_audits").select("action");
+    if (data) {
+      setAuditStats({
+        ok: data.filter(a => a.action === "ok").length,
+        reverted: data.filter(a => a.action === "revert").length,
+        total: data.length,
+      });
+    }
+  };
 
   const loadSample = async () => {
     setLoading(true);
-    const { data } = await supabase.from("sales")
-      .select("id, serial, sale_date, city, bonus_bs, points, status, vendors(full_name), products(name)")
+    let q = supabase.from("sales")
+      .select("id, serial, sale_date, city, bonus_bs, points, status, campaign_id, vendors(full_name), products(name)")
       .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(200);
 
+    if (selectedCampaign !== "all") q = q.eq("campaign_id", selectedCampaign);
+
+    const { data } = await q;
     if (data) {
       const shuffled = [...data].sort(() => Math.random() - 0.5);
       setSales(shuffled.slice(0, sampleSize) as any);
@@ -46,7 +76,7 @@ export default function AuditPage() {
     setLoading(false);
   };
 
-  useEffect(() => { loadSample(); }, []);
+  useEffect(() => { loadSample(); }, [selectedCampaign]);
 
   const viewDetail = async (sale: ApprovedSale) => {
     setDetailSale(sale);
@@ -69,6 +99,7 @@ export default function AuditPage() {
     setDetailSale(null);
     setProcessing(false);
     loadSample();
+    loadAuditStats();
   };
 
   const handleOk = async () => {
@@ -78,6 +109,15 @@ export default function AuditPage() {
     toast({ title: "Auditoría OK" });
     setDetailSale(null);
     setProcessing(false);
+    loadAuditStats();
+  };
+
+  const handleExport = () => {
+    exportToExcel(sales.map(s => ({
+      Fecha: fmtDate(s.sale_date), Vendedor: s.vendors?.full_name || "",
+      Ciudad: s.city, Producto: s.products?.name || "", Serial: s.serial,
+      "Bono Bs": s.bonus_bs,
+    })), "auditoria-muestra");
   };
 
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
@@ -93,7 +133,14 @@ export default function AuditPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">Muestreo aleatorio de aprobaciones para validación</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+            <SelectTrigger className="w-[180px] text-xs"><SelectValue placeholder="Campaña" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las campañas</SelectItem>
+              {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2 border border-border/50">
             <Label className="text-xs whitespace-nowrap text-muted-foreground">Muestra:</Label>
             <Input type="number" value={sampleSize} onChange={(e) => setSampleSize(Number(e.target.value))} className="w-20 h-8" min={1} max={100} />
@@ -101,11 +148,14 @@ export default function AuditPage() {
           <Button onClick={loadSample} variant="premium">
             <Shuffle className="h-4 w-4 mr-1.5" />Nueva muestra
           </Button>
+          <Button variant="outline" onClick={handleExport} size="sm">
+            <Download className="h-4 w-4 mr-1" />Excel
+          </Button>
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="hover:border-primary/20 transition-colors">
           <CardContent className="py-3 px-4">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Muestra Actual</p>
@@ -118,10 +168,22 @@ export default function AuditPage() {
             <p className="text-xl font-bold font-display mt-0.5">Bs {sales.reduce((a, s) => a + Number(s.bonus_bs), 0).toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardContent className="py-3 px-4">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Ciudades</p>
-            <p className="text-xl font-bold font-display mt-0.5">{new Set(sales.map((s) => s.city)).size}</p>
+        <Card className="hover:border-success/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+            <div>
+              <p className="text-xl font-bold font-display">{auditStats.ok}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Auditorías OK</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-destructive/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <XCircle className="h-5 w-5 text-destructive shrink-0" />
+            <div>
+              <p className="text-xl font-bold font-display">{auditStats.reverted}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Revertidas</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -184,7 +246,6 @@ export default function AuditPage() {
           </DialogHeader>
           {detailSale && (
             <div className="space-y-5">
-              {/* Sale info */}
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm p-4 rounded-lg bg-muted/30 border border-border/50">
                 <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Vendedor</span><p className="font-medium mt-0.5">{detailSale.vendors?.full_name}</p></div>
                 <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Ciudad</span><p className="font-medium mt-0.5">{detailSale.city}</p></div>
@@ -194,7 +255,6 @@ export default function AuditPage() {
                 <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Bono</span><p className="font-medium mt-0.5">Bs {detailSale.bonus_bs}</p></div>
               </div>
 
-              {/* Attachments */}
               {attachments && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respaldos Fotográficos</p>
@@ -211,7 +271,6 @@ export default function AuditPage() {
                 </div>
               )}
 
-              {/* Actions */}
               <div className="space-y-4 pt-3 border-t border-border">
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold uppercase tracking-wider">Motivo de reversión (obligatorio)</Label>
