@@ -299,6 +299,19 @@ export default function MySalesPage() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {(sales.length >= SALES_PAGE_SIZE || salePage > 0) && (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={salePage === 0} onClick={() => setSalePage(p => p - 1)}>
+            Anterior
+          </Button>
+          <span className="text-xs text-muted-foreground">Página {salePage + 1}</span>
+          <Button variant="outline" size="sm" disabled={sales.length < SALES_PAGE_SIZE} onClick={() => setSalePage(p => p + 1)}>
+            Siguiente
+          </Button>
+        </div>
+      )}
+
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={(open) => { if (!open) { setDetailOpen(false); setCorrectionMode(false); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
