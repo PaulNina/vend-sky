@@ -3,9 +3,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign, Target, ExternalLink } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
-interface Campaign { id: string; name: string; }
+interface Campaign { id: string; name: string; subtitle?: string | null; slug?: string | null; start_date: string; end_date: string; }
+interface EnrolledCampaign extends Campaign { enrolled_at: string; status: string; }
 
 export default function VendorDashboard() {
   const { user } = useAuth();
@@ -13,12 +17,40 @@ export default function VendorDashboard() {
   const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [enrolledCampaigns, setEnrolledCampaigns] = useState<EnrolledCampaign[]>([]);
+  const [availableCampaigns, setAvailableCampaigns] = useState<Campaign[]>([]);
+  const [enrolling, setEnrolling] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from("campaigns").select("id, name").eq("is_active", true).then(({ data }) => {
-      if (data && data.length > 0) { setCampaigns(data); setSelectedCampaign(data[0].id); }
-    });
-  }, []);
+    if (!user) return;
+    const loadCampaigns = async () => {
+      const { data: vendor } = await supabase.from("vendors").select("id").eq("user_id", user.id).maybeSingle();
+      if (!vendor) return;
+
+      // Get active campaigns
+      const { data: activeCampaigns } = await supabase.from("campaigns").select("id, name, subtitle, slug, start_date, end_date").eq("is_active", true).eq("status", "active").order("created_at", { ascending: false });
+      
+      // Get enrolled campaigns
+      const { data: enrollments } = await supabase.from("vendor_campaign_enrollments").select("campaign_id, enrolled_at, status, campaigns(id, name, subtitle, slug, start_date, end_date)").eq("vendor_id", vendor.id).eq("status", "active");
+      
+      if (enrollments) {
+        const enrolled = enrollments.map(e => ({ ...e.campaigns, enrolled_at: e.enrolled_at, status: e.status } as EnrolledCampaign)).filter(c => c.id);
+        setEnrolledCampaigns(enrolled);
+        
+        // Set campaigns for dropdown (only enrolled ones)
+        setCampaigns(enrolled);
+        if (enrolled.length > 0) setSelectedCampaign(enrolled[0].id);
+      }
+
+      // Get available campaigns (not enrolled)
+      if (activeCampaigns && enrollments) {
+        const enrolledIds = enrollments.map(e => e.campaign_id);
+        const available = activeCampaigns.filter(c => !enrolledIds.includes(c.id));
+        setAvailableCampaigns(available);
+      }
+    };
+    loadCampaigns();
+  }, [user]);
 
   useEffect(() => {
     if (!user || !selectedCampaign) return;
@@ -62,6 +94,22 @@ export default function VendorDashboard() {
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleEnroll = async (campaignId: string) => {
+    if (!user) return;
+    setEnrolling(campaignId);
+    const { data: vendor } = await supabase.from("vendors").select("id").eq("user_id", user.id).maybeSingle();
+    if (!vendor) { toast({ title: "Error", description: "Perfil de vendedor no encontrado", variant: "destructive" }); setEnrolling(null); return; }
+    
+    const { error } = await supabase.from("vendor_campaign_enrollments").insert({ vendor_id: vendor.id, campaign_id: campaignId });
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); setEnrolling(null); return; }
+    
+    toast({ title: "¡Inscrito!", description: "Te has inscrito exitosamente en la campaña" });
+    setEnrolling(null);
+    window.location.reload();
+  };
+
+  const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
   const statCards = [
     { label: "Aprobadas", value: String(stats.approved), icon: Package, color: "text-success" },
@@ -132,6 +180,34 @@ export default function VendorDashboard() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Available Campaigns */}
+      {availableCampaigns.length > 0 && (
+        <Card className="border-primary/20">
+          <CardContent className="py-4 sm:py-5 px-4 sm:px-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold font-display text-sm sm:text-base">Campañas Disponibles</h3>
+            </div>
+            <div className="grid gap-3">
+              {availableCampaigns.map((campaign) => (
+                <Card key={campaign.id} className="hover:border-primary/30 transition-colors">
+                  <CardContent className="py-3 px-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-medium text-sm">{campaign.name}</h4>
+                      {campaign.subtitle && <p className="text-xs text-muted-foreground mt-0.5">{campaign.subtitle}</p>}
+                      <p className="text-xs text-muted-foreground mt-1">{fmtDate(campaign.start_date)} — {fmtDate(campaign.end_date)}</p>
+                    </div>
+                    <Button size="sm" onClick={() => handleEnroll(campaign.id)} disabled={enrolling === campaign.id} className="shrink-0">
+                      {enrolling === campaign.id ? "..." : "Inscribirme"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
