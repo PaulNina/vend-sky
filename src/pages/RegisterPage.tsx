@@ -16,13 +16,14 @@ function useRegistrationStatus(campaignId?: string) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [campaignSubtitle, setCampaignSubtitle] = useState("");
+  const [campaignData, setCampaignData] = useState<{ id: string; require_vendor_approval: boolean } | null>(null);
   const [message, setMessage] = useState("");
   
   useEffect(() => {
     const check = async () => {
       let query = supabase
         .from("campaigns")
-        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at")
+        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
         .eq("is_active", true)
         .eq("status", "active");
 
@@ -42,6 +43,7 @@ function useRegistrationStatus(campaignId?: string) {
 
       setCampaignName(campaign.name);
       setCampaignSubtitle(campaign.subtitle || "");
+      setCampaignData({ id: campaign.id, require_vendor_approval: campaign.require_vendor_approval });
       const now = new Date();
 
       if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
@@ -68,7 +70,7 @@ function useRegistrationStatus(campaignId?: string) {
     check();
   }, [campaignId]);
 
-  return { allowed, campaignName, campaignSubtitle, message };
+  return { allowed, campaignName, campaignSubtitle, campaignData, message };
 }
 
 export default function RegisterPage() {
@@ -77,7 +79,7 @@ export default function RegisterPage() {
   const [searchParams] = useSearchParams();
   const campaignId = searchParams.get("campaign") || undefined;
   const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, campaignSubtitle, message } = useRegistrationStatus(campaignId);
+  const { allowed, campaignName, campaignSubtitle, campaignData, message } = useRegistrationStatus(campaignId);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -185,60 +187,73 @@ export default function RegisterPage() {
 
       const userId = authData.user.id;
 
-      if (existingVendor && !existingVendor.user_id) {
-        await supabase
-          .from("vendors")
-          .update({
+      // Respect campaign's require_vendor_approval flag
+      const needsApproval = campaignData?.require_vendor_approval ?? false;
+
+      try {
+        if (existingVendor && !existingVendor.user_id) {
+          const { error: vendorErr } = await supabase
+            .from("vendors")
+            .update({
+              user_id: userId,
+              full_name: fullName,
+              phone,
+              city,
+              store_name: storeName || null,
+              pending_approval: needsApproval,
+              is_active: !needsApproval,
+            })
+            .eq("id", existingVendor.id);
+          if (vendorErr) throw vendorErr;
+        } else {
+          const { error: vendorErr } = await supabase.from("vendors").insert({
             user_id: userId,
             full_name: fullName,
-            phone,
+            email,
+            phone: phone || null,
             city,
             store_name: storeName || null,
-            pending_approval: false,
-            is_active: true,
-          })
-          .eq("id", existingVendor.id);
-      } else {
-        await supabase.from("vendors").insert({
-          user_id: userId,
-          full_name: fullName,
-          email,
-          phone: phone || null,
-          city,
-          store_name: storeName || null,
-          pending_approval: false,
-          is_active: true,
-        });
-      }
-
-      await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: "vendedor" as any,
-        city,
-      });
-
-      // Insert user_profiles for admin visibility
-      await supabase.from("user_profiles").insert({
-        user_id: userId,
-        email,
-        full_name: fullName,
-      } as any);
-
-      // Auto-enroll in campaign if registering from campaign page
-      if (campaignId) {
-        const vendorId = existingVendor?.id || (await supabase
-          .from("vendors")
-          .select("id")
-          .eq("user_id", userId)
-          .maybeSingle()).data?.id;
-
-        if (vendorId) {
-          await supabase.from("vendor_campaign_enrollments").insert({
-            vendor_id: vendorId,
-            campaign_id: campaignId,
-            status: "active",
+            pending_approval: needsApproval,
+            is_active: !needsApproval,
           });
+          if (vendorErr) throw vendorErr;
         }
+
+        const { error: roleErr } = await supabase.from("user_roles").insert({
+          user_id: userId,
+          role: "vendedor" as any,
+          city,
+        });
+        if (roleErr) throw roleErr;
+
+        // Insert user_profiles for admin visibility
+        await supabase.from("user_profiles").insert({
+          user_id: userId,
+          email,
+          full_name: fullName,
+        } as any);
+
+        // Auto-enroll in campaign if registering from campaign page
+        if (campaignId) {
+          const vendorId = existingVendor?.id || (await supabase
+            .from("vendors")
+            .select("id")
+            .eq("user_id", userId)
+            .maybeSingle()).data?.id;
+
+          if (vendorId) {
+            await supabase.from("vendor_campaign_enrollments").insert({
+              vendor_id: vendorId,
+              campaign_id: campaignId,
+              status: needsApproval ? "pending" : "active",
+            });
+          }
+        }
+      } catch (insertError: any) {
+        // Auth user was created but data inserts failed — clean up by signing out
+        console.error("Registration data insert failed, cleaning up:", insertError);
+        await supabase.auth.signOut();
+        throw new Error("Error al completar el registro. Por favor intenta nuevamente. Si el problema persiste, contacta al administrador.");
       }
 
       await refreshRoles();
