@@ -42,12 +42,18 @@ export default function ReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("pending");
+  const [searchQuery, setSearchQuery] = useState("");
   const [cities, setCities] = useState<string[]>([]);
   const [detailSale, setDetailSale] = useState<PendingSale | null>(null);
   const [attachments, setAttachments] = useState<Attachment | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processing, setProcessing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Batch approve
+  const [batchApproveDialog, setBatchApproveDialog] = useState(false);
+  const [batchApproving, setBatchApproving] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const load = async () => {
     setLoading(true);
