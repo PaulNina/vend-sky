@@ -40,6 +40,22 @@ interface StoreHistory {
   changed_at: string;
 }
 
+interface ImportVendorRow {
+  full_name: string;
+  email: string;
+  phone: string;
+  city: string;
+  store_name: string;
+  talla_polera: string;
+  error?: string;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 const PAGE_SIZE = 50;
 
 export default function VendorsPage() {
