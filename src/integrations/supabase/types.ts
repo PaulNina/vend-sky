@@ -957,6 +957,7 @@ export type Database = {
         Returns: {
           approved_units: number
           city: string
+          observed_units: number
           pending_units: number
           rejected_units: number
           total_bonus_bs: number
