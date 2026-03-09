@@ -386,6 +386,7 @@ export default function CampaignComparePage() {
                       <Bar dataKey="Aprobadas" fill="hsl(var(--chart-2))" />
                       <Bar dataKey="Pendientes" fill="hsl(var(--chart-3))" />
                       <Bar dataKey="Rechazadas" fill="hsl(var(--chart-4))" />
+                      <Bar dataKey="Observadas" fill="hsl(25, 95%, 53%)" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
