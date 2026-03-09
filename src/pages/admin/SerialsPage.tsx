@@ -128,7 +128,7 @@ export default function SerialsPage() {
                 {serials.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono">{s.serial}</TableCell>
-                    <TableCell><Badge variant={s.status === "available" ? "default" : s.status === "used" ? "secondary" : "destructive"}>{s.status}</Badge></TableCell>
+                    <TableCell><Badge variant={s.status === "available" ? "default" : s.status === "used" ? "secondary" : "destructive"}>{s.status === "available" ? "Disponible" : s.status === "used" ? "Usado" : "Bloqueado"}</Badge></TableCell>
                     <TableCell className="text-sm">{s.imported_at.split("T")[0]}</TableCell>
                   </TableRow>
                 ))}
