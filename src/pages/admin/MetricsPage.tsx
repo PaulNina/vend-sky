@@ -48,6 +48,10 @@ export default function MetricsPage() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
 
+  // City filter state
+  const [selectedCity, setSelectedCity] = useState<string>("all");
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
+
   useEffect(() => {
     supabase.from("campaigns").select("id, name, start_date, end_date").order("created_at", { ascending: false }).then(({ data }) => {
       if (data && data.length > 0) { setCampaigns(data); setSelectedCampaign(data[0].id); }
@@ -69,15 +73,25 @@ export default function MetricsPage() {
     }
   }, [quickRange, dateFrom, dateTo]);
 
+  // Load available cities
+  useEffect(() => {
+    supabase.from("cities").select("name").eq("is_active", true).order("display_order").then(({ data }) => {
+      setAvailableCities(data?.map(c => c.name) || []);
+    });
+  }, []);
+
   useEffect(() => {
     if (!selectedCampaign) return;
     setLoading(true);
     loadMetrics();
-  }, [selectedCampaign, effectiveDates]);
+  }, [selectedCampaign, effectiveDates, selectedCity]);
 
   const loadMetrics = async () => {
-    // Load enrollment count
-    supabase.from("vendor_campaign_enrollments").select("id", { count: "exact", head: true }).eq("campaign_id", selectedCampaign).eq("status", "active").then(({ count }) => setEnrolledCount(count || 0));
+    // Load enrollment count (filtered by city if selected)
+    let enrollQuery = supabase.from("vendor_campaign_enrollments").select("id, vendors!inner(city)", { count: "exact", head: true }).eq("campaign_id", selectedCampaign).eq("status", "active");
+    if (selectedCity !== "all") enrollQuery = enrollQuery.eq("vendors.city", selectedCity);
+    enrollQuery.then(({ count }) => setEnrolledCount(count || 0));
+
     let q = supabase
       .from("sales")
       .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, products(name, model_code)")
@@ -86,6 +100,7 @@ export default function MetricsPage() {
 
     if (effectiveDates.start) q = q.gte("sale_date", effectiveDates.start);
     if (effectiveDates.end) q = q.lte("sale_date", effectiveDates.end);
+    if (selectedCity !== "all") q = q.eq("city", selectedCity);
 
     const { data: sales } = await q;
 
@@ -205,6 +220,7 @@ export default function MetricsPage() {
   };
 
   const clearDateRange = () => { setDateFrom(undefined); setDateTo(undefined); setQuickRange("all"); };
+  const clearFilters = () => { clearDateRange(); setSelectedCity("all"); };
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -246,12 +262,30 @@ export default function MetricsPage() {
         </Card>
       )}
 
-      {/* Date range filters */}
+      {/* Filters: City + Date range */}
       <Card>
-        <CardContent className="py-3 px-5">
+        <CardContent className="py-3 px-5 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filtrar por:</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ciudad:</span>
+            <Select value={selectedCity} onValueChange={setSelectedCity}>
+              <SelectTrigger className="w-[180px] h-8 text-sm">
+                <SelectValue placeholder="Todas las ciudades" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las ciudades</SelectItem>
+                {availableCities.map((city) => (
+                  <SelectItem key={city} value={city}>{city}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedCity !== "all" && (
+              <Badge variant="secondary" className="text-xs">{selectedCity}</Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Período:</span>
             <div className="flex gap-1.5 flex-wrap">
               {([
                 { value: "all", label: "Todo" },
@@ -295,8 +329,8 @@ export default function MetricsPage() {
                   <Calendar mode="single" selected={dateTo} onSelect={(d) => { setDateTo(d); setQuickRange("custom"); }} className={cn("p-3 pointer-events-auto")} />
                 </PopoverContent>
               </Popover>
-              {(dateFrom || dateTo || quickRange !== "all") && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearDateRange}>Limpiar</Button>
+              {(dateFrom || dateTo || quickRange !== "all" || selectedCity !== "all") && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearFilters}>Limpiar todo</Button>
               )}
             </div>
           </div>
