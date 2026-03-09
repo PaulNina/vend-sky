@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Upload, Download, Trash2 } from "lucide-react";
+import { Loader2, Upload, Download, Trash2, ShieldBan, Search, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import * as XLSX from "xlsx";
 
@@ -72,34 +73,149 @@ export default function RestrictedPage() {
     else { toast({ title: "Eliminado" }); load(); }
   };
 
+  const fmtDate = (d: string) => {
+    const date = new Date(d);
+    return date.toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Seriales Restringidos</h1><p className="text-sm text-muted-foreground">Seriales que participaron en otras promociones</p></div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
-          <label><Button asChild disabled={importing}><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importando..." : "Importar"}</span></Button><input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleImport} /></label>
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+              <ShieldBan className="h-5 w-5 text-destructive" />
+            </div>
+            Seriales Restringidos
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">Seriales bloqueados por participación en otras promociones</p>
+        </div>
+        <div className="flex gap-2 items-center flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
+            <Download className="h-4 w-4" />Excel
+          </Button>
+          <label>
+            <Button asChild variant="premium" size="sm" disabled={importing}>
+              <span className="gap-1.5 cursor-pointer">
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {importing ? "Importando..." : "Importar"}
+              </span>
+            </Button>
+            <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleImport} />
+          </label>
         </div>
       </div>
 
-      <Input placeholder="Buscar serial restringido..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+      {/* Stats row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card className="hover:border-destructive/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <ShieldBan className="h-4 w-4 text-destructive" />
+            </div>
+            <div>
+              <p className="text-xl font-bold font-display">{items.length}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Total restringidos</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-warning/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-warning/10">
+              <FileSpreadsheet className="h-4 w-4 text-warning" />
+            </div>
+            <div>
+              <p className="text-xl font-bold font-display">{new Set(items.map(i => i.source_campaign).filter(Boolean)).size}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Campañas origen</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xl font-bold font-display">{new Set(items.map(i => i.reason)).size}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Motivos distintos</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card>
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Buscar serial restringido..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Table */}
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          {loading ? <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div> : (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-16">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-xs text-muted-foreground">Cargando restringidos…</p>
+            </div>
+          ) : (
             <Table>
-              <TableHeader><TableRow><TableHead>Serial</TableHead><TableHead>Motivo</TableHead><TableHead>Campaña origen</TableHead><TableHead>Fecha</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Serial</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Motivo</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Campaña origen</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Fecha importación</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {items.map((i) => (
-                  <TableRow key={i.id}>
-                    <TableCell className="font-mono">{i.serial}</TableCell>
-                    <TableCell className="text-sm">{i.reason}</TableCell>
-                    <TableCell className="text-sm">{i.source_campaign || "—"}</TableCell>
-                    <TableCell className="text-sm">{i.imported_at.split("T")[0]}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(i.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
+                  <TableRow key={i.id} className="group">
+                    <TableCell>
+                      <code className="px-2 py-0.5 rounded bg-muted text-xs font-mono font-medium">{i.serial}</code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[11px] font-normal border-destructive/30 text-destructive bg-destructive/5">
+                        {i.reason}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {i.source_campaign || <span className="text-muted-foreground/50">—</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{fmtDate(i.imported_at)}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(i.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
-                {items.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Sin restringidos</TableCell></TableRow>}
+                {items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-16">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-3 rounded-full bg-muted/50">
+                          <ShieldBan className="h-6 w-6 text-muted-foreground/50" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Sin seriales restringidos</p>
+                          <p className="text-xs text-muted-foreground/60 mt-0.5">Importa un archivo Excel para agregar seriales</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           )}
