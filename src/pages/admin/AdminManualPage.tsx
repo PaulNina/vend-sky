@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   BarChart3, Target, Package, Hash, FileText, Users, ShieldCheck,
   ClipboardCheck, Mail, Settings, BookOpen, DollarSign, FileCode,
@@ -74,22 +74,149 @@ function Tip({ children }: { children: React.ReactNode }) {
   );
 }
 
+/* ─── Search index ─── */
+interface SearchEntry {
+  tab: string;
+  tabLabel: string;
+  title: string;
+  keywords: string;
+}
+
+const searchIndex: SearchEntry[] = [
+  // Visión General
+  { tab: "overview", tabLabel: "Visión General", title: "Arquitectura del Sistema", keywords: "flujo principal vendedor revisor comisiones pago arquitectura" },
+  { tab: "overview", tabLabel: "Visión General", title: "Roles del Sistema", keywords: "vendedor revisor supervisor admin roles permisos" },
+  { tab: "overview", tabLabel: "Visión General", title: "Ciclo de Vida de una Campaña", keywords: "crear campaña productos seriales registro inscripción periodos liquidación" },
+  // Dashboard
+  { tab: "dashboard", tabLabel: "Dashboard", title: "KPIs Principales", keywords: "ventas bono aprobación revisar tarjetas kpi total" },
+  { tab: "dashboard", tabLabel: "Dashboard", title: "Gráfico de Ventas por Ciudad", keywords: "gráfico barras ciudad ventas chart" },
+  { tab: "dashboard", tabLabel: "Dashboard", title: "Tabla de Ranking", keywords: "ranking vendedores puntos posición top" },
+  { tab: "dashboard", tabLabel: "Dashboard", title: "Productos Top", keywords: "productos más vendidos top unidades" },
+  { tab: "dashboard", tabLabel: "Dashboard", title: "Actividad Reciente", keywords: "últimas ventas actividad reciente tiempo real" },
+  // Ventas
+  { tab: "sales", tabLabel: "Ventas", title: "Campañas", keywords: "crear editar campaña slug fechas registro IA fecha periodos semanal quincenal mensual" },
+  { tab: "sales", tabLabel: "Ventas", title: "Revisiones", keywords: "revisar aprobar rechazar fotos TAG póliza nota venta evidencia estado ciudad filtro" },
+  { tab: "sales", tabLabel: "Ventas", title: "Auditoría", keywords: "auditar muestreo aleatorio supervisor revertir OK confirmar" },
+  { tab: "sales", tabLabel: "Ventas", title: "Vendedores (Kardex)", keywords: "vendedor kardex buscar ciudad talla tienda historial QR cobro exportar" },
+  // Datos
+  { tab: "data", tabLabel: "Datos", title: "Productos y Modelos", keywords: "producto modelo pulgadas bono puntos importar exportar plantilla CRUD" },
+  { tab: "data", tabLabel: "Datos", title: "Seriales", keywords: "serial importar CSV Excel disponible usado bloqueado buscar exportar" },
+  { tab: "data", tabLabel: "Datos", title: "Seriales Restringidos", keywords: "restringido lista negra bloqueado eliminar importar razón campaña" },
+  // Reportes
+  { tab: "reports", tabLabel: "Reportes", title: "Métricas", keywords: "métricas filtros campaña ciudad fecha semanal producto gráfico exportar" },
+  { tab: "reports", tabLabel: "Reportes", title: "Comisiones", keywords: "comisión liquidación pago pagado comprobante QR cobro periodo generar" },
+  { tab: "reports", tabLabel: "Reportes", title: "Reporte de Inscripciones", keywords: "inscripciones tasa ciudad vendedores reporte exportar" },
+  { tab: "reports", tabLabel: "Reportes", title: "Comparar Campañas", keywords: "comparar campañas lado lado gráficos comparativos métricas" },
+  // Sistema
+  { tab: "system", tabLabel: "Sistema", title: "Correos por Ciudad", keywords: "correo email destinatario reporte ciudad campaña agregar" },
+  { tab: "system", tabLabel: "Sistema", title: "Plantillas de Email", keywords: "plantilla email asunto HTML activar desactivar from reply variables" },
+  { tab: "system", tabLabel: "Sistema", title: "Usuarios y Roles", keywords: "usuario rol asignar vendedor revisor supervisor admin contraseña bloquear eliminar" },
+  { tab: "system", tabLabel: "Sistema", title: "Configuración", keywords: "configuración ciudades grupos feature flag comparador landing respaldos backup exportar procesos cierre" },
+  // Atajos
+  { tab: "shortcuts", tabLabel: "Atajos", title: "Atajos del Módulo de Revisiones", keywords: "flechas tecla A aprobar teclado atajo rápido revisar" },
+  { tab: "shortcuts", tabLabel: "Atajos", title: "Navegación General", keywords: "Ctrl B sidebar Tab Enter Esc modal teclado" },
+  // FAQ
+  { tab: "faq", tabLabel: "FAQ", title: "Serial no reconocido", keywords: "serial no encontrado importar buscar" },
+  { tab: "faq", tabLabel: "FAQ", title: "Serial restringido por error", keywords: "restringido eliminar lista negra" },
+  { tab: "faq", tabLabel: "FAQ", title: "Venta duplicada", keywords: "duplicada serial misma venta dos veces" },
+  { tab: "faq", tabLabel: "FAQ", title: "Aprobación errónea", keywords: "error aprobó revertir auditoría supervisor" },
+  { tab: "faq", tabLabel: "FAQ", title: "Periodos no se cierran", keywords: "cierre automático periodos campaña activa" },
+  { tab: "faq", tabLabel: "FAQ", title: "Vendedor no puede inscribirse", keywords: "inscribirse registro cerrado aprobación vendedor inactivo" },
+  { tab: "faq", tabLabel: "FAQ", title: "Liquidación en Bs 0", keywords: "liquidación cero monto aprobadas periodo" },
+  { tab: "faq", tabLabel: "FAQ", title: "Regenerar liquidación", keywords: "regenerar recalcular liquidación ventas adicionales" },
+  { tab: "faq", tabLabel: "FAQ", title: "Importación falla", keywords: "importar Excel CSV falla error formato columnas encoding" },
+  { tab: "faq", tabLabel: "FAQ", title: "Vendedor sin QR", keywords: "QR cobro subir perfil expiración" },
+  { tab: "faq", tabLabel: "FAQ", title: "Validación IA de fecha", keywords: "IA inteligencia artificial fecha nota venta confianza alerta" },
+  { tab: "faq", tabLabel: "FAQ", title: "Usuario no puede iniciar sesión", keywords: "login contraseña bloqueado resetear rol" },
+  { tab: "faq", tabLabel: "FAQ", title: "Respaldo completo", keywords: "backup respaldo exportar todo Excel tablas" },
+  // Glosario
+  { tab: "glossary", tabLabel: "Glosario", title: "Glosario de Términos", keywords: "glosario definición término bono campaña cierre ciudad feature flag grupo inscripción kardex landing liquidación nota periodo póliza puntos QR ranking revisor RLS serial slug supervisor TAG talla tienda validación" },
+];
+
 /* ─── PAGE ─── */
 export default function AdminManualPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return searchIndex.filter(
+      (e) =>
+        e.title.toLowerCase().includes(q) ||
+        e.keywords.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const handleResultClick = (tab: string) => {
+    setActiveTab(tab);
+    setSearchQuery("");
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-3 rounded-xl bg-primary/10">
-          <BookOpen className="h-7 w-7 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground font-display tracking-wide">Manual del Administrador</h1>
-          <p className="text-sm text-muted-foreground">Guía completa de cada módulo, botón y flujo del panel de administración SKYWORTH.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="p-3 rounded-xl bg-primary/10">
+            <BookOpen className="h-7 w-7 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground font-display tracking-wide">Manual del Administrador</h1>
+            <p className="text-sm text-muted-foreground">Guía completa de cada módulo, botón y flujo del panel de administración SKYWORTH.</p>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      {/* Search bar */}
+      <div className="relative">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-card focus-within:ring-2 focus-within:ring-primary/40 transition-shadow">
+          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar en el manual… (ej: serial, comisiones, QR, importar)"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-foreground text-xs">
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Search results dropdown */}
+        {searchQuery.trim() && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border bg-card shadow-lg max-h-80 overflow-auto">
+            {searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                No se encontraron resultados para "<span className="font-medium text-foreground">{searchQuery}</span>"
+              </div>
+            ) : (
+              <div className="py-1">
+                {searchResults.map((r, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleResultClick(r.tab)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <Badge variant="outline" className="text-[10px] shrink-0 min-w-[80px] justify-center">{r.tabLabel}</Badge>
+                    <span className="text-sm text-foreground">{r.title}</span>
+                  </button>
+                ))}
+                <div className="px-4 py-2 border-t text-[11px] text-muted-foreground">
+                  {searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""} encontrado{searchResults.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="overview" className="text-xs">🏠 Visión General</TabsTrigger>
           <TabsTrigger value="dashboard" className="text-xs">📊 Dashboard</TabsTrigger>
