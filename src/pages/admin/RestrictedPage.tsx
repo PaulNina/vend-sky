@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Upload, Download, Trash2, ShieldBan, Search, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
@@ -23,6 +24,7 @@ export default function RestrictedPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [importing, setImporting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Restricted | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -67,10 +69,12 @@ export default function RestrictedPage() {
     exportToExcel(items.map((i) => ({ Serial: i.serial, Motivo: i.reason, Campaña: i.source_campaign || "", Fecha: i.imported_at.split("T")[0] })), "restringidos");
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("restricted_serials").delete().eq("id", id);
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from("restricted_serials").delete().eq("id", deleteTarget.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { toast({ title: "Eliminado" }); load(); }
+    setDeleteTarget(null);
   };
 
   const fmtDate = (d: string) => {
@@ -193,7 +197,7 @@ export default function RestrictedPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(i.id)}
+                        onClick={() => setDeleteTarget(i)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -221,6 +225,28 @@ export default function RestrictedPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Eliminar serial restringido
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>¿Estás seguro de eliminar el serial <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-sm">{deleteTarget?.serial}</code>?</p>
+              <p className="text-xs text-muted-foreground">Esta acción permitirá que el serial pueda ser registrado en futuras ventas.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
