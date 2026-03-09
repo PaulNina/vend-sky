@@ -58,12 +58,36 @@ export default function ReviewsPage() {
   const [page, setPage] = useState(0);
   const REVIEW_PAGE_SIZE = 200;
 
+  // Real counts from DB (independent of pagination)
+  const [dbCounts, setDbCounts] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+
   // Load cities from cities table
   useEffect(() => {
     supabase.from("cities").select("name").eq("is_active", true).order("display_order").then(({ data }) => {
       setCities((data || []).map(c => c.name));
     });
   }, []);
+
+  const loadCounts = async () => {
+    const baseFilter = cityFilter !== "all" ? { city: cityFilter } : {};
+    const queries = ["pending", "approved", "rejected"].map(status => {
+      let q = supabase.from("sales").select("*", { head: true, count: "exact" }).eq("status", status as any);
+      if (cityFilter !== "all") q = q.eq("city", cityFilter);
+      return q;
+    });
+    // total
+    let totalQ = supabase.from("sales").select("*", { head: true, count: "exact" });
+    if (statusFilter !== "all") totalQ = totalQ.eq("status", statusFilter as any);
+    if (cityFilter !== "all") totalQ = totalQ.eq("city", cityFilter);
+
+    const [pendingRes, approvedRes, rejectedRes, totalRes] = await Promise.all([...queries, totalQ]);
+    setDbCounts({
+      total: totalRes.count || 0,
+      pending: pendingRes.count || 0,
+      approved: approvedRes.count || 0,
+      rejected: rejectedRes.count || 0,
+    });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -80,7 +104,7 @@ export default function ReviewsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [statusFilter, cityFilter, page]);
+  useEffect(() => { load(); loadCounts(); }, [statusFilter, cityFilter, page]);
 
   const viewDetail = async (sale: PendingSale, index?: number) => {
     setDetailSale(sale);
@@ -266,19 +290,19 @@ export default function ReviewsPage() {
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{filteredSales.length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5">{dbCounts.total}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Pendientes</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-warning">{pendingCount}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-warning">{dbCounts.pending}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Aprobadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{filteredSales.filter((s) => s.status === "approved").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-success">{dbCounts.approved}</p>
         </CardContent></Card>
         <Card><CardContent className="py-2 sm:py-3 px-3 sm:px-4">
           <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Rechazadas</p>
-          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{filteredSales.filter((s) => s.status === "rejected").length}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-0.5 text-destructive">{dbCounts.rejected}</p>
         </CardContent></Card>
       </div>
 
