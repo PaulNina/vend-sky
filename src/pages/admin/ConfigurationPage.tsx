@@ -158,6 +158,11 @@ export default function ConfigurationPage() {
   }>({ totalUsers: 0, totalSales: 0, totalSerials: 0, pendingReviews: 0, lastAuditLog: null });
   const [loadingHealth, setLoadingHealth] = useState(false);
 
+  // Reset state
+  const [resetDialog, setResetDialog] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   // Email config state
   const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
   const [smtpHost, setSmtpHost] = useState("");
@@ -698,6 +703,38 @@ export default function ConfigurationPage() {
     } finally {
       setExportingAll(false);
     }
+  };
+
+  // --- Reset system function ---
+  const executeReset = async () => {
+    if (resetConfirmText !== "RESET TOTAL") {
+      toast({ title: "Texto de confirmación incorrecto", variant: "destructive" });
+      return;
+    }
+    setResetting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      const { data, error } = await supabase.functions.invoke("reset-system", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { confirm_text: "RESET TOTAL" },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Sistema reiniciado",
+        description: "Todos los datos transaccionales han sido eliminados.",
+      });
+      setResetDialog(false);
+      setResetConfirmText("");
+      loadData();
+      runHealthChecks();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setResetting(false);
   };
 
   // Bolivia week info
@@ -1415,6 +1452,34 @@ export default function ConfigurationPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Reset System */}
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 font-display text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                Zona de Peligro — Reiniciar Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Elimina <strong>todos los datos transaccionales</strong> del sistema: ventas, revisiones, comisiones,
+                auditorías, inscripciones, notificaciones y bloqueos. Los seriales se reinician a "disponible".
+                Las campañas se reactivan. <strong>Vendedores, productos, seriales y configuración se conservan.</strong>
+              </p>
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                <p className="text-xs text-destructive font-medium">⚠️ Esta acción es irreversible. Se recomienda hacer un backup completo antes de continuar.</p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setResetConfirmText(""); setResetDialog(true); }}
+              >
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                Reiniciar Sistema a Cero
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1436,6 +1501,49 @@ export default function ConfigurationPage() {
             <Button variant="destructive" onClick={closeCampaign} disabled={closingCampaign}>
               {closingCampaign && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Confirmar Cierre
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset System Dialog */}
+      <Dialog open={resetDialog} onOpenChange={setResetDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-destructive">⚠️ Reiniciar Sistema a Cero</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Esta acción eliminará permanentemente todos los datos transaccionales:
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+              <li>Todas las ventas y adjuntos</li>
+              <li>Todas las revisiones y auditorías</li>
+              <li>Todos los pagos de comisión</li>
+              <li>Todas las inscripciones de vendedores</li>
+              <li>Todas las notificaciones</li>
+              <li>Todos los bloqueos e historial de tiendas</li>
+              <li>Todos los periodos de campaña</li>
+              <li>Los seriales se reiniciarán a "disponible"</li>
+              <li>Las campañas se reactivarán</li>
+            </ul>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Escribe <strong>RESET TOTAL</strong> para confirmar:</Label>
+              <Input
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="RESET TOTAL"
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialog(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={executeReset}
+              disabled={resetting || resetConfirmText !== "RESET TOTAL"}
+            >
+              {resetting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Reiniciar Todo
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Pencil, Download, QrCode, Users, UserCheck, UserX, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Pencil, Download, Upload, QrCode, Users, UserCheck, UserX, Clock, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
+import * as XLSX from "xlsx";
 
 interface Vendor {
   id: string;
@@ -39,6 +40,22 @@ interface StoreHistory {
   changed_at: string;
 }
 
+interface ImportVendorRow {
+  full_name: string;
+  email: string;
+  phone: string;
+  city: string;
+  store_name: string;
+  talla_polera: string;
+  error?: string;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 const PAGE_SIZE = 50;
 
 export default function VendorsPage() {
@@ -60,6 +77,16 @@ export default function VendorsPage() {
   const [page, setPage] = useState(0);
   const [totalFiltered, setTotalFiltered] = useState(0);
   const [globalStats, setGlobalStats] = useState({ active: 0, inactive: 0, pending: 0 });
+
+  // Import state
+  const [importDialog, setImportDialog] = useState(false);
+  const [importRows, setImportRows] = useState<ImportVendorRow[]>([]);
+  const [importParsing, setImportParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [importCampaignId, setImportCampaignId] = useState<string>("none");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -171,6 +198,112 @@ export default function VendorsPage() {
     })), "vendedores");
   };
 
+  // --- Import functions ---
+  const loadActiveCampaigns = async () => {
+    const { data } = await supabase.from("campaigns").select("id, name, is_active").eq("is_active", true);
+    setActiveCampaigns(data || []);
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { nombre: "Juan Pérez", email: "juan@ejemplo.com", telefono: "70012345", ciudad: "La Paz", tienda: "Tienda Centro", talla: "M" },
+      { nombre: "María López", email: "maria@ejemplo.com", telefono: "71098765", ciudad: "Santa Cruz", tienda: "Tienda Norte", talla: "S" },
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Vendedores");
+    XLSX.writeFile(wb, "plantilla_vendedores.xlsx");
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportParsing(true);
+    setImportResult(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
+
+      const parsed: ImportVendorRow[] = raw.map((row) => {
+        const full_name = String(row.nombre || row.full_name || row.Nombre || row.Name || "").trim();
+        const email = String(row.email || row.Email || row.correo || row.Correo || "").trim().toLowerCase();
+        const phone = String(row.telefono || row.phone || row.Teléfono || row.Phone || "").trim();
+        const city = String(row.ciudad || row.city || row.Ciudad || row.City || "").trim();
+        const store_name = String(row.tienda || row.store_name || row.Tienda || row.Store || "").trim();
+        const talla_polera = String(row.talla || row.talla_polera || row.Talla || "").trim();
+
+        let error: string | undefined;
+        if (!full_name) error = "Nombre vacío";
+        else if (!email) error = "Email vacío";
+        else if (!email.includes("@")) error = "Email inválido";
+        else if (!city) error = "Ciudad vacía";
+
+        return { full_name, email, phone, city, store_name, talla_polera, error };
+      });
+
+      setImportRows(parsed);
+    } catch (err: any) {
+      toast({ title: "Error al leer archivo", description: err.message, variant: "destructive" });
+    }
+
+    setImportParsing(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeImport = async () => {
+    const valid = importRows.filter(r => !r.error);
+    if (valid.length === 0) {
+      toast({ title: "No hay registros válidos", variant: "destructive" });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      const { data, error } = await supabase.functions.invoke("import-vendors", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          vendors: valid.map(r => ({
+            full_name: r.full_name,
+            email: r.email,
+            phone: r.phone || undefined,
+            city: r.city,
+            store_name: r.store_name || undefined,
+            talla_polera: r.talla_polera || undefined,
+          })),
+          campaign_id: importCampaignId !== "none" ? importCampaignId : undefined,
+        },
+      });
+
+      if (error) throw error;
+
+      setImportResult({ created: data.created, skipped: data.skipped, errors: data.errors || [] });
+      if (data.created > 0) {
+        toast({ title: "Importación completada", description: `${data.created} vendedores creados.` });
+        load();
+        loadGlobalStats();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setImporting(false);
+  };
+
+  const openImport = () => {
+    setImportRows([]);
+    setImportResult(null);
+    setImportCampaignId("none");
+    setImportDialog(true);
+    loadActiveCampaigns();
+  };
+
+  const validImportCount = importRows.filter(r => !r.error).length;
+  const errorImportCount = importRows.filter(r => r.error).length;
+
   const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
 
   const stats = globalStats;
@@ -186,7 +319,10 @@ export default function VendorsPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{totalFiltered} vendedores encontrados</p>
         </div>
-        <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Excel</Button>
+          <Button variant="outline" onClick={openImport}><Upload className="h-4 w-4 mr-1" />Importar</Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -404,6 +540,140 @@ export default function VendorsPage() {
           ) : (
             <p className="text-sm text-muted-foreground text-center p-4">No se pudo cargar el QR</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Importar Vendedores desde Excel
+            </DialogTitle>
+            <DialogDescription>
+              Sube un archivo Excel (.xlsx) con las columnas: <strong>nombre</strong>, <strong>email</strong>, <strong>telefono</strong>, <strong>ciudad</strong>, <strong>tienda</strong>, <strong>talla</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-1" />Descargar plantilla
+              </Button>
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileSelect}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Campaign enrollment */}
+            {activeCampaigns.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Inscribir automáticamente en campaña (opcional)</Label>
+                <Select value={importCampaignId} onValueChange={setImportCampaignId}>
+                  <SelectTrigger className="text-sm max-w-md">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No inscribir</SelectItem>
+                    {activeCampaigns.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {importParsing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />Procesando archivo...
+              </div>
+            )}
+
+            {importRows.length > 0 && !importResult && (
+              <>
+                <div className="flex items-center gap-3 text-sm">
+                  <Badge variant="default">{validImportCount} válidos</Badge>
+                  {errorImportCount > 0 && <Badge variant="destructive">{errorImportCount} con errores</Badge>}
+                  <span className="text-muted-foreground">{importRows.length} filas totales</span>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Nombre</TableHead>
+                        <TableHead className="text-xs">Email</TableHead>
+                        <TableHead className="text-xs">Ciudad</TableHead>
+                        <TableHead className="text-xs">Tienda</TableHead>
+                        <TableHead className="text-xs">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importRows.slice(0, 100).map((r, i) => (
+                        <TableRow key={i} className={r.error ? "bg-destructive/5" : ""}>
+                          <TableCell className="text-xs py-1.5">{r.full_name || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.email || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.city || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">{r.store_name || "—"}</TableCell>
+                          <TableCell className="text-xs py-1.5">
+                            {r.error ? (
+                              <span className="text-destructive flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />{r.error}
+                              </span>
+                            ) : (
+                              <span className="text-success flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />OK
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {importRows.length > 100 && (
+                  <p className="text-xs text-muted-foreground">Mostrando 100 de {importRows.length} filas</p>
+                )}
+              </>
+            )}
+
+            {importResult && (
+              <div className="space-y-3">
+                <div className="p-4 bg-success/10 border border-success/30 rounded-lg text-sm space-y-1">
+                  <p className="font-medium text-success">✅ Importación completada</p>
+                  <p>{importResult.created} vendedores creados</p>
+                  {importResult.skipped > 0 && <p className="text-muted-foreground">{importResult.skipped} omitidos</p>}
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto border border-destructive/20 rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-destructive">Errores:</p>
+                    {importResult.errors.map((err, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialog(false)}>
+              {importResult ? "Cerrar" : "Cancelar"}
+            </Button>
+            {!importResult && importRows.length > 0 && (
+              <Button onClick={executeImport} disabled={importing || validImportCount === 0}>
+                {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+                Importar {validImportCount} vendedores
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
