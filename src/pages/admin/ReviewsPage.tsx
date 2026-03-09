@@ -144,14 +144,71 @@ export default function ReviewsPage() {
   const fmtDate = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
   const handleExport = () => {
-    exportToExcel(sales.map((s) => ({
+    exportToExcel(filteredSales.map((s) => ({
       Fecha: s.sale_date, Vendedor: s.vendors?.full_name || "", Ciudad: s.city, Producto: s.products?.name || "",
       Serial: s.serial, Estado: s.status, Puntos: s.points, "Bono Bs": s.bonus_bs,
     })), "revisiones");
   };
 
-  const pendingCount = sales.filter((s) => s.status === "pending").length;
-  const flaggedCount = sales.filter((s) => s.ai_flag).length;
+  // Filtered sales
+  const filteredSales = useMemo(() => {
+    if (!searchQuery.trim()) return sales;
+    const q = searchQuery.toLowerCase();
+    return sales.filter(s =>
+      (s.vendors?.full_name || "").toLowerCase().includes(q) ||
+      s.serial.toLowerCase().includes(q) ||
+      s.city.toLowerCase().includes(q) ||
+      (s.products?.name || "").toLowerCase().includes(q)
+    );
+  }, [sales, searchQuery]);
+
+  const pendingCount = filteredSales.filter((s) => s.status === "pending").length;
+  const flaggedCount = filteredSales.filter((s) => s.ai_flag).length;
+  const nonFlaggedPending = filteredSales.filter(s => s.status === "pending" && !s.ai_flag);
+
+  // City counts for filter labels
+  const cityCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    sales.filter(s => s.status === "pending").forEach(s => {
+      map[s.city] = (map[s.city] || 0) + 1;
+    });
+    return map;
+  }, [sales]);
+
+  // Batch approve non-flagged
+  const handleBatchApprove = async () => {
+    if (!user) return;
+    setBatchApproving(true);
+    setBatchProgress(0);
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < nonFlaggedPending.length; i++) {
+      const sale = nonFlaggedPending[i];
+      const { error } = await supabase.from("sales").update({ status: "approved" as any }).eq("id", sale.id);
+      if (error) {
+        failed++;
+      } else {
+        await supabase.from("reviews").insert({
+          sale_id: sale.id,
+          reviewer_user_id: user.id,
+          decision: "approved" as any,
+          reason: "Aprobación masiva",
+        });
+        success++;
+      }
+      setBatchProgress(Math.round(((i + 1) / nonFlaggedPending.length) * 100));
+    }
+
+    toast({
+      title: "Aprobación masiva completada",
+      description: `${success} ventas aprobadas${failed > 0 ? `, ${failed} fallidas` : ""}.`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+    setBatchApproving(false);
+    setBatchApproveDialog(false);
+    load();
+  };
 
   // Mobile card view for sales list
   const SaleCard = ({ sale, index }: { sale: PendingSale; index: number }) => (
