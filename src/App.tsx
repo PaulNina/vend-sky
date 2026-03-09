@@ -42,6 +42,7 @@ import ConfigurationPage from "@/pages/admin/ConfigurationPage";
 import MetricsPage from "@/pages/admin/MetricsPage";
 import CommissionsPage from "@/pages/admin/CommissionsPage";
 import EmailTemplatesPage from "@/pages/admin/EmailTemplatesPage";
+import EnrollmentReportPage from "@/pages/admin/EnrollmentReportPage";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="/admin/metricas" element={<MetricsPage />} />
               <Route path="/admin/comisiones" element={<CommissionsPage />} />
               <Route path="/admin/plantillas-email" element={<EmailTemplatesPage />} />
+              <Route path="/admin/inscripciones" element={<EnrollmentReportPage />} />
               <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
