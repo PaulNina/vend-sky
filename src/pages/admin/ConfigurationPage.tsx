@@ -610,6 +610,54 @@ export default function ConfigurationPage() {
     }
   };
 
+  // --- System health functions ---
+  const runHealthChecks = async () => {
+    setLoadingHealth(true);
+    setHealthChecks({ database: "loading", auth: "loading", storage: "loading", edgeFunctions: "loading" });
+
+    // Database check
+    const dbCheck = supabase.from("app_settings").select("key", { count: "exact", head: true }).limit(1);
+    
+    // Auth check
+    const authCheck = supabase.auth.getSession();
+    
+    // Storage check (try to list buckets - will fail gracefully if no access)
+    const storageCheck = supabase.storage.listBuckets();
+
+    // Edge function check - simple ping
+    const edgeCheck = supabase.functions.invoke("run-system-processes", {
+      body: { dry_run: true, campaign_id: "health-check" },
+    }).catch(() => ({ error: { message: "Edge function unavailable" } }));
+
+    const [dbRes, authRes, storageRes, edgeRes] = await Promise.all([dbCheck, authCheck, storageCheck, edgeCheck]);
+
+    setHealthChecks({
+      database: dbRes.error ? "error" : "ok",
+      auth: authRes.error ? "error" : "ok",
+      storage: storageRes.error ? "error" : "ok",
+      edgeFunctions: (edgeRes as any).error && (edgeRes as any).error.message?.includes("unavailable") ? "error" : "ok",
+    });
+
+    // Load system stats
+    const [usersCount, salesCount, serialsCount, pendingCount, lastAudit] = await Promise.all([
+      supabase.from("user_profiles").select("*", { count: "exact", head: true }),
+      supabase.from("sales").select("*", { count: "exact", head: true }),
+      supabase.from("serials").select("*", { count: "exact", head: true }),
+      supabase.from("sales").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("admin_audit_logs").select("created_at").order("created_at", { ascending: false }).limit(1),
+    ]);
+
+    setSystemStats({
+      totalUsers: usersCount.count || 0,
+      totalSales: salesCount.count || 0,
+      totalSerials: serialsCount.count || 0,
+      pendingReviews: pendingCount.count || 0,
+      lastAuditLog: lastAudit.data?.[0]?.created_at || null,
+    });
+
+    setLoadingHealth(false);
+  };
+
   const exportAllTables = async () => {
     setExportingAll(true);
     try {
