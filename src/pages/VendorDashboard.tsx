@@ -14,7 +14,7 @@ interface EnrolledCampaign extends Campaign { enrolled_at: string; status: strin
 export default function VendorDashboard() {
   const { user } = useAuth();
   const [countdown, setCountdown] = useState("");
-  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0, observed: 0 });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [enrolledCampaigns, setEnrolledCampaigns] = useState<EnrolledCampaign[]>([]);
@@ -65,6 +65,7 @@ export default function VendorDashboard() {
           points: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + s.points, 0),
           pending: sales.filter(s => s.status === 'pending').length,
           rejected: sales.filter(s => s.status === 'rejected').length,
+          observed: sales.filter(s => s.status === 'observed').length,
         });
       }
     };
