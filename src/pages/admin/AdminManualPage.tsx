@@ -6,6 +6,7 @@ import {
   Upload, Download, Search, Filter, Keyboard, AlertTriangle, QrCode,
   Globe, Layers, Database, RefreshCw, ChevronRight, Info, Zap,
   Rocket, Lock, Trash2, UserX, ShieldAlert, Clock, Star, TriangleAlert,
+  TrendingUp, CalendarIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +62,99 @@ function FlowDiagram({ steps }: { steps: string[] }) {
           <Badge variant="secondary" className="text-xs whitespace-nowrap">{s}</Badge>
           {i < steps.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
         </span>
+      ))}
+    </div>
+  );
+}
+
+/** Visual state machine diagram */
+function StateMachine({ states, transitions }: { states: { id: string; label: string; color: string }[]; transitions: { from: string; to: string; label: string }[] }) {
+  return (
+    <div className="my-4 p-5 rounded-xl border bg-gradient-to-br from-muted/20 to-muted/40 space-y-4">
+      {/* States row */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {states.map((s) => (
+          <div key={s.id} className={`px-4 py-2 rounded-lg border-2 font-medium text-sm ${s.color}`}>
+            {s.label}
+          </div>
+        ))}
+      </div>
+      {/* Transitions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {transitions.map((t, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground bg-card/50 rounded-md px-3 py-1.5 border">
+            <Badge variant="outline" className="text-[10px] font-mono">{t.from}</Badge>
+            <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
+            <Badge variant="outline" className="text-[10px] font-mono">{t.to}</Badge>
+            <span className="ml-auto text-[11px] italic">{t.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Architecture box diagram */
+function ArchDiagram({ layers }: { layers: { title: string; items: { icon: any; label: string; desc: string }[] }[] }) {
+  return (
+    <div className="my-4 space-y-3">
+      {layers.map((layer, li) => (
+        <div key={li}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">{layer.title}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {layer.items.map((item, ii) => (
+              <div key={ii} className="p-3 rounded-lg border bg-card hover:border-primary/30 transition-colors text-center">
+                <item.icon className="h-5 w-5 mx-auto mb-1.5 text-primary" />
+                <p className="text-xs font-semibold text-foreground">{item.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          {li < layers.length - 1 && (
+            <div className="flex justify-center my-2">
+              <div className="flex flex-col items-center">
+                <div className="w-px h-4 bg-border" />
+                <ChevronRight className="h-4 w-4 text-primary rotate-90" />
+                <div className="w-px h-4 bg-border" />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Metric card for summary numbers */
+function MetricCard({ label, value, icon: Icon, color = "text-primary" }: { label: string; value: string; icon: any; color?: string }) {
+  return (
+    <div className="p-3 rounded-lg border bg-card text-center">
+      <Icon className={`h-5 w-5 mx-auto mb-1 ${color}`} />
+      <p className="text-lg font-bold font-display">{value}</p>
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+    </div>
+  );
+}
+
+/** Timeline component */
+function Timeline({ items }: { items: { title: string; desc: string; status?: "done" | "active" | "pending" }[] }) {
+  return (
+    <div className="my-4 space-y-0">
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+              item.status === "done" ? "bg-success/20 text-success" :
+              item.status === "active" ? "bg-primary/20 text-primary" :
+              "bg-muted text-muted-foreground"
+            }`}>{i + 1}</div>
+            {i < items.length - 1 && <div className="w-px flex-1 min-h-[24px] bg-border" />}
+          </div>
+          <div className="pb-4">
+            <p className="text-sm font-semibold text-foreground">{item.title}</p>
+            <p className="text-xs text-muted-foreground">{item.desc}</p>
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -389,12 +483,26 @@ export default function AdminManualPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <SaleStateMap />
-              <FlowDiagram steps={[
-                "Vendedor registra → Pendiente",
-                "Revisor aprueba → Aprobada",
-                "ó rechaza → Rechazada",
-                "ó periodo cierra sin revisión → Cerrada",
-              ]} />
+
+              <h4 className="font-semibold text-foreground text-sm mt-4">Diagrama de Transiciones de Estado</h4>
+              <StateMachine
+                states={[
+                  { id: "pending", label: "Pendiente", color: "border-yellow-500 bg-yellow-500/10 text-yellow-600" },
+                  { id: "approved", label: "Aprobada", color: "border-green-500 bg-green-500/10 text-green-600" },
+                  { id: "rejected", label: "Rechazada", color: "border-red-500 bg-red-500/10 text-red-600" },
+                  { id: "observed", label: "Observada", color: "border-orange-500 bg-orange-500/10 text-orange-600" },
+                  { id: "closed", label: "Cerrada", color: "border-border bg-muted text-muted-foreground" },
+                ]}
+                transitions={[
+                  { from: "Pendiente", to: "Aprobada", label: "Revisor aprueba" },
+                  { from: "Pendiente", to: "Rechazada", label: "Revisor rechaza" },
+                  { from: "Pendiente", to: "Cerrada", label: "Cierre de periodo" },
+                  { from: "Aprobada", to: "Pendiente", label: "Supervisor revierte" },
+                  { from: "Aprobada", to: "Observada", label: "Supervisor observa" },
+                  { from: "Observada", to: "Pendiente", label: "Vendedor corrige fotos" },
+                ]}
+              />
+
               <Tip>Solo las ventas en estado <strong>Aprobada</strong> generan comisión. Las Pendientes al cierre pasan a Cerradas sin comisión.</Tip>
             </CardContent>
           </Card>
@@ -419,7 +527,7 @@ export default function AdminManualPage() {
 
         {/* ═══════════ VISIÓN GENERAL ═══════════ */}
         <TabsContent value="overview" className="space-y-4 mt-4">
-          <Card>
+           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> Arquitectura del Sistema</CardTitle>
               <CardDescription>Flujo principal del proceso de ventas y comisiones.</CardDescription>
@@ -429,6 +537,37 @@ export default function AdminManualPage() {
                 El sistema SKYWORTH gestiona campañas de incentivos para vendedores. Los vendedores registran ventas con evidencia fotográfica,
                 que son revisadas por supervisores de ciudad, auditadas por supervisores generales, y finalmente se generan comisiones para pago.
               </p>
+
+              <h4 className="font-semibold text-foreground text-sm">Arquitectura por Capas</h4>
+              <ArchDiagram layers={[
+                {
+                  title: "Capa de Usuarios",
+                  items: [
+                    { icon: Users, label: "Vendedores", desc: "Registran ventas" },
+                    { icon: Eye, label: "Revisores", desc: "Aprueban por ciudad" },
+                    { icon: ShieldCheck, label: "Supervisores", desc: "Auditan muestreo" },
+                    { icon: Settings, label: "Admins", desc: "Gestión total" },
+                  ],
+                },
+                {
+                  title: "Capa de Procesos",
+                  items: [
+                    { icon: Target, label: "Campañas", desc: "Periodos + config" },
+                    { icon: ClipboardCheck, label: "Revisiones", desc: "Aprobar/Rechazar" },
+                    { icon: ShieldAlert, label: "Auditoría", desc: "OK/Revertir/Observar" },
+                    { icon: DollarSign, label: "Comisiones", desc: "Liquidar + pagar" },
+                  ],
+                },
+                {
+                  title: "Capa de Datos",
+                  items: [
+                    { icon: Package, label: "Productos", desc: "Modelos + bonos" },
+                    { icon: Hash, label: "Seriales", desc: "107K+ registros" },
+                    { icon: Upload, label: "Evidencias", desc: "Fotos TAG/Póliza/Nota" },
+                    { icon: Database, label: "Reportes", desc: "Excel multi-hoja" },
+                  ],
+                },
+              ]} />
 
               <h4 className="font-semibold text-foreground text-sm">Flujo Principal</h4>
               <FlowDiagram steps={[
@@ -445,14 +584,22 @@ export default function AdminManualPage() {
               <h4 className="font-semibold text-foreground text-sm">Roles del Sistema</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { role: "Vendedor", desc: "Registra ventas, sube evidencia, consulta ranking y comisiones." },
-                  { role: "Revisor de Ciudad", desc: "Revisa ventas de su ciudad asignada, aprueba o rechaza con motivo." },
-                  { role: "Supervisor", desc: "Audita aprobaciones por muestreo, puede revertir decisiones." },
-                  { role: "Admin", desc: "Acceso completo: campañas, productos, seriales, comisiones, configuración." },
+                  { role: "Vendedor", icon: Users, desc: "Registra ventas, sube evidencia, consulta ranking y comisiones.", perms: ["Registrar ventas", "Ver ranking", "Subir QR cobro"] },
+                  { role: "Revisor de Ciudad", icon: Eye, desc: "Revisa ventas de su ciudad asignada, aprueba o rechaza con motivo.", perms: ["Revisar su ciudad", "Ver métricas de ciudad"] },
+                  { role: "Supervisor", icon: ShieldCheck, desc: "Audita aprobaciones por muestreo, puede revertir decisiones.", perms: ["Auditar ventas", "Revertir/Observar", "Ver todas las métricas"] },
+                  { role: "Admin", icon: Settings, desc: "Acceso completo: campañas, productos, seriales, comisiones, configuración.", perms: ["Todo lo anterior", "Gestionar sistema", "Exportar respaldos"] },
                 ].map((r) => (
-                  <div key={r.role} className="p-3 rounded-lg border bg-card">
-                    <Badge variant="outline" className="mb-1">{r.role}</Badge>
-                    <p className="text-xs text-muted-foreground">{r.desc}</p>
+                  <div key={r.role} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <r.icon className="h-4 w-4 text-primary" />
+                      <Badge variant="outline">{r.role}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{r.desc}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {r.perms.map((p, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{p}</span>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -470,17 +617,16 @@ export default function AdminManualPage() {
               <CardTitle className="flex items-center gap-2"><Layers className="h-5 w-5 text-primary" /> Ciclo de Vida de una Campaña</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <FlowDiagram steps={[
-                "Crear campaña",
-                "Configurar productos",
-                "Importar seriales",
-                "Abrir registro de vendedores",
-                "Vendedores se inscriben",
-                "Comienza campaña",
-                "Ventas + Revisiones semanales",
-                "Cierre de periodos",
-                "Liquidación + Pago",
-                "Campaña finaliza",
+              <Timeline items={[
+                { title: "Crear Campaña", desc: "Definir nombre, fechas, slug, modo de periodo y opciones avanzadas.", status: "done" },
+                { title: "Configurar Productos", desc: "Agregar modelos con bono Bs y puntos por unidad.", status: "done" },
+                { title: "Importar Seriales", desc: "Cargar archivo Excel/CSV con seriales y producto asociado.", status: "done" },
+                { title: "Preparar Revisores", desc: "Asignar rol revisor_ciudad con ciudad correspondiente.", status: "done" },
+                { title: "Abrir Inscripción", desc: "Compartir URL pública /c/slug con vendedores.", status: "active" },
+                { title: "Campaña Activa", desc: "Vendedores registran ventas → Revisores aprueban → Periodos se cierran.", status: "active" },
+                { title: "Cierre de Periodos", desc: "Automático o manual. Genera reportes y envía emails.", status: "pending" },
+                { title: "Liquidación + Pago", desc: "Calcular comisiones, marcar pagos, subir comprobantes.", status: "pending" },
+                { title: "Campaña Finaliza", desc: "Cierre final con reporte gerencial consolidado.", status: "pending" },
               ]} />
               <Tip>Las campañas pueden tener periodos automáticos (semanal, quincenal, mensual o personalizado) que se cierran automáticamente.</Tip>
             </CardContent>
@@ -825,13 +971,31 @@ export default function AdminManualPage() {
                 { icon: "🧹 Limpiar filtros", location: "Barra superior", fn: "Resetea todos los filtros a valores por defecto." },
               ]} />
 
-              <h4 className="font-semibold text-foreground text-sm">Pestañas de Métricas</h4>
+              <h4 className="font-semibold text-foreground text-sm">7 Pestañas de Métricas</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-3">
+                {[
+                  { icon: BarChart3, label: "Vista General", desc: "KPIs + gráficos de ciudad y estado" },
+                  { icon: CalendarIcon, label: "Semanal", desc: "Evolución semana a semana con acumulados" },
+                  { icon: Globe, label: "Por Ciudad", desc: "Ventas, vendedores y bonos por ciudad" },
+                  { icon: Package, label: "Productos", desc: "Ranking de modelos más vendidos" },
+                  { icon: Users, label: "Vendedores", desc: "Ranking individual con tasa de aprobación" },
+                  { icon: TrendingUp, label: "Tendencia Diaria", desc: "Gráfico de línea + tabla diaria" },
+                  { icon: Hash, label: "Seriales", desc: "Inventario: usados vs disponibles con % uso" },
+                ].map((tab) => (
+                  <div key={tab.label} className="p-3 rounded-lg border bg-card text-center hover:border-primary/30 transition-colors">
+                    <tab.icon className="h-4 w-4 mx-auto mb-1 text-primary" />
+                    <p className="text-xs font-semibold text-foreground">{tab.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{tab.desc}</p>
+                  </div>
+                ))}
+              </div>
+
               <Accordion type="multiple" className="w-full">
                 <AccordionItem value="weekly">
                   <AccordionTrigger className="text-sm">📅 Semanal</AccordionTrigger>
                   <AccordionContent className="text-sm text-muted-foreground">
-                    Muestra la evolución de ventas semana a semana con gráficos de línea/barra.
-                    Permite identificar tendencias y picos de actividad.
+                    Muestra la evolución de ventas semana a semana. Incluye columnas de acumulados (unidades y Bs).
+                    Permite identificar tendencias y picos de actividad. Exportable a Excel.
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="city">
@@ -847,10 +1011,43 @@ export default function AdminManualPage() {
                     Ranking de productos más vendidos con unidades, bono acumulado y participación porcentual.
                   </AccordionContent>
                 </AccordionItem>
+                <AccordionItem value="vendors">
+                  <AccordionTrigger className="text-sm">👥 Vendedores</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Ranking completo de vendedores por unidades aprobadas. Incluye tienda, ciudad, tasa de aprobación,
+                    bono Bs y puntos. Muestra todos los vendedores inscritos, incluso con 0 ventas.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="daily">
+                  <AccordionTrigger className="text-sm">📈 Tendencia Diaria</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Gráfico de línea con ventas aprobadas vs totales por día. Tabla con desglose por estado.
+                    Ideal para detectar días de mayor actividad o anomalías.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="serials">
+                  <AccordionTrigger className="text-sm">🔢 Seriales</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    Resumen de inventario de seriales por producto: total importados, usados, disponibles y bloqueados.
+                    Barra de progreso visual por producto y utilización general. No se filtra por fecha.
+                  </AccordionContent>
+                </AccordionItem>
               </Accordion>
+
+              <h4 className="font-semibold text-foreground text-sm">Reporte Gerencial (Excel)</h4>
+              <p className="text-sm text-muted-foreground">
+                El botón "Reporte Gerencial" genera un archivo Excel multi-hoja con 7 pestañas:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2">
+                {["Resumen", "Por Semana", "Por Ciudad", "Por Producto", "Vendedores", "Tendencia Diaria", "Seriales"].map((s) => (
+                  <Badge key={s} variant="secondary" className="justify-center text-xs">{s}</Badge>
+                ))}
+              </div>
+              <Tip>Los revisores de ciudad solo ven métricas de su ciudad asignada. El filtro de ciudad queda bloqueado automáticamente.</Tip>
 
               <ButtonRef rows={[
                 { icon: "📥 Exportar", location: "Cada pestaña", fn: "Descarga los datos de la pestaña actual en formato Excel." },
+                { icon: "📊 Reporte Gerencial", location: "Barra superior", fn: "Descarga Excel multi-hoja con las 7 pestañas consolidadas." },
               ]} />
             </CardContent>
           </Card>
