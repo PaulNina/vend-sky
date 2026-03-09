@@ -602,17 +602,16 @@ export default function AdminManualPage() {
               <CardTitle className="flex items-center gap-2"><Layers className="h-5 w-5 text-primary" /> Ciclo de Vida de una Campaña</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <FlowDiagram steps={[
-                "Crear campaña",
-                "Configurar productos",
-                "Importar seriales",
-                "Abrir registro de vendedores",
-                "Vendedores se inscriben",
-                "Comienza campaña",
-                "Ventas + Revisiones semanales",
-                "Cierre de periodos",
-                "Liquidación + Pago",
-                "Campaña finaliza",
+              <Timeline items={[
+                { title: "Crear Campaña", desc: "Definir nombre, fechas, slug, modo de periodo y opciones avanzadas.", status: "done" },
+                { title: "Configurar Productos", desc: "Agregar modelos con bono Bs y puntos por unidad.", status: "done" },
+                { title: "Importar Seriales", desc: "Cargar archivo Excel/CSV con seriales y producto asociado.", status: "done" },
+                { title: "Preparar Revisores", desc: "Asignar rol revisor_ciudad con ciudad correspondiente.", status: "done" },
+                { title: "Abrir Inscripción", desc: "Compartir URL pública /c/slug con vendedores.", status: "active" },
+                { title: "Campaña Activa", desc: "Vendedores registran ventas → Revisores aprueban → Periodos se cierran.", status: "active" },
+                { title: "Cierre de Periodos", desc: "Automático o manual. Genera reportes y envía emails.", status: "pending" },
+                { title: "Liquidación + Pago", desc: "Calcular comisiones, marcar pagos, subir comprobantes.", status: "pending" },
+                { title: "Campaña Finaliza", desc: "Cierre final con reporte gerencial consolidado.", status: "pending" },
               ]} />
               <Tip>Las campañas pueden tener periodos automáticos (semanal, quincenal, mensual o personalizado) que se cierran automáticamente.</Tip>
             </CardContent>
