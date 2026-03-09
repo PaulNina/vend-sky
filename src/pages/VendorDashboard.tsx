@@ -20,35 +20,6 @@ export default function VendorDashboard() {
   const [enrolledCampaigns, setEnrolledCampaigns] = useState<EnrolledCampaign[]>([]);
   const [availableCampaigns, setAvailableCampaigns] = useState<Campaign[]>([]);
   const [enrolling, setEnrolling] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!vendorId) return;
-    const loadCampaigns = async () => {
-      // Get active campaigns
-      const { data: activeCampaigns } = await supabase.from("campaigns").select("id, name, subtitle, slug, start_date, end_date").eq("is_active", true).eq("status", "active").order("created_at", { ascending: false });
-      
-      // Get enrolled campaigns
-      const { data: enrollments } = await supabase.from("vendor_campaign_enrollments").select("campaign_id, enrolled_at, status, campaigns(id, name, subtitle, slug, start_date, end_date)").eq("vendor_id", vendorId).eq("status", "active");
-      
-      if (enrollments) {
-        const enrolled = enrollments.map(e => ({ ...e.campaigns, enrolled_at: e.enrolled_at, status: e.status } as EnrolledCampaign)).filter(c => c.id);
-        setEnrolledCampaigns(enrolled);
-        
-        // Set campaigns for dropdown (only enrolled ones)
-        setCampaigns(enrolled);
-        if (enrolled.length > 0) setSelectedCampaign(enrolled[0].id);
-      }
-
-      // Get available campaigns (not enrolled)
-      if (activeCampaigns && enrollments) {
-        const enrolledIds = enrollments.map(e => e.campaign_id);
-        const available = activeCampaigns.filter(c => !enrolledIds.includes(c.id));
-        setAvailableCampaigns(available);
-      }
-    };
-    loadCampaigns();
-  }, [vendorId]);
-
   const [vendorId, setVendorId] = useState<string | null>(null);
 
   // Cache vendor id
@@ -58,6 +29,29 @@ export default function VendorDashboard() {
       if (data) setVendorId(data.id);
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!vendorId) return;
+    const loadCampaigns = async () => {
+      const { data: activeCampaigns } = await supabase.from("campaigns").select("id, name, subtitle, slug, start_date, end_date").eq("is_active", true).eq("status", "active").order("created_at", { ascending: false });
+      
+      const { data: enrollments } = await supabase.from("vendor_campaign_enrollments").select("campaign_id, enrolled_at, status, campaigns(id, name, subtitle, slug, start_date, end_date)").eq("vendor_id", vendorId).eq("status", "active");
+      
+      if (enrollments) {
+        const enrolled = enrollments.map(e => ({ ...e.campaigns, enrolled_at: e.enrolled_at, status: e.status } as EnrolledCampaign)).filter(c => c.id);
+        setEnrolledCampaigns(enrolled);
+        setCampaigns(enrolled);
+        if (enrolled.length > 0) setSelectedCampaign(enrolled[0].id);
+      }
+
+      if (activeCampaigns && enrollments) {
+        const enrolledIds = enrollments.map(e => e.campaign_id);
+        const available = activeCampaigns.filter(c => !enrolledIds.includes(c.id));
+        setAvailableCampaigns(available);
+      }
+    };
+    loadCampaigns();
+  }, [vendorId]);
 
   useEffect(() => {
     if (!vendorId || !selectedCampaign) return;
