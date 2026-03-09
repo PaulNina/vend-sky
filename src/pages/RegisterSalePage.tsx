@@ -212,22 +212,43 @@ export default function RegisterSalePage() {
       supabase.from("vendors").select("id, city, is_active").eq("user_id", user.id).single(),
     ]);
 
-    if (campaignsRes.data) {
-      setCampaigns(campaignsRes.data);
-      const openCampaigns = campaignsRes.data.filter(isCampaignRegistrationOpen);
-      if (openCampaigns.length >= 1) {
-        setSelectedCampaign(openCampaigns[0].id);
-      } else if (campaignsRes.data.length === 1) {
-        setSelectedCampaign(campaignsRes.data[0].id);
-      }
-    }
     if (productsRes.data) setProducts(productsRes.data);
+    
     if (vendorRes.data) {
       setVendorId(vendorRes.data.id);
       setVendorCity(vendorRes.data.city);
       if (!vendorRes.data.is_active) {
         setVendorBlocked(true);
         setBlockReason("Tu cuenta está inactiva. Contacta al administrador.");
+        return;
+      }
+
+      // Get enrolled campaigns for this vendor
+      const { data: enrollments } = await supabase
+        .from("vendor_campaign_enrollments")
+        .select("campaign_id")
+        .eq("vendor_id", vendorRes.data.id)
+        .eq("status", "active");
+
+      const enrolledCampaignIds = new Set(enrollments?.map(e => e.campaign_id) || []);
+
+      // Filter campaigns to only show enrolled ones
+      if (campaignsRes.data) {
+        const enrolledCampaigns = campaignsRes.data.filter(c => enrolledCampaignIds.has(c.id));
+        
+        if (enrolledCampaigns.length === 0) {
+          setVendorBlocked(true);
+          setBlockReason("No estás inscrito en ninguna campaña activa. Ve a tu panel para inscribirte en las campañas disponibles.");
+          return;
+        }
+
+        setCampaigns(enrolledCampaigns);
+        const openCampaigns = enrolledCampaigns.filter(isCampaignRegistrationOpen);
+        if (openCampaigns.length >= 1) {
+          setSelectedCampaign(openCampaigns[0].id);
+        } else if (enrolledCampaigns.length === 1) {
+          setSelectedCampaign(enrolledCampaigns[0].id);
+        }
       }
     }
   };
@@ -317,6 +338,25 @@ export default function RegisterSalePage() {
       toast({ title: "Error", description: "Completa todos los campos obligatorios.", variant: "destructive" });
       return;
     }
+
+    // Verify vendor is enrolled in the selected campaign
+    const { data: enrollment } = await supabase
+      .from("vendor_campaign_enrollments")
+      .select("id")
+      .eq("vendor_id", vendorId)
+      .eq("campaign_id", selectedCampaign)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!enrollment) {
+      toast({ 
+        title: "No inscrito", 
+        description: "No estás inscrito en esta campaña. Ve a tu panel para inscribirte primero.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     if (serialValidation.status !== "ok") {
       toast({ title: "Error", description: "El serial no pasó la validación.", variant: "destructive" });
       return;
