@@ -61,16 +61,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get all active vendors, optionally filtered by city
-    let vendorsQuery = adminClient
-      .from("vendors")
-      .select("id, full_name, city, store_name")
-      .eq("is_active", true);
-    if (city) {
-      vendorsQuery = vendorsQuery.eq("city", city);
+    // Get all active vendors, optionally filtered by city (batch to avoid 1000 row limit)
+    const allVendors: { id: string; full_name: string; city: string; store_name: string }[] = [];
+    {
+      const batchSize = 1000;
+      let from = 0;
+      while (true) {
+        let q = adminClient
+          .from("vendors")
+          .select("id, full_name, city, store_name")
+          .eq("is_active", true)
+          .range(from, from + batchSize - 1);
+        if (city) q = q.eq("city", city);
+        const { data: batch, error: batchErr } = await q;
+        if (batchErr) throw batchErr;
+        if (!batch || batch.length === 0) break;
+        allVendors.push(...batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
     }
-    const { data: vendors, error: vendorsError } = await vendorsQuery;
-    if (vendorsError) throw vendorsError;
+    const vendors = allVendors;
 
     // Get approved sales in the period for the campaign (batch to avoid 1000 row limit)
     const allSales: { vendor_id: string; bonus_bs: number }[] = [];
