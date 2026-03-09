@@ -797,6 +797,48 @@ export type Database = {
           },
         ]
       }
+      vendor_campaign_enrollments: {
+        Row: {
+          campaign_id: string
+          enrolled_at: string
+          enrolled_by: string | null
+          id: string
+          status: string
+          vendor_id: string
+        }
+        Insert: {
+          campaign_id: string
+          enrolled_at?: string
+          enrolled_by?: string | null
+          id?: string
+          status?: string
+          vendor_id: string
+        }
+        Update: {
+          campaign_id?: string
+          enrolled_at?: string
+          enrolled_by?: string | null
+          id?: string
+          status?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_campaign_enrollments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_campaign_enrollments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_store_history: {
         Row: {
           changed_at: string
