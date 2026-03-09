@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,8 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, KeyRound, UserX, Search, ShieldAlert, Copy, Ban } from "lucide-react";
+import { Loader2, Plus, Trash2, KeyRound, UserX, Search, ShieldAlert, Copy, Ban, Download, Upload } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
+import * as XLSX from "xlsx";
 
 const ROLES: { value: string; label: string }[] = [
   { value: "vendedor", label: "Vendedor" },
