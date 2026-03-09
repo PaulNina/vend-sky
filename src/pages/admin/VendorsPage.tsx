@@ -59,6 +59,7 @@ export default function VendorsPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalFiltered, setTotalFiltered] = useState(0);
+  const [globalStats, setGlobalStats] = useState({ active: 0, inactive: 0, pending: 0 });
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -90,6 +91,21 @@ export default function VendorsPage() {
     setLoading(false);
   };
 
+  // Load global stats (independent of filters/pagination)
+  const loadGlobalStats = async () => {
+    const [activeRes, inactiveRes, pendingRes] = await Promise.all([
+      supabase.from("vendors").select("id", { head: true, count: "exact" }).eq("is_active", true),
+      supabase.from("vendors").select("id", { head: true, count: "exact" }).eq("is_active", false),
+      supabase.from("vendors").select("id", { head: true, count: "exact" }).eq("pending_approval", true),
+    ]);
+    setGlobalStats({
+      active: activeRes.count || 0,
+      inactive: inactiveRes.count || 0,
+      pending: pendingRes.count || 0,
+    });
+  };
+
+  useEffect(() => { loadGlobalStats(); }, []);
   useEffect(() => { load(); }, [cityFilter, statusFilter, debouncedSearch, page]);
 
   const openEdit = async (v: Vendor) => {
@@ -157,13 +173,7 @@ export default function VendorsPage() {
 
   const totalPages = Math.ceil(totalFiltered / PAGE_SIZE);
 
-  // Stats from current loaded data (note: page-level only, not global)
-  const stats = useMemo(() => {
-    const totalActive = vendors.filter((v) => v.is_active).length;
-    const totalInactive = vendors.filter((v) => !v.is_active).length;
-    const totalPending = vendors.filter((v) => v.pending_approval).length;
-    return { totalActive, totalInactive, totalPending };
-  }, [vendors]);
+  const stats = globalStats;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -187,7 +197,7 @@ export default function VendorsPage() {
               <UserCheck className="h-4 w-4 text-success" />
             </div>
             <div>
-              <p className="text-lg font-bold font-display">{stats.totalActive}</p>
+              <p className="text-lg font-bold font-display">{stats.active}</p>
               <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Activos</p>
             </div>
           </CardContent>
@@ -198,19 +208,19 @@ export default function VendorsPage() {
               <UserX className="h-4 w-4 text-destructive" />
             </div>
             <div>
-              <p className="text-lg font-bold font-display">{stats.totalInactive}</p>
+              <p className="text-lg font-bold font-display">{stats.inactive}</p>
               <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Inactivos</p>
             </div>
           </CardContent>
         </Card>
-        {stats.totalPending > 0 && (
+        {stats.pending > 0 && (
           <Card className="hover:border-warning/20 transition-colors cursor-pointer border-warning/30" onClick={() => setStatusFilter("pending")}>
             <CardContent className="py-3 px-4 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
                 <Clock className="h-4 w-4 text-warning" />
               </div>
               <div>
-                <p className="text-lg font-bold font-display text-warning">{stats.totalPending}</p>
+                <p className="text-lg font-bold font-display text-warning">{stats.pending}</p>
                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Pendientes</p>
               </div>
             </CardContent>

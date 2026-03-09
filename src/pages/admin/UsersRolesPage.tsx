@@ -77,18 +77,34 @@ export default function UsersRolesPage() {
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
 
+  const batchLoad = async (table: string, selectStr: string, orderCol?: string) => {
+    let all: any[] = [];
+    const batchSize = 1000;
+    let from = 0;
+    while (true) {
+      let q = supabase.from(table).select(selectStr).range(from, from + batchSize - 1);
+      if (orderCol) q = q.order(orderCol, { ascending: false });
+      const { data } = await q;
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < batchSize) break;
+      from += batchSize;
+    }
+    return all;
+  };
+
   const load = async () => {
     setLoading(true);
-    const [rolesRes, profilesRes, vendorsRes] = await Promise.all([
-      supabase.from("user_roles").select("*").order("created_at", { ascending: false }),
-      supabase.from("user_profiles").select("*") as any,
-      supabase.from("vendors").select("user_id, email, full_name, is_active"),
+    const [rolesData, profilesData, vendorsData] = await Promise.all([
+      batchLoad("user_roles", "*", "created_at"),
+      batchLoad("user_profiles", "*"),
+      batchLoad("vendors", "user_id, email, full_name, is_active"),
     ]);
-    setRoles(rolesRes.data || []);
+    setRoles(rolesData || []);
     // Merge profiles with vendor fallback
-    const profilesList: UserProfile[] = profilesRes.data || [];
+    const profilesList: UserProfile[] = profilesData || [];
     const profileUserIds = new Set(profilesList.map((p: UserProfile) => p.user_id));
-    const vendorFallbacks: UserProfile[] = (vendorsRes.data || [])
+    const vendorFallbacks: UserProfile[] = (vendorsData || [])
       .filter((v: any) => !profileUserIds.has(v.user_id) && v.email)
       .map((v: any) => ({
         user_id: v.user_id,
