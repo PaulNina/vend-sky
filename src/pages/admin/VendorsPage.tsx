@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Pencil, Download, QrCode, Users, UserCheck, UserX, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Pencil, Download, Upload, QrCode, Users, UserCheck, UserX, Clock, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
+import * as XLSX from "xlsx";
 
 interface Vendor {
   id: string;
