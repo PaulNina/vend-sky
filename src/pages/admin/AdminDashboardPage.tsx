@@ -116,28 +116,43 @@ export default function AdminDashboardPage() {
     if (dateRange.start) params._start_date = dateRange.start;
     if (dateRange.end) params._end_date = dateRange.end;
 
-    let trendQuery = supabase
-      .from("sales")
-      .select("sale_date, bonus_bs")
-      .eq("campaign_id", selectedCampaign)
-      .eq("status", "approved");
-
-    const trendStart = dateRange.start || format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-    const trendEnd = dateRange.end || format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-    trendQuery = trendQuery.gte("sale_date", trendStart).lte("sale_date", trendEnd);
+    // For trend, paginate to avoid 1000-row limit
+    const loadTrend = async () => {
+      const trendStart = dateRange.start || format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const trendEnd = dateRange.end || format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      
+      let allTrendData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from("sales")
+          .select("sale_date, bonus_bs")
+          .eq("campaign_id", selectedCampaign)
+          .eq("status", "approved")
+          .gte("sale_date", trendStart)
+          .lte("sale_date", trendEnd)
+          .range(from, from + batchSize - 1);
+        if (!data || data.length === 0) break;
+        allTrendData = allTrendData.concat(data);
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
+      return allTrendData;
+    };
 
     Promise.all([
       supabase.rpc("get_sales_by_city", params),
       supabase.rpc("get_top_products", { ...params, _limit: 10 }),
       supabase.rpc("get_campaign_ranking", { _campaign_id: selectedCampaign }),
-      trendQuery,
-    ]).then(([cityRes, prodRes, rankRes, trendRes]) => {
+      loadTrend(),
+    ]).then(([cityRes, prodRes, rankRes, trendData]) => {
       setCityData((cityRes.data as CityData[]) || []);
       setTopProducts((prodRes.data as TopProduct[]) || []);
       setRanking((rankRes.data as RankingEntry[]) || []);
 
       const trendMap: Record<string, { units: number; bonus: number }> = {};
-      (trendRes.data || []).forEach((s: any) => {
+      trendData.forEach((s: any) => {
         if (!trendMap[s.sale_date]) trendMap[s.sale_date] = { units: 0, bonus: 0 };
         trendMap[s.sale_date].units += 1;
         trendMap[s.sale_date].bonus += Number(s.bonus_bs);

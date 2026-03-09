@@ -49,15 +49,17 @@ export default function AuditPage() {
   }, []);
 
   const loadAuditStats = async () => {
-    const { data } = await supabase.from("supervisor_audits").select("action");
-    if (data) {
-      setAuditStats({
-        ok: data.filter(a => a.action === "ok").length,
-        reverted: data.filter(a => a.action === "revert").length,
-        observed: data.filter(a => a.action === "observe").length,
-        total: data.length,
-      });
-    }
+    const [okRes, revertRes, observeRes] = await Promise.all([
+      supabase.from("supervisor_audits").select("id", { count: "exact", head: true }).eq("action", "ok"),
+      supabase.from("supervisor_audits").select("id", { count: "exact", head: true }).eq("action", "revert"),
+      supabase.from("supervisor_audits").select("id", { count: "exact", head: true }).eq("action", "observe"),
+    ]);
+    setAuditStats({
+      ok: okRes.count || 0,
+      reverted: revertRes.count || 0,
+      observed: observeRes.count || 0,
+      total: (okRes.count || 0) + (revertRes.count || 0) + (observeRes.count || 0),
+    });
   };
 
   const loadSample = async () => {

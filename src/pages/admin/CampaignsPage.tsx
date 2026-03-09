@@ -58,16 +58,18 @@ export default function CampaignsPage() {
     const { data } = await supabase.from("campaigns").select("*").order("start_date", { ascending: false });
     setCampaigns(data || []);
 
-    // Get enrollment counts for all campaigns
+    // Get enrollment counts per campaign using individual count queries
     if (data && data.length > 0) {
-      const { data: enrollData } = await supabase
-        .from("vendor_campaign_enrollments")
-        .select("campaign_id")
-        .eq("status", "active");
       const counts: Record<string, number> = {};
-      (enrollData || []).forEach((e: any) => {
-        counts[e.campaign_id] = (counts[e.campaign_id] || 0) + 1;
+      const countPromises = data.map(async (c) => {
+        const { count } = await supabase
+          .from("vendor_campaign_enrollments")
+          .select("id", { count: "exact", head: true })
+          .eq("campaign_id", c.id)
+          .eq("status", "active");
+        counts[c.id] = count || 0;
       });
+      await Promise.all(countPromises);
       setEnrollmentCounts(counts);
     }
     setLoading(false);
