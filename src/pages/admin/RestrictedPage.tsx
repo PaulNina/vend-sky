@@ -250,13 +250,3 @@ export default function RestrictedPage() {
     </div>
   );
 }
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
