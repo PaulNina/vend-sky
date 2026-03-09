@@ -79,16 +79,44 @@ export default function UsersRolesPage() {
 
   const load = async () => {
     setLoading(true);
-    const [rolesRes, profilesRes, vendorsRes] = await Promise.all([
-      supabase.from("user_roles").select("*").order("created_at", { ascending: false }),
-      supabase.from("user_profiles").select("*") as any,
-      supabase.from("vendors").select("user_id, email, full_name, is_active"),
-    ]);
-    setRoles(rolesRes.data || []);
-    // Merge profiles with vendor fallback
-    const profilesList: UserProfile[] = profilesRes.data || [];
+
+    // Batch-load user_roles
+    let allRoles: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data } = await supabase.from("user_roles").select("*").order("created_at", { ascending: false }).range(from, from + 999);
+      if (!data || data.length === 0) break;
+      allRoles = allRoles.concat(data);
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+
+    // Batch-load user_profiles
+    let allProfiles: any[] = [];
+    from = 0;
+    while (true) {
+      const { data } = await (supabase.from("user_profiles").select("*") as any).range(from, from + 999);
+      if (!data || data.length === 0) break;
+      allProfiles = allProfiles.concat(data);
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+
+    // Batch-load vendors
+    let allVendors: any[] = [];
+    from = 0;
+    while (true) {
+      const { data } = await supabase.from("vendors").select("user_id, email, full_name, is_active").range(from, from + 999);
+      if (!data || data.length === 0) break;
+      allVendors = allVendors.concat(data);
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+
+    setRoles(allRoles);
+    const profilesList: UserProfile[] = allProfiles;
     const profileUserIds = new Set(profilesList.map((p: UserProfile) => p.user_id));
-    const vendorFallbacks: UserProfile[] = (vendorsRes.data || [])
+    const vendorFallbacks: UserProfile[] = allVendors
       .filter((v: any) => !profileUserIds.has(v.user_id) && v.email)
       .map((v: any) => ({
         user_id: v.user_id,

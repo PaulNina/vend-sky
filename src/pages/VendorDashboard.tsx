@@ -56,17 +56,24 @@ export default function VendorDashboard() {
   useEffect(() => {
     if (!vendorId || !selectedCampaign) return;
     const loadStats = async () => {
-      const { data: sales } = await supabase.from("sales").select("status, points, bonus_bs").eq("vendor_id", vendorId).eq("campaign_id", selectedCampaign);
-      if (sales) {
-        setStats({
-          approved: sales.filter(s => s.status === 'approved').length,
-          bonusBs: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + Number(s.bonus_bs), 0),
-          points: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + s.points, 0),
-          pending: sales.filter(s => s.status === 'pending').length,
-          rejected: sales.filter(s => s.status === 'rejected').length,
-          observed: sales.filter(s => s.status === 'observed').length,
-        });
-      }
+      const baseQ = () => supabase.from("sales").select("id", { head: true, count: "exact" }).eq("vendor_id", vendorId).eq("campaign_id", selectedCampaign);
+      const [approvedRes, pendingRes, rejectedRes, observedRes, bonusRes] = await Promise.all([
+        baseQ().eq("status", "approved"),
+        baseQ().eq("status", "pending"),
+        baseQ().eq("status", "rejected"),
+        baseQ().eq("status", "observed"),
+        // For sums we still need data, but batch if needed
+        supabase.from("sales").select("bonus_bs, points").eq("vendor_id", vendorId).eq("campaign_id", selectedCampaign).eq("status", "approved"),
+      ]);
+      const approvedSales = bonusRes.data || [];
+      setStats({
+        approved: approvedRes.count || 0,
+        bonusBs: approvedSales.reduce((sum, s) => sum + Number(s.bonus_bs), 0),
+        points: approvedSales.reduce((sum, s) => sum + s.points, 0),
+        pending: pendingRes.count || 0,
+        rejected: rejectedRes.count || 0,
+        observed: observedRes.count || 0,
+      });
     };
     loadStats();
   }, [vendorId, selectedCampaign]);
