@@ -482,12 +482,26 @@ export default function AdminManualPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <SaleStateMap />
-              <FlowDiagram steps={[
-                "Vendedor registra → Pendiente",
-                "Revisor aprueba → Aprobada",
-                "ó rechaza → Rechazada",
-                "ó periodo cierra sin revisión → Cerrada",
-              ]} />
+
+              <h4 className="font-semibold text-foreground text-sm mt-4">Diagrama de Transiciones de Estado</h4>
+              <StateMachine
+                states={[
+                  { id: "pending", label: "Pendiente", color: "border-yellow-500 bg-yellow-500/10 text-yellow-600" },
+                  { id: "approved", label: "Aprobada", color: "border-green-500 bg-green-500/10 text-green-600" },
+                  { id: "rejected", label: "Rechazada", color: "border-red-500 bg-red-500/10 text-red-600" },
+                  { id: "observed", label: "Observada", color: "border-orange-500 bg-orange-500/10 text-orange-600" },
+                  { id: "closed", label: "Cerrada", color: "border-border bg-muted text-muted-foreground" },
+                ]}
+                transitions={[
+                  { from: "Pendiente", to: "Aprobada", label: "Revisor aprueba" },
+                  { from: "Pendiente", to: "Rechazada", label: "Revisor rechaza" },
+                  { from: "Pendiente", to: "Cerrada", label: "Cierre de periodo" },
+                  { from: "Aprobada", to: "Pendiente", label: "Supervisor revierte" },
+                  { from: "Aprobada", to: "Observada", label: "Supervisor observa" },
+                  { from: "Observada", to: "Pendiente", label: "Vendedor corrige fotos" },
+                ]}
+              />
+
               <Tip>Solo las ventas en estado <strong>Aprobada</strong> generan comisión. Las Pendientes al cierre pasan a Cerradas sin comisión.</Tip>
             </CardContent>
           </Card>
