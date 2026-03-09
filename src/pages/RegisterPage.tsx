@@ -79,7 +79,7 @@ export default function RegisterPage() {
   const [searchParams] = useSearchParams();
   const campaignId = searchParams.get("campaign") || undefined;
   const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, campaignSubtitle, message } = useRegistrationStatus(campaignId);
+  const { allowed, campaignName, campaignSubtitle, campaignData, message } = useRegistrationStatus(campaignId);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
