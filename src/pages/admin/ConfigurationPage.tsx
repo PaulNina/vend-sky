@@ -731,7 +731,7 @@ export default function ConfigurationPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-lg">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           <TabsTrigger value="general" className="flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             General
@@ -747,6 +747,10 @@ export default function ConfigurationPage() {
           <TabsTrigger value="backup" className="flex items-center gap-1.5" onClick={() => { if (Object.keys(tableCounts).length === 0) loadTableCounts(); }}>
             <HardDrive className="h-3.5 w-3.5" />
             Backup
+          </TabsTrigger>
+          <TabsTrigger value="system" className="flex items-center gap-1.5" onClick={() => { if (!loadingHealth && healthChecks.database === "loading") runHealthChecks(); }}>
+            <Activity className="h-3.5 w-3.5" />
+            Sistema
           </TabsTrigger>
         </TabsList>
 
