@@ -1170,6 +1170,14 @@ export default function AdminManualPage() {
               <SectionHeader icon={DollarSign} title="Comisiones" description="Generación de liquidaciones y gestión de pagos a vendedores." />
             </CardHeader>
             <CardContent className="space-y-4">
+              <h4 className="font-semibold text-foreground text-sm">Diagrama Visual del Flujo de Comisiones</h4>
+              <p className="text-sm text-muted-foreground">
+                Desde la acumulación de ventas aprobadas hasta el pago final con comprobante y notificación al vendedor.
+              </p>
+              
+              <CommissionFlowDiagram />
+
+              <h4 className="font-semibold text-foreground text-sm mt-6">Pasos Resumidos</h4>
               <FlowDiagram steps={[
                 "Seleccionar campaña y periodo",
                 "Generar liquidación",
@@ -1179,6 +1187,7 @@ export default function AdminManualPage() {
                 "Sube comprobante de pago",
               ]} />
 
+              <h4 className="font-semibold text-foreground text-sm">Botones y Acciones</h4>
               <ButtonRef rows={[
                 { icon: "Select (Campaña)", location: "Barra superior", fn: "Selecciona la campaña para ver comisiones." },
                 { icon: "Select (Periodo)", location: "Barra superior", fn: "Selecciona el periodo semanal." },
