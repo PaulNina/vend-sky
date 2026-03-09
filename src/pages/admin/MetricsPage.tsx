@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter } from "lucide-react";
+import { Loader2, Download, BarChart3, TrendingUp, CalendarIcon, Filter, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,6 +41,7 @@ export default function MetricsPage() {
   const [cityData, setCityData] = useState<CityRow[]>([]);
   const [productData, setProductData] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enrolledCount, setEnrolledCount] = useState(0);
 
   // Date range state
   const [quickRange, setQuickRange] = useState<QuickRange>("all");
@@ -75,6 +76,8 @@ export default function MetricsPage() {
   }, [selectedCampaign, effectiveDates]);
 
   const loadMetrics = async () => {
+    // Load enrollment count
+    supabase.from("vendor_campaign_enrollments").select("id", { count: "exact", head: true }).eq("campaign_id", selectedCampaign).eq("status", "active").then(({ count }) => setEnrolledCount(count || 0));
     let q = supabase
       .from("sales")
       .select("week_start, week_end, status, bonus_bs, points, city, vendor_id, product_id, products(name, model_code)")
@@ -301,7 +304,7 @@ export default function MetricsPage() {
       </Card>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <Card className="hover:border-primary/20 transition-colors">
           <CardContent className="py-3 px-4">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Total Ventas</p>
@@ -324,6 +327,12 @@ export default function MetricsPage() {
           <CardContent className="py-3 px-4">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Vendedores</p>
             <p className="text-xl font-bold font-display mt-0.5">{cityTotals.vendors}</p>
+          </CardContent>
+        </Card>
+        <Card className="hover:border-primary/20 transition-colors">
+          <CardContent className="py-3 px-4">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest flex items-center gap-1"><Users className="h-3 w-3" />Inscritos</p>
+            <p className="text-xl font-bold font-display mt-0.5">{enrolledCount}</p>
           </CardContent>
         </Card>
         <Card className="hover:border-primary/20 transition-colors">
