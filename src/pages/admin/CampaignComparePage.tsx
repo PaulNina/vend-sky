@@ -276,12 +276,12 @@ export default function CampaignComparePage() {
                         <p className="text-lg font-bold">{m.total_sales}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-green-600">Aprobadas</p>
-                        <p className="text-lg font-bold text-green-600">{m.approved_sales}</p>
+                        <p className="text-xs text-chart-2">Aprobadas</p>
+                        <p className="text-lg font-bold text-chart-2">{m.approved_sales}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-amber-600">Pendientes</p>
-                        <p className="text-lg font-bold text-amber-600">{m.pending_sales}</p>
+                        <p className="text-xs text-chart-3">Pendientes</p>
+                        <p className="text-lg font-bold text-chart-3">{m.pending_sales}</p>
                       </div>
                     </div>
                   </div>
