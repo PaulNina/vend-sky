@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Upload, Download, Trash2, ShieldBan, Search, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { exportToExcel } from "@/lib/exportExcel";
@@ -23,6 +24,7 @@ export default function RestrictedPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [importing, setImporting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Restricted | null>(null);
 
   const load = async () => {
     setLoading(true);
