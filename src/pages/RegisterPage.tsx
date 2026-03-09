@@ -242,7 +242,7 @@ export default function RegisterPage() {
       }
 
       await refreshRoles();
-      navigate("/v", { replace: true });
+      setSuccess(true);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {

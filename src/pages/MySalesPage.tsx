@@ -47,14 +47,19 @@ export default function MySalesPage() {
   const [newNotaFile, setNewNotaFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { loadSales(); }, [user, statusFilter]);
+  const [salePage, setSalePage] = useState(0);
+  const SALES_PAGE_SIZE = 200;
+
+  useEffect(() => { setSalePage(0); }, [statusFilter]);
+  useEffect(() => { loadSales(); }, [user, statusFilter, salePage]);
 
   const loadSales = async () => {
     if (!user) return;
     setLoading(true);
     let query = supabase.from("sales")
       .select("*, products(name, model_code), campaigns(name)")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(salePage * SALES_PAGE_SIZE, (salePage + 1) * SALES_PAGE_SIZE - 1);
     if (statusFilter !== "all") query = query.eq("status", statusFilter as any);
     const { data } = await query;
     setSales((data as any) || []);

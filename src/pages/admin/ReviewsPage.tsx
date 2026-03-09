@@ -387,6 +387,19 @@ export default function ReviewsPage() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {(sales.length >= REVIEW_PAGE_SIZE || page > 0) && (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+            Anterior
+          </Button>
+          <span className="text-xs text-muted-foreground">Página {page + 1}</span>
+          <Button variant="outline" size="sm" disabled={sales.length < REVIEW_PAGE_SIZE} onClick={() => setPage(p => p + 1)}>
+            Siguiente
+          </Button>
+        </div>
+      )}
+
       {/* Detail / Review Dialog */}
       <Dialog open={!!detailSale} onOpenChange={(open) => !open && setDetailSale(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
