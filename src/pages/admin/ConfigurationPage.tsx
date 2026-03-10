@@ -14,7 +14,7 @@ import { Link } from "react-router-dom";
 import {
   Loader2, Package, ShieldCheck, BarChart3, Users, Calendar,
   Clock, Brain, ArrowRight, MapPin, Key, Eye, EyeOff, Save, Mail, Zap,
-  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Database, HardDrive, Globe,
+  Play, AlertTriangle, CheckCircle2, Settings, XCircle, Download, Upload, Database, HardDrive, Globe,
   Activity, Server, RefreshCw, Wifi, WifiOff, HardDriveDownload
 } from "lucide-react";
 import { format } from "date-fns";
@@ -141,6 +141,11 @@ export default function ConfigurationPage() {
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingTable, setExportingTable] = useState<string | null>(null);
+  const [importingAll, setImportingAll] = useState(false);
+  const [importDialog, setImportDialog] = useState(false);
+  const [importMode, setImportMode] = useState<"upsert" | "replace">("upsert");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importConfirmText, setImportConfirmText] = useState("");
 
   // System health state
   const [healthChecks, setHealthChecks] = useState<{
@@ -705,6 +710,72 @@ export default function ConfigurationPage() {
     }
   };
 
+  const executeImportAll = async () => {
+    if (!importFile) return;
+    if (importMode === "replace" && importConfirmText !== "IMPORTAR") {
+      toast({ title: "Texto de confirmación incorrecto", variant: "destructive" });
+      return;
+    }
+    setImportingAll(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      // Read Excel file
+      const buffer = await importFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+
+      // Map sheet names back to table keys
+      const labelToKey: Record<string, string> = {};
+      for (const t of BACKUP_TABLES) {
+        labelToKey[t.label.substring(0, 31)] = t.key;
+      }
+
+      const tables: Record<string, Record<string, any>[]> = {};
+      for (const sheetName of wb.SheetNames) {
+        const tableKey = labelToKey[sheetName];
+        if (!tableKey) continue;
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        if (rows.length > 0) {
+          tables[tableKey] = rows as Record<string, any>[];
+        }
+      }
+
+      if (Object.keys(tables).length === 0) {
+        toast({ title: "Sin datos", description: "No se encontraron hojas válidas en el archivo.", variant: "destructive" });
+        setImportingAll(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("import-backup", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { tables, mode: importMode },
+      });
+
+      if (error) throw error;
+
+      const errCount = data.errors?.length || 0;
+      toast({
+        title: "✅ Importación completada",
+        description: `${data.total_imported?.toLocaleString()} registros importados en ${data.tables_processed} tablas.${errCount > 0 ? ` ${errCount} errores.` : ""}`,
+      });
+
+      if (errCount > 0) {
+        console.warn("Errores de importación:", data.errors);
+      }
+
+      setImportDialog(false);
+      setImportFile(null);
+      setImportConfirmText("");
+      loadTableCounts();
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setImportingAll(false);
+  };
+
   // --- Reset system function ---
   const executeReset = async () => {
     if (resetConfirmText !== "RESET TOTAL") {
@@ -1255,13 +1326,22 @@ export default function ConfigurationPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Exporta todos los datos del sistema en un archivo Excel con una hoja por cada tabla.
-                Las tablas con muchos registros se descargan con paginación automática.
+                Exporta o importa todos los datos del sistema en un archivo Excel con una hoja por cada tabla.
+                Puedes usar el archivo exportado para restaurar datos en otro entorno o tras un reset.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={exportAllTables} disabled={exportingAll} variant="premium" size="default">
                   {exportingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                   {exportingAll ? "Exportando..." : "Exportar Todo"}
+                </Button>
+                <Button
+                  onClick={() => { setImportFile(null); setImportConfirmText(""); setImportMode("upsert"); setImportDialog(true); }}
+                  disabled={importingAll}
+                  variant="outline"
+                  size="default"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar Todo
                 </Button>
                 <Button onClick={loadTableCounts} disabled={loadingCounts} variant="outline" size="sm">
                   {loadingCounts ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-1" />}
@@ -1544,6 +1624,77 @@ export default function ConfigurationPage() {
             >
               {resetting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Reiniciar Todo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Backup Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Importar Backup del Sistema</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Sube un archivo Excel generado por "Exportar Todo". Cada hoja se importará a su tabla correspondiente.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Archivo Excel (.xlsx)</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Modo de importación</Label>
+              <Select value={importMode} onValueChange={(v) => setImportMode(v as "upsert" | "replace")}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upsert">Combinar (actualizar existentes, agregar nuevos)</SelectItem>
+                  <SelectItem value="replace">Reemplazar (borrar todo y cargar desde archivo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {importMode === "replace" && (
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 space-y-2">
+                <p className="text-xs text-destructive font-medium">
+                  ⚠️ El modo "Reemplazar" eliminará todos los datos existentes antes de importar. Esta acción es irreversible.
+                </p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Escribe <strong>IMPORTAR</strong> para confirmar:</Label>
+                  <Input
+                    value={importConfirmText}
+                    onChange={(e) => setImportConfirmText(e.target.value)}
+                    placeholder="IMPORTAR"
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {importFile && (
+              <Badge variant="outline" className="text-xs">
+                📄 {importFile.name} ({(importFile.size / 1024).toFixed(0)} KB)
+              </Badge>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialog(false)}>Cancelar</Button>
+            <Button
+              variant="premium"
+              onClick={executeImportAll}
+              disabled={
+                importingAll ||
+                !importFile ||
+                (importMode === "replace" && importConfirmText !== "IMPORTAR")
+              }
+            >
+              {importingAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+              {importingAll ? "Importando..." : "Importar"}
             </Button>
           </DialogFooter>
         </DialogContent>
