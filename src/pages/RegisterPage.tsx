@@ -173,8 +173,8 @@ export default function RegisterPage() {
             phone: phone || null,
             city,
             store_name: storeName || null,
-            pending_approval: needsApproval,
-            is_active: !needsApproval,
+            pending_approval: false,
+            is_active: true,
           });
           if (vendorErr) throw vendorErr;
         }
