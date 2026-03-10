@@ -1,24 +1,28 @@
 
 
-## Plan: Pestaña de Backup en Configuración
+## Problem
 
-### Enfoque
-Agregar un sistema de Tabs a la página de Configuración. La pestaña "General" contendrá todo el contenido actual. La nueva pestaña "Backup" permitirá exportar todos los datos del sistema.
+Registration requires an active campaign to exist. If there are no campaigns, or if `registration_enabled` is false, or if date windows are set, the registration is blocked. The user wants registration to always be open by default, independent of campaigns.
 
-### Cambios en `src/pages/admin/ConfigurationPage.tsx`
+## Plan
 
-1. **Envolver el contenido en Tabs** (de Radix/shadcn): Tab "General" con todo lo actual, Tab "Backup" nueva.
+### 1. Update `RegisterPage.tsx` — Remove campaign dependency for registration
 
-2. **Tab Backup** incluirá:
-   - Botón "Exportar Todo" que descarga un archivo Excel (.xlsx) con una hoja por cada tabla del sistema
-   - Botones individuales por tabla para exportar solo esa entidad
-   - Contadores de registros por tabla
-   - Tablas a exportar: campaigns, campaign_periods, products, serials, vendors, sales, sale_attachments, reviews, commission_payments, cities, city_groups, city_group_members, report_recipients, restricted_serials, user_profiles, user_roles, app_settings, email_templates, notifications, admin_audit_logs, supervisor_audits, vendor_blocks, vendor_store_history
+Change `useRegistrationStatus` so that:
+- If no `campaignId` is in the URL, registration is **always allowed** (no campaign check needed). The vendor registers without being tied to a campaign.
+- If a `campaignId` IS provided, check only `registration_enabled` and date windows on that specific campaign — but still allow the user to register as a vendor even if the campaign blocks enrollment (they just won't be auto-enrolled).
+- Campaign enrollment becomes optional: if a campaign is found and open, auto-enroll; otherwise just create the vendor.
 
-3. **Lógica de exportación**: Usar la librería `xlsx` (ya instalada) para generar un archivo multi-hoja. Cada tabla se consulta via Supabase con paginación para superar el límite de 1000 filas (importante para serials con 107k registros).
+Key changes to `useRegistrationStatus`:
+- When no `campaignId`: set `allowed = true` immediately, skip all campaign queries.
+- When `campaignId` provided: fetch campaign info for display/enrollment but don't block registration itself. Only block enrollment in that campaign if registration is closed.
 
-4. **Función de paginación**: Helper `fetchAllRows(table)` que hace queries en lotes de 1000 hasta traer todos los registros.
+### 2. Update registration handler (`handleRegister`)
 
-### Archivos modificados
-- `src/pages/admin/ConfigurationPage.tsx` — agregar Tabs + lógica de backup
+- Remove the campaign requirement. Always create the vendor with role `vendedor`.
+- Campaign enrollment is only attempted if `campaignData` exists and the campaign allows it.
+- Remove the dependency on `campaignData` for `needsApproval` — default to `false` (vendor is active immediately).
+
+### Files to modify
+- `src/pages/RegisterPage.tsx` — refactor `useRegistrationStatus` and `handleRegister`
 
