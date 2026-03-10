@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.reset-system]
 verify_jwt = false
+
+[functions.import-backup]
+verify_jwt = false
