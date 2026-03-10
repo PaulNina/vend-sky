@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, Lock } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
 function useRegistrationStatus(campaignId?: string) {
