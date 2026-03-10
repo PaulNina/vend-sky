@@ -1326,13 +1326,22 @@ export default function ConfigurationPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Exporta todos los datos del sistema en un archivo Excel con una hoja por cada tabla.
-                Las tablas con muchos registros se descargan con paginación automática.
+                Exporta o importa todos los datos del sistema en un archivo Excel con una hoja por cada tabla.
+                Puedes usar el archivo exportado para restaurar datos en otro entorno o tras un reset.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={exportAllTables} disabled={exportingAll} variant="premium" size="default">
                   {exportingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                   {exportingAll ? "Exportando..." : "Exportar Todo"}
+                </Button>
+                <Button
+                  onClick={() => { setImportFile(null); setImportConfirmText(""); setImportMode("upsert"); setImportDialog(true); }}
+                  disabled={importingAll}
+                  variant="outline"
+                  size="default"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar Todo
                 </Button>
                 <Button onClick={loadTableCounts} disabled={loadingCounts} variant="outline" size="sm">
                   {loadingCounts ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-1" />}
