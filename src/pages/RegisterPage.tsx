@@ -148,8 +148,7 @@ export default function RegisterPage() {
 
       const userId = authData.user.id;
 
-      // Respect campaign's require_vendor_approval flag
-      const needsApproval = campaignData?.require_vendor_approval ?? false;
+      // Vendors are always active immediately on self-registration
 
       try {
         if (existingVendor && !existingVendor.user_id) {
