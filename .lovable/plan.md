@@ -1,24 +1,32 @@
 
 
-## Plan: Pestaña de Backup en Configuración
+## Problem
 
-### Enfoque
-Agregar un sistema de Tabs a la página de Configuración. La pestaña "General" contendrá todo el contenido actual. La nueva pestaña "Backup" permitirá exportar todos los datos del sistema.
+The reset function currently only deletes **transactional data** (sales, reviews, commissions, etc.) and **resets** serials/campaigns to their default state. It does NOT delete master data like campaigns, products, serials, vendors, cities, etc. That's why after reset you still see 1 campaign, 10 products, 49 serials, 18 vendors, etc.
 
-### Cambios en `src/pages/admin/ConfigurationPage.tsx`
+## Plan
 
-1. **Envolver el contenido en Tabs** (de Radix/shadcn): Tab "General" con todo lo actual, Tab "Backup" nueva.
+### Update `reset-system` Edge Function
 
-2. **Tab Backup** incluirá:
-   - Botón "Exportar Todo" que descarga un archivo Excel (.xlsx) con una hoja por cada tabla del sistema
-   - Botones individuales por tabla para exportar solo esa entidad
-   - Contadores de registros por tabla
-   - Tablas a exportar: campaigns, campaign_periods, products, serials, vendors, sales, sale_attachments, reviews, commission_payments, cities, city_groups, city_group_members, report_recipients, restricted_serials, user_profiles, user_roles, app_settings, email_templates, notifications, admin_audit_logs, supervisor_audits, vendor_blocks, vendor_store_history
+Modify the function to truly delete **ALL** data from every table, in proper FK dependency order:
 
-3. **Lógica de exportación**: Usar la librería `xlsx` (ya instalada) para generar un archivo multi-hoja. Cada tabla se consulta via Supabase con paginación para superar el límite de 1000 filas (importante para serials con 107k registros).
+1. **Delete children first** (same as now): commission_payments, supervisor_audits, reviews, sale_attachments, sales
+2. **Delete serials** (instead of resetting to available)
+3. **Delete enrollments, blocks, store history, notifications, audit logs, campaign_periods**
+4. **Delete new tables**: restricted_serials, report_recipients, city_group_members, city_groups, cities
+5. **Delete campaigns** (instead of resetting to active)
+6. **Delete products**
+7. **Delete vendors**
+8. **Delete user_roles** and **user_profiles** (except the admin performing the reset)
+9. **Optionally preserve**: app_settings and email_templates (system config), or delete them too
 
-4. **Función de paginación**: Helper `fetchAllRows(table)` que hace queries en lotes de 1000 hasta traer todos los registros.
+The key change: replace `update` calls for serials/campaigns with `deleteAllRows`, and add deletion of all master tables (products, vendors, cities, etc.).
 
-### Archivos modificados
-- `src/pages/admin/ConfigurationPage.tsx` — agregar Tabs + lógica de backup
+### Update Reset Dialog text
+
+Update the description in ConfigurationPage.tsx to reflect that this deletes ALL data, not just transactional data.
+
+### Files to modify
+- `supabase/functions/reset-system/index.ts` — delete all tables instead of just transactional ones
+- `src/pages/admin/ConfigurationPage.tsx` — update dialog description
 
