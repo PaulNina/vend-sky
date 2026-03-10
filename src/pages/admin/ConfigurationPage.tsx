@@ -1628,6 +1628,77 @@ export default function ConfigurationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import Backup Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Importar Backup del Sistema</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Sube un archivo Excel generado por "Exportar Todo". Cada hoja se importará a su tabla correspondiente.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Archivo Excel (.xlsx)</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Modo de importación</Label>
+              <Select value={importMode} onValueChange={(v) => setImportMode(v as "upsert" | "replace")}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upsert">Combinar (actualizar existentes, agregar nuevos)</SelectItem>
+                  <SelectItem value="replace">Reemplazar (borrar todo y cargar desde archivo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {importMode === "replace" && (
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 space-y-2">
+                <p className="text-xs text-destructive font-medium">
+                  ⚠️ El modo "Reemplazar" eliminará todos los datos existentes antes de importar. Esta acción es irreversible.
+                </p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Escribe <strong>IMPORTAR</strong> para confirmar:</Label>
+                  <Input
+                    value={importConfirmText}
+                    onChange={(e) => setImportConfirmText(e.target.value)}
+                    placeholder="IMPORTAR"
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {importFile && (
+              <Badge variant="outline" className="text-xs">
+                📄 {importFile.name} ({(importFile.size / 1024).toFixed(0)} KB)
+              </Badge>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialog(false)}>Cancelar</Button>
+            <Button
+              variant="premium"
+              onClick={executeImportAll}
+              disabled={
+                importingAll ||
+                !importFile ||
+                (importMode === "replace" && importConfirmText !== "IMPORTAR")
+              }
+            >
+              {importingAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+              {importingAll ? "Importando..." : "Importar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
