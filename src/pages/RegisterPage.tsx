@@ -193,8 +193,8 @@ export default function RegisterPage() {
           full_name: fullName,
         } as any);
 
-        // Auto-enroll in campaign if registering from campaign page
-        if (campaignId) {
+        // Auto-enroll in campaign if registering from campaign page and enrollment is open
+        if (campaignData?.enrollmentOpen) {
           const vendorId = existingVendor?.id || (await supabase
             .from("vendors")
             .select("id")
@@ -204,8 +204,8 @@ export default function RegisterPage() {
           if (vendorId) {
             await supabase.from("vendor_campaign_enrollments").insert({
               vendor_id: vendorId,
-              campaign_id: campaignId,
-              status: needsApproval ? "pending" : "active",
+              campaign_id: campaignData.id,
+              status: "active",
             });
           }
         }
