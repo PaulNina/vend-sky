@@ -1592,19 +1592,21 @@ export default function ConfigurationPage() {
           <DialogHeader><DialogTitle className="text-destructive">⚠️ Reiniciar Sistema a Cero</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Esta acción eliminará permanentemente todos los datos transaccionales:
+              Esta acción eliminará <strong>TODOS</strong> los datos del sistema permanentemente:
             </p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
-              <li>Todas las ventas y adjuntos</li>
-              <li>Todas las revisiones y auditorías</li>
+              <li>Todas las ventas, adjuntos, revisiones y auditorías</li>
               <li>Todos los pagos de comisión</li>
-              <li>Todas las inscripciones de vendedores</li>
-              <li>Todas las notificaciones</li>
-              <li>Todos los bloqueos e historial de tiendas</li>
-              <li>Todos los periodos de campaña</li>
-              <li>Los seriales se reiniciarán a "disponible"</li>
-              <li>Las campañas se reactivarán</li>
+              <li>Todas las campañas y periodos</li>
+              <li>Todos los productos y seriales</li>
+              <li>Todos los vendedores e inscripciones</li>
+              <li>Todas las ciudades y grupos de ciudades</li>
+              <li>Todos los usuarios y roles (excepto tu cuenta admin)</li>
+              <li>Todas las notificaciones y logs</li>
             </ul>
+            <p className="text-xs text-destructive font-semibold">
+              El sistema quedará completamente vacío. Solo se preservan las plantillas de email y configuración general.
+            </p>
             <div className="space-y-1.5">
               <Label className="text-xs">Escribe <strong>RESET TOTAL</strong> para confirmar:</Label>
               <Input

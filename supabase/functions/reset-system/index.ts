@@ -13,20 +13,15 @@ async function deleteAllRows(
   pkColumn = "id"
 ): Promise<number> {
   let totalDeleted = 0;
-  let hasMore = true;
 
-  while (hasMore) {
-    // Fetch a batch of IDs to delete
+  while (true) {
     const { data: rows, error: fetchErr } = await client
       .from(table)
       .select(pkColumn)
       .limit(1000);
 
     if (fetchErr) throw new Error(`Error fetching ${table}: ${fetchErr.message}`);
-    if (!rows || rows.length === 0) {
-      hasMore = false;
-      break;
-    }
+    if (!rows || rows.length === 0) break;
 
     const ids = rows.map((r: any) => r[pkColumn]);
     const { error: delErr } = await client
@@ -37,10 +32,42 @@ async function deleteAllRows(
     if (delErr) throw new Error(`Error deleting ${table}: ${delErr.message}`);
     totalDeleted += ids.length;
 
-    // If we got less than 1000, we're done
-    if (rows.length < 1000) {
-      hasMore = false;
-    }
+    if (rows.length < 1000) break;
+  }
+
+  return totalDeleted;
+}
+
+// Helper: delete all rows except those matching a specific condition
+async function deleteAllRowsExcept(
+  client: any,
+  table: string,
+  exceptColumn: string,
+  exceptValue: string,
+  pkColumn = "id"
+): Promise<number> {
+  let totalDeleted = 0;
+
+  while (true) {
+    const { data: rows, error: fetchErr } = await client
+      .from(table)
+      .select(pkColumn)
+      .neq(exceptColumn, exceptValue)
+      .limit(1000);
+
+    if (fetchErr) throw new Error(`Error fetching ${table}: ${fetchErr.message}`);
+    if (!rows || rows.length === 0) break;
+
+    const ids = rows.map((r: any) => r[pkColumn]);
+    const { error: delErr } = await client
+      .from(table)
+      .delete()
+      .in(pkColumn, ids);
+
+    if (delErr) throw new Error(`Error deleting ${table}: ${delErr.message}`);
+    totalDeleted += ids.length;
+
+    if (rows.length < 1000) break;
   }
 
   return totalDeleted;
@@ -81,6 +108,7 @@ Deno.serve(async (req) => {
     const deleted: Record<string, number> = {};
 
     // Order matters due to foreign keys — delete children first
+
     // 1. Commission payments
     deleted.commission_payments = await deleteAllRows(adminClient, "commission_payments");
 
@@ -96,31 +124,8 @@ Deno.serve(async (req) => {
     // 5. Sales
     deleted.sales = await deleteAllRows(adminClient, "sales");
 
-    // 6. Reset serials to available (in batches)
-    let serialsReset = 0;
-    let moreSerials = true;
-    while (moreSerials) {
-      const { data: usedSerials } = await adminClient
-        .from("serials")
-        .select("id")
-        .neq("status", "available")
-        .limit(1000);
-
-      if (!usedSerials || usedSerials.length === 0) {
-        moreSerials = false;
-        break;
-      }
-
-      const ids = usedSerials.map((s: any) => s.id);
-      await adminClient
-        .from("serials")
-        .update({ status: "available", used_sale_id: null })
-        .in("id", ids);
-
-      serialsReset += ids.length;
-      if (usedSerials.length < 1000) moreSerials = false;
-    }
-    deleted.serials_reset = serialsReset;
+    // 6. Serials (DELETE instead of reset)
+    deleted.serials = await deleteAllRows(adminClient, "serials");
 
     // 7. Vendor campaign enrollments
     deleted.vendor_campaign_enrollments = await deleteAllRows(adminClient, "vendor_campaign_enrollments");
@@ -140,35 +145,33 @@ Deno.serve(async (req) => {
     // 12. Campaign periods
     deleted.campaign_periods = await deleteAllRows(adminClient, "campaign_periods");
 
-    // 13. Reset campaigns to active
-    let campaignsReset = 0;
-    let moreCampaigns = true;
-    while (moreCampaigns) {
-      const { data: camps } = await adminClient
-        .from("campaigns")
-        .select("id")
-        .limit(1000);
+    // 13. Report recipients
+    deleted.report_recipients = await deleteAllRows(adminClient, "report_recipients");
 
-      if (!camps || camps.length === 0) {
-        moreCampaigns = false;
-        break;
-      }
+    // 14. Campaigns (DELETE instead of reset)
+    deleted.campaigns = await deleteAllRows(adminClient, "campaigns");
 
-      const ids = camps.map((c: any) => c.id);
-      await adminClient
-        .from("campaigns")
-        .update({
-          status: "active",
-          is_active: true,
-          closed_at: null,
-          close_reason: null,
-        })
-        .in("id", ids);
+    // 15. Products
+    deleted.products = await deleteAllRows(adminClient, "products");
 
-      campaignsReset += ids.length;
-      if (camps.length < 1000) moreCampaigns = false;
-    }
-    deleted.campaigns_reset = campaignsReset;
+    // 16. Restricted serials
+    deleted.restricted_serials = await deleteAllRows(adminClient, "restricted_serials");
+
+    // 17. City group members → city groups → cities
+    deleted.city_group_members = await deleteAllRows(adminClient, "city_group_members");
+    deleted.city_groups = await deleteAllRows(adminClient, "city_groups");
+    deleted.cities = await deleteAllRows(adminClient, "cities");
+
+    // 18. Vendors
+    deleted.vendors = await deleteAllRows(adminClient, "vendors");
+
+    // 19. User roles (keep the admin performing the reset)
+    deleted.user_roles = await deleteAllRowsExcept(adminClient, "user_roles", "user_id", user.id);
+
+    // 20. User profiles (keep the admin performing the reset)
+    deleted.user_profiles = await deleteAllRowsExcept(adminClient, "user_profiles", "user_id", user.id);
+
+    // Preserve app_settings and email_templates (system configuration)
 
     // Log the reset action
     await adminClient.from("admin_audit_logs").insert({
