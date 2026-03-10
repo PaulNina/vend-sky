@@ -13,64 +13,44 @@ import { Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
 function useRegistrationStatus(campaignId?: string) {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [campaignSubtitle, setCampaignSubtitle] = useState("");
-  const [campaignData, setCampaignData] = useState<{ id: string; require_vendor_approval: boolean } | null>(null);
-  const [message, setMessage] = useState("");
+  const [campaignData, setCampaignData] = useState<{ id: string; enrollmentOpen: boolean } | null>(null);
+  const [ready, setReady] = useState(false);
   
   useEffect(() => {
+    if (!campaignId) {
+      // No campaign in URL → registration always allowed, no campaign context
+      setReady(true);
+      return;
+    }
+
     const check = async () => {
-      let query = supabase
+      const { data: campaign } = await supabase
         .from("campaigns")
-        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
+        .select("id, name, subtitle, registration_enabled, registration_open_at, registration_close_at")
+        .eq("id", campaignId)
         .eq("is_active", true)
-        .eq("status", "active");
+        .eq("status", "active")
+        .maybeSingle();
 
-      if (campaignId) {
-        query = query.eq("id", campaignId);
-      } else {
-        query = query.order("created_at", { ascending: false }).limit(1);
+      if (campaign) {
+        setCampaignName(campaign.name);
+        setCampaignSubtitle(campaign.subtitle || "");
+        const now = new Date();
+        const enrollmentOpen =
+          campaign.registration_enabled &&
+          (!campaign.registration_open_at || new Date(campaign.registration_open_at) <= now) &&
+          (!campaign.registration_close_at || new Date(campaign.registration_close_at) > now);
+        setCampaignData({ id: campaign.id, enrollmentOpen });
       }
-
-      const { data: campaign } = await query.maybeSingle();
-
-      if (!campaign) {
-        setAllowed(false);
-        setMessage(campaignId ? "Esta campaña no existe o no está activa." : "No hay campañas activas en este momento.");
-        return;
-      }
-
-      setCampaignName(campaign.name);
-      setCampaignSubtitle(campaign.subtitle || "");
-      setCampaignData({ id: campaign.id, require_vendor_approval: campaign.require_vendor_approval });
-      const now = new Date();
-
-      if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
-        setAllowed(false);
-        const openDate = new Date(campaign.registration_open_at).toLocaleString("es-BO", { dateStyle: "long", timeStyle: "short" });
-        setMessage(`El registro abre el ${openDate}.`);
-        return;
-      }
-
-      if (campaign.registration_close_at && new Date(campaign.registration_close_at) <= now) {
-        setAllowed(false);
-        setMessage("El periodo de registro ha finalizado.");
-        return;
-      }
-
-      if (!campaign.registration_enabled) {
-        setAllowed(false);
-        setMessage("El registro de vendedores está temporalmente cerrado.");
-        return;
-      }
-
-      setAllowed(true);
+      // Registration is always allowed regardless of campaign state
+      setReady(true);
     };
     check();
   }, [campaignId]);
 
-  return { allowed, campaignName, campaignSubtitle, campaignData, message };
+  return { ready, campaignName, campaignSubtitle, campaignData };
 }
 
 export default function RegisterPage() {
