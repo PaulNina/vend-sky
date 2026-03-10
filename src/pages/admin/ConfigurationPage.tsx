@@ -710,6 +710,72 @@ export default function ConfigurationPage() {
     }
   };
 
+  const executeImportAll = async () => {
+    if (!importFile) return;
+    if (importMode === "replace" && importConfirmText !== "IMPORTAR") {
+      toast({ title: "Texto de confirmación incorrecto", variant: "destructive" });
+      return;
+    }
+    setImportingAll(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión expirada");
+
+      // Read Excel file
+      const buffer = await importFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+
+      // Map sheet names back to table keys
+      const labelToKey: Record<string, string> = {};
+      for (const t of BACKUP_TABLES) {
+        labelToKey[t.label.substring(0, 31)] = t.key;
+      }
+
+      const tables: Record<string, Record<string, any>[]> = {};
+      for (const sheetName of wb.SheetNames) {
+        const tableKey = labelToKey[sheetName];
+        if (!tableKey) continue;
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        if (rows.length > 0) {
+          tables[tableKey] = rows as Record<string, any>[];
+        }
+      }
+
+      if (Object.keys(tables).length === 0) {
+        toast({ title: "Sin datos", description: "No se encontraron hojas válidas en el archivo.", variant: "destructive" });
+        setImportingAll(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("import-backup", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { tables, mode: importMode },
+      });
+
+      if (error) throw error;
+
+      const errCount = data.errors?.length || 0;
+      toast({
+        title: "✅ Importación completada",
+        description: `${data.total_imported?.toLocaleString()} registros importados en ${data.tables_processed} tablas.${errCount > 0 ? ` ${errCount} errores.` : ""}`,
+      });
+
+      if (errCount > 0) {
+        console.warn("Errores de importación:", data.errors);
+      }
+
+      setImportDialog(false);
+      setImportFile(null);
+      setImportConfirmText("");
+      loadTableCounts();
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setImportingAll(false);
+  };
+
   // --- Reset system function ---
   const executeReset = async () => {
     if (resetConfirmText !== "RESET TOTAL") {
