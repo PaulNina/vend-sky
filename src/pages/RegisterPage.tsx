@@ -160,8 +160,8 @@ export default function RegisterPage() {
               phone,
               city,
               store_name: storeName || null,
-              pending_approval: needsApproval,
-              is_active: !needsApproval,
+              pending_approval: false,
+              is_active: true,
             })
             .eq("id", existingVendor.id);
           if (vendorErr) throw vendorErr;
