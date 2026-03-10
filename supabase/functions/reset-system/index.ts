@@ -166,10 +166,10 @@ Deno.serve(async (req) => {
     deleted.vendors = await deleteAllRows(adminClient, "vendors");
 
     // 19. User roles (keep the admin performing the reset)
-    deleted.user_roles = await deleteAllRowsExcept(adminClient, "user_roles", "user_id", user.id);
+    deleted.user_roles = await deleteAllRowsExcept(adminClient, "user_roles", "user_id", user.id, "id");
 
-    // 20. User profiles (keep the admin performing the reset)
-    deleted.user_profiles = await deleteAllRowsExcept(adminClient, "user_profiles", "user_id", user.id);
+    // 20. User profiles (keep the admin performing the reset) — uses user_id as PK
+    deleted.user_profiles = await deleteAllRowsExcept(adminClient, "user_profiles", "user_id", user.id, "user_id");
 
     // Preserve app_settings and email_templates (system configuration)
 
