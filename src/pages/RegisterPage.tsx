@@ -92,27 +92,8 @@ export default function RegisterPage() {
     );
   }
 
-  // Registration closed screen
-  if (allowed === false) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center space-y-4">
-            <Lock className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h2 className="text-2xl font-bold">Registro no disponible</h2>
-            {campaignName && <p className="text-sm font-medium text-primary">{campaignName}</p>}
-            <p className="text-muted-foreground">{message}</p>
-            <Button asChild variant="outline">
-              <Link to="/login">Ir a Iniciar Sesión</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Still loading status
-  if (allowed === null) {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
