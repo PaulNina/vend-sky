@@ -141,6 +141,11 @@ export default function ConfigurationPage() {
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingTable, setExportingTable] = useState<string | null>(null);
+  const [importingAll, setImportingAll] = useState(false);
+  const [importDialog, setImportDialog] = useState(false);
+  const [importMode, setImportMode] = useState<"upsert" | "replace">("upsert");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importConfirmText, setImportConfirmText] = useState("");
 
   // System health state
   const [healthChecks, setHealthChecks] = useState<{
