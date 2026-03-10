@@ -6,6 +6,46 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Helper: delete ALL rows from a table in batches (bypasses 1000-row limit)
+async function deleteAllRows(
+  client: any,
+  table: string,
+  pkColumn = "id"
+): Promise<number> {
+  let totalDeleted = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    // Fetch a batch of IDs to delete
+    const { data: rows, error: fetchErr } = await client
+      .from(table)
+      .select(pkColumn)
+      .limit(1000);
+
+    if (fetchErr) throw new Error(`Error fetching ${table}: ${fetchErr.message}`);
+    if (!rows || rows.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    const ids = rows.map((r: any) => r[pkColumn]);
+    const { error: delErr } = await client
+      .from(table)
+      .delete()
+      .in(pkColumn, ids);
+
+    if (delErr) throw new Error(`Error deleting ${table}: ${delErr.message}`);
+    totalDeleted += ids.length;
+
+    // If we got less than 1000, we're done
+    if (rows.length < 1000) {
+      hasMore = false;
+    }
+  }
+
+  return totalDeleted;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,63 +80,95 @@ Deno.serve(async (req) => {
 
     const deleted: Record<string, number> = {};
 
-    // Order matters due to foreign keys
-    // 1. Delete commission payments
-    const { count: c1 } = await adminClient.from("commission_payments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.commission_payments = c1 || 0;
+    // Order matters due to foreign keys — delete children first
+    // 1. Commission payments
+    deleted.commission_payments = await deleteAllRows(adminClient, "commission_payments");
 
-    // 2. Delete supervisor audits
-    const { count: c2 } = await adminClient.from("supervisor_audits").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.supervisor_audits = c2 || 0;
+    // 2. Supervisor audits
+    deleted.supervisor_audits = await deleteAllRows(adminClient, "supervisor_audits");
 
-    // 3. Delete reviews
-    const { count: c3 } = await adminClient.from("reviews").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.reviews = c3 || 0;
+    // 3. Reviews
+    deleted.reviews = await deleteAllRows(adminClient, "reviews");
 
-    // 4. Delete sale attachments
-    const { count: c4 } = await adminClient.from("sale_attachments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.sale_attachments = c4 || 0;
+    // 4. Sale attachments
+    deleted.sale_attachments = await deleteAllRows(adminClient, "sale_attachments");
 
-    // 5. Delete sales
-    const { count: c5 } = await adminClient.from("sales").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.sales = c5 || 0;
+    // 5. Sales
+    deleted.sales = await deleteAllRows(adminClient, "sales");
 
-    // 6. Reset serials to available
-    const { count: c6 } = await adminClient.from("serials").update({ status: "available", used_sale_id: null }).neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.serials_reset = c6 || 0;
+    // 6. Reset serials to available (in batches)
+    let serialsReset = 0;
+    let moreSerials = true;
+    while (moreSerials) {
+      const { data: usedSerials } = await adminClient
+        .from("serials")
+        .select("id")
+        .neq("status", "available")
+        .limit(1000);
 
-    // 7. Delete vendor campaign enrollments
-    const { count: c7 } = await adminClient.from("vendor_campaign_enrollments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.vendor_campaign_enrollments = c7 || 0;
+      if (!usedSerials || usedSerials.length === 0) {
+        moreSerials = false;
+        break;
+      }
 
-    // 8. Delete vendor blocks
-    const { count: c8 } = await adminClient.from("vendor_blocks").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.vendor_blocks = c8 || 0;
+      const ids = usedSerials.map((s: any) => s.id);
+      await adminClient
+        .from("serials")
+        .update({ status: "available", used_sale_id: null })
+        .in("id", ids);
 
-    // 9. Delete vendor store history
-    const { count: c9 } = await adminClient.from("vendor_store_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.vendor_store_history = c9 || 0;
+      serialsReset += ids.length;
+      if (usedSerials.length < 1000) moreSerials = false;
+    }
+    deleted.serials_reset = serialsReset;
 
-    // 10. Delete notifications
-    const { count: c10 } = await adminClient.from("notifications").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.notifications = c10 || 0;
+    // 7. Vendor campaign enrollments
+    deleted.vendor_campaign_enrollments = await deleteAllRows(adminClient, "vendor_campaign_enrollments");
 
-    // 11. Delete admin audit logs
-    const { count: c11 } = await adminClient.from("admin_audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.admin_audit_logs = c11 || 0;
+    // 8. Vendor blocks
+    deleted.vendor_blocks = await deleteAllRows(adminClient, "vendor_blocks");
 
-    // 12. Delete campaign periods
-    const { count: c12 } = await adminClient.from("campaign_periods").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.campaign_periods = c12 || 0;
+    // 9. Vendor store history
+    deleted.vendor_store_history = await deleteAllRows(adminClient, "vendor_store_history");
 
-    // 13. Reset campaigns to draft
-    const { count: c13 } = await adminClient.from("campaigns").update({
-      status: "active",
-      is_active: true,
-      closed_at: null,
-      close_reason: null,
-    }).neq("id", "00000000-0000-0000-0000-000000000000");
-    deleted.campaigns_reset = c13 || 0;
+    // 10. Notifications
+    deleted.notifications = await deleteAllRows(adminClient, "notifications");
+
+    // 11. Admin audit logs
+    deleted.admin_audit_logs = await deleteAllRows(adminClient, "admin_audit_logs");
+
+    // 12. Campaign periods
+    deleted.campaign_periods = await deleteAllRows(adminClient, "campaign_periods");
+
+    // 13. Reset campaigns to active
+    let campaignsReset = 0;
+    let moreCampaigns = true;
+    while (moreCampaigns) {
+      const { data: camps } = await adminClient
+        .from("campaigns")
+        .select("id")
+        .limit(1000);
+
+      if (!camps || camps.length === 0) {
+        moreCampaigns = false;
+        break;
+      }
+
+      const ids = camps.map((c: any) => c.id);
+      await adminClient
+        .from("campaigns")
+        .update({
+          status: "active",
+          is_active: true,
+          closed_at: null,
+          close_reason: null,
+        })
+        .in("id", ids);
+
+      campaignsReset += ids.length;
+      if (camps.length < 1000) moreCampaigns = false;
+    }
+    deleted.campaigns_reset = campaignsReset;
 
     // Log the reset action
     await adminClient.from("admin_audit_logs").insert({
