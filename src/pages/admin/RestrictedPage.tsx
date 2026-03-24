@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import { exportToExcel } from "@/lib/exportExcel";
 import * as XLSX from "xlsx";
 
 interface Restricted {
-  id: string;
+  id: number;
   serial: string;
-  reason: string;
-  source_campaign: string | null;
-  imported_at: string;
+  motivo: string;
+  campanaNombre?: string | null;
+  importadoEn: string;
 }
 
 export default function RestrictedPage() {
@@ -25,9 +25,7 @@ export default function RestrictedPage() {
 
   const load = async () => {
     setLoading(true);
-    let q = supabase.from("restricted_serials").select("*").order("imported_at", { ascending: false }).limit(500);
-    if (search) q = q.ilike("serial", `%${search}%`);
-    const { data } = await q;
+    const data = await apiGet<Restricted[]>(`/restricted-serials${search ? `?search=${encodeURIComponent(search)}` : ""}`).catch(() => []);
     setItems(data || []);
     setLoading(false);
   };
@@ -45,15 +43,14 @@ export default function RestrictedPage() {
       const rows: any[] = XLSX.utils.sheet_to_json(ws);
       const toInsert = rows.map((r) => ({
         serial: String(r.serial || r.Serial || r.SERIAL || "").trim(),
-        reason: String(r.reason || r.Reason || r.motivo || "Participó en otra promoción"),
-        source_campaign: r.source_campaign || r.campaña || null,
+        motivo: String(r.reason || r.Reason || r.motivo || "Participó en otra promoción"),
+        campanaNombre: r.source_campaign || r.campaña || null,
       })).filter((r) => r.serial);
 
       if (toInsert.length === 0) { toast({ title: "Error", description: "Sin datos válidos.", variant: "destructive" }); return; }
 
       for (let i = 0; i < toInsert.length; i += 500) {
-        const { error } = await supabase.from("restricted_serials").insert(toInsert.slice(i, i + 500));
-        if (error) throw error;
+        await apiPost("/restricted-serials/bulk", toInsert.slice(i, i + 500));
       }
       toast({ title: "Importación exitosa", description: `${toInsert.length} restringidos importados.` });
       load();
@@ -63,13 +60,13 @@ export default function RestrictedPage() {
   };
 
   const handleExport = () => {
-    exportToExcel(items.map((i) => ({ Serial: i.serial, Motivo: i.reason, Campaña: i.source_campaign || "", Fecha: i.imported_at.split("T")[0] })), "restringidos");
+    exportToExcel(items.map((i) => ({ Serial: i.serial, Motivo: i.motivo, Campaña: i.campanaNombre || "", Fecha: i.importadoEn?.split("T")[0] })), "restringidos");
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("restricted_serials").delete().eq("id", id);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Eliminado" }); load(); }
+  const handleDelete = async (id: number) => {
+    await apiDelete(`/restricted-serials/${id}`).catch(() => {});
+    toast({ title: "Eliminado" });
+    load();
   };
 
   return (
@@ -81,9 +78,7 @@ export default function RestrictedPage() {
           <label><Button asChild disabled={importing}><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importando..." : "Importar"}</span></Button><input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleImport} /></label>
         </div>
       </div>
-
       <Input placeholder="Buscar serial restringido..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
-
       <Card>
         <CardContent className="p-0">
           {loading ? <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div> : (
@@ -93,9 +88,9 @@ export default function RestrictedPage() {
                 {items.map((i) => (
                   <TableRow key={i.id}>
                     <TableCell className="font-mono">{i.serial}</TableCell>
-                    <TableCell className="text-sm">{i.reason}</TableCell>
-                    <TableCell className="text-sm">{i.source_campaign || "—"}</TableCell>
-                    <TableCell className="text-sm">{i.imported_at.split("T")[0]}</TableCell>
+                    <TableCell className="text-sm">{i.motivo}</TableCell>
+                    <TableCell className="text-sm">{i.campanaNombre || "—"}</TableCell>
+                    <TableCell className="text-sm">{i.importadoEn?.split("T")[0]}</TableCell>
                     <TableCell><Button variant="ghost" size="icon" onClick={() => handleDelete(i.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}

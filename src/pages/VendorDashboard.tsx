@@ -1,43 +1,36 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiGet } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign } from "lucide-react";
 
-interface Campaign { id: string; name: string; }
+interface VendorStats {
+  approved: number;
+  pending: number;
+  rejected: number;
+  bonusBs: number;
+  points: number;
+}
 
 export default function VendorDashboard() {
   const { user } = useAuth();
   const [countdown, setCountdown] = useState("");
-  const [stats, setStats] = useState({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [stats, setStats] = useState<VendorStats>({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
 
   useEffect(() => {
-    supabase.from("campaigns").select("id, name").eq("is_active", true).then(({ data }) => {
-      if (data && data.length > 0) { setCampaigns(data); setSelectedCampaign(data[0].id); }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!user || !selectedCampaign) return;
-    const loadStats = async () => {
-      const { data: vendor } = await supabase.from("vendors").select("id").eq("user_id", user.id).maybeSingle();
-      if (!vendor) return;
-      const { data: sales } = await supabase.from("sales").select("status, points, bonus_bs").eq("vendor_id", vendor.id).eq("campaign_id", selectedCampaign);
-      if (sales) {
+    if (!user) return;
+    apiGet<VendorStats>("/vendor/stats")
+      .then((data) => {
         setStats({
-          approved: sales.filter(s => s.status === 'approved').length,
-          bonusBs: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + Number(s.bonus_bs), 0),
-          points: sales.filter(s => s.status === 'approved').reduce((sum, s) => sum + s.points, 0),
-          pending: sales.filter(s => s.status === 'pending').length,
-          rejected: sales.filter(s => s.status === 'rejected').length,
+          approved: data.approved ?? 0,
+          bonusBs: data.bonusBs ?? 0,
+          points: data.points ?? 0,
+          pending: data.pending ?? 0,
+          rejected: data.rejected ?? 0,
         });
-      }
-    };
-    loadStats();
-  }, [user, selectedCampaign]);
+      })
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -82,14 +75,6 @@ export default function VendorDashboard() {
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Resumen de tu actividad</p>
         </div>
-        {campaigns.length > 1 && (
-          <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-            <SelectTrigger className="w-full sm:w-[220px]"><SelectValue placeholder="Campaña" /></SelectTrigger>
-            <SelectContent>
-              {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
       {/* Countdown card */}
@@ -105,7 +90,7 @@ export default function VendorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Stats - 2 cols on mobile, 3 on sm, 5 on lg */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         {statCards.map((stat) => (
           <Card key={stat.label} className="hover:border-primary/20 transition-all duration-200">

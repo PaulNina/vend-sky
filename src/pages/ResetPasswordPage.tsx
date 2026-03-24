@@ -1,29 +1,20 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Check for recovery event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // User is in recovery mode
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,22 +26,27 @@ export default function ResetPasswordPage() {
       toast({ title: "Error", description: "La contraseña debe tener al menos 6 caracteres.", variant: "destructive" });
       return;
     }
+    if (!token) {
+      toast({ title: "Error", description: "No se proporcionó un token válido en la URL.", variant: "destructive" });
+      return;
+    }
+    
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await apiPost("/auth/reset-password", { token, newPassword: password });
       toast({ title: "Contraseña actualizada", description: "Ya puedes iniciar sesión con tu nueva contraseña." });
-      navigate("/");
+      navigate("/login");
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "No se pudo actualizar la contraseña.", variant: "destructive" });
     }
     setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50">
-        <CardHeader>
-          <CardTitle>Nueva Contraseña</CardTitle>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 bg-[url('/bg-pattern.svg')] bg-cover bg-center">
+      <Card className="w-full max-w-md border-border/50 shadow-xl backdrop-blur-sm bg-card/95">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-display font-bold">Nueva Contraseña</CardTitle>
           <CardDescription>Ingresa tu nueva contraseña</CardDescription>
         </CardHeader>
         <CardContent>

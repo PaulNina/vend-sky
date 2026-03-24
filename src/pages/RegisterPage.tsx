@@ -1,86 +1,71 @@
 import { useState, useEffect } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiPost, apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
-function useRegistrationStatus() {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [campaignName, setCampaignName] = useState("");
-  const [message, setMessage] = useState("");
-  const [requireApproval, setRequireApproval] = useState(false);
+interface Campaign {
+  id: number;
+  nombre: string;
+  activo: boolean;
+}
 
-  useEffect(() => {
-    const check = async () => {
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("name, registration_enabled, registration_open_at, registration_close_at, require_vendor_approval")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!campaign) {
-        setAllowed(false);
-        setMessage("No hay campañas activas en este momento.");
-        return;
-      }
-
-      setCampaignName(campaign.name);
-      setRequireApproval(campaign.require_vendor_approval ?? false);
-      const now = new Date();
-
-      if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
-        setAllowed(false);
-        const openDate = new Date(campaign.registration_open_at).toLocaleString("es-BO", { dateStyle: "long", timeStyle: "short" });
-        setMessage(`El registro abre el ${openDate}.`);
-        return;
-      }
-
-      if (campaign.registration_close_at && new Date(campaign.registration_close_at) <= now) {
-        setAllowed(false);
-        setMessage("El periodo de registro ha finalizado.");
-        return;
-      }
-
-      if (!campaign.registration_enabled) {
-        setAllowed(false);
-        setMessage("El registro de vendedores está temporalmente cerrado.");
-        return;
-      }
-
-      setAllowed(true);
-    };
-    check();
-  }, []);
-
-  return { allowed, campaignName, message, requireApproval };
+interface Tienda {
+  id: number;
+  nombre: string;
+  ciudad: {
+    id: number;
+    nombre: string;
+    departamento?: string;
+  };
 }
 
 export default function RegisterPage() {
-  const { user, loading: authLoading, refreshRoles } = useAuth();
-  const { cityNames: CITIES } = useCities();
-  const { allowed, campaignName, message, requireApproval } = useRegistrationStatus();
+  const { user, loading: authLoading } = useAuth();
+  const { cities, departments } = useCities();
+  const [campaignAllowed, setCampaignAllowed] = useState<boolean | null>(null);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [city, setCity] = useState("");
-  const [storeName, setStoreName] = useState("");
+  const [tiendaId, setTiendaId] = useState("");
+  const [tiendas, setTiendas] = useState<Tienda[]>([]);
+  const [loadingTiendas, setLoadingTiendas] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    apiGet<Campaign>("/campaigns/active")
+      .then(() => setCampaignAllowed(true))
+      .catch(() => setCampaignAllowed(false));
+  }, []);
+
+  useEffect(() => {
+    if (!city) {
+      setTiendas([]);
+      setTiendaId("");
+      return;
+    }
+    setLoadingTiendas(true);
+    setTiendaId("");
+    apiGet<Tienda[]>(`/tiendas/by-city/${encodeURIComponent(city)}`)
+      .then((data) => setTiendas(Array.isArray(data) ? data : []))
+      .catch(() => setTiendas([]))
+      .finally(() => setLoadingTiendas(false));
+  }, [city]);
+
   if (authLoading) return null;
-  if (user && !success && !loading) return <Navigate to="/v" replace />;
+  if (user && !success) return <Navigate to="/v" replace />;
 
   if (success) {
     return (
@@ -88,14 +73,8 @@ export default function RegisterPage() {
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <CheckCircle2 className="h-16 w-16 text-success mx-auto" />
-            <h2 className="text-2xl font-bold">
-              {requireApproval ? "¡Registro enviado!" : "¡Registro exitoso!"}
-            </h2>
-            <p className="text-muted-foreground">
-              {requireApproval
-                ? "Tu cuenta está pendiente de aprobación por un administrador. Te notificaremos cuando tu cuenta esté activa."
-                : "Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión."}
-            </p>
+            <h2 className="text-2xl font-bold">¡Registro exitoso!</h2>
+            <p className="text-muted-foreground">Tu cuenta ha sido creada. Un administrador revisará tu solicitud para habilitar tu acceso.</p>
             <Button asChild variant="outline">
               <Link to="/login">Ir a Iniciar Sesión</Link>
             </Button>
@@ -105,16 +84,14 @@ export default function RegisterPage() {
     );
   }
 
-  // Registration closed screen
-  if (allowed === false) {
+  if (campaignAllowed === false) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <Lock className="h-16 w-16 text-muted-foreground mx-auto" />
             <h2 className="text-2xl font-bold">Registro no disponible</h2>
-            {campaignName && <p className="text-sm font-medium text-primary">{campaignName}</p>}
-            <p className="text-muted-foreground">{message}</p>
+            <p className="text-muted-foreground">No hay campañas activas en este momento.</p>
             <Button asChild variant="outline">
               <Link to="/login">Ir a Iniciar Sesión</Link>
             </Button>
@@ -124,8 +101,7 @@ export default function RegisterPage() {
     );
   }
 
-  // Still loading status
-  if (allowed === null) {
+  if (campaignAllowed === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -139,86 +115,16 @@ export default function RegisterPage() {
       toast({ title: "Error", description: "Debes aceptar los términos y condiciones.", variant: "destructive" });
       return;
     }
-
     setLoading(true);
     try {
-      // Check if email already exists in vendors (cloned base)
-      const { data: existingVendor } = await supabase
-        .from("vendors")
-        .select("id, user_id, email")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existingVendor && existingVendor.user_id) {
-        toast({ title: "Correo ya registrado", description: "Este correo ya está en uso. Usa 'Ingresar' o recupera tu contraseña.", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
-      if (phone) {
-        const { data: phoneVendor } = await supabase
-          .from("vendors")
-          .select("id")
-          .eq("phone", phone)
-          .maybeSingle();
-
-        if (phoneVendor) {
-          toast({ title: "Teléfono duplicado", description: "Este número de teléfono ya está registrado con otro vendedor.", variant: "destructive" });
-          setLoading(false);
-          return;
-        }
-      }
-
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      await apiPost("/auth/register", {
+        nombreCompleto: fullName,
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        telefono: phone,
+        ciudad: city,
+        tiendaId: tiendaId ? Number(tiendaId) : null,
       });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("No se pudo crear el usuario");
-
-      const userId = authData.user.id;
-
-      if (existingVendor && !existingVendor.user_id) {
-        await supabase
-          .from("vendors")
-          .update({
-            user_id: userId,
-            full_name: fullName,
-            phone,
-            city,
-            store_name: storeName || null,
-            pending_approval: requireApproval,
-            is_active: !requireApproval,
-          })
-          .eq("id", existingVendor.id);
-      } else {
-        await supabase.from("vendors").insert({
-          user_id: userId,
-          full_name: fullName,
-          email,
-          phone: phone || null,
-          city,
-          store_name: storeName || null,
-          pending_approval: requireApproval,
-          is_active: !requireApproval,
-        });
-      }
-
-      if (!requireApproval) {
-        await supabase.from("user_roles").insert({
-          user_id: userId,
-          role: "vendedor" as any,
-          city,
-        });
-        // Refresh roles in AuthContext so RequireAuth sees the new role
-        await refreshRoles();
-      }
-
-      if (requireApproval) {
-        await supabase.auth.signOut();
-      }
       setSuccess(true);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -263,15 +169,35 @@ export default function RegisterPage() {
                 <Select value={city} onValueChange={setCity} required>
                   <SelectTrigger><SelectValue placeholder="Selecciona tu ciudad" /></SelectTrigger>
                   <SelectContent>
-                    {CITIES.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectGroup key={dept}>
+                        <SelectLabel className="text-muted-foreground">{dept}</SelectLabel>
+                        {cities.filter((c) => c.departamento === dept).map((c) => (
+                          <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Nombre de tienda</Label>
-                <Input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Mi Tienda (opcional)" />
+                <Label>Tienda</Label>
+                {loadingTiendas ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando tiendas...</div>
+                ) : !city ? (
+                  <p className="text-xs text-muted-foreground">Selecciona una ciudad primero.</p>
+                ) : tiendas.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No hay tiendas registradas en {city}. El administrador la asignará luego.</p>
+                ) : (
+                  <Select value={tiendaId} onValueChange={setTiendaId}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona tu tienda (opcional)" /></SelectTrigger>
+                    <SelectContent>
+                      {tiendas.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="flex items-start gap-2">
                 <Checkbox id="terms" checked={acceptTerms} onCheckedChange={(v) => setAcceptTerms(v === true)} />

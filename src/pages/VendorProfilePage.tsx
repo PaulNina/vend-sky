@@ -1,73 +1,92 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiGet, apiPut, getToken, uploadUrl } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, UserCircle, Store, Shirt, MapPin, Phone, Mail, Pencil, Save, X } from "lucide-react";
+import { useCities } from "@/hooks/useCities";
 
-interface VendorData {
-  id: string;
-  full_name: string; email: string | null; phone: string | null;
-  city: string; store_name: string | null; talla_polera: string | null;
-  is_active: boolean; pending_approval: boolean;
+interface TiendaData {
+  id: number;
+  nombre: string;
+  ciudad: {
+    id: number;
+    nombre: string;
+    departamento?: string;
+  };
 }
 
-interface StoreHistory {
-  id: string; previous_store: string | null; new_store: string | null;
-  changed_at: string; observation: string | null;
+interface VendorData {
+  id: number;
+  nombreCompleto: string;
+  email: string | null;
+  telefono: string | null;
+  tienda: TiendaData | null;
+  activo: boolean;
+  pendingApproval?: boolean;
+  tallaPolera?: string | null;
+  fotoQr?: string | null;
 }
 
 const TALLAS = ["XS", "S", "M", "L", "XL", "XXL"];
 
 export default function VendorProfilePage() {
   const { user } = useAuth();
+  const { cities, departments } = useCities();
   const [vendor, setVendor] = useState<VendorData | null>(null);
-  const [history, setHistory] = useState<StoreHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [storeName, setStoreName] = useState("");
-  const [tallaPolera, setTallaPolera] = useState("");
+  const [city, setCity] = useState("");
+  const [tiendaId, setTiendaId] = useState("");
+  const [tiendas, setTiendas] = useState<TiendaData[]>([]);
+  const [loadingTiendas, setLoadingTiendas] = useState(false);
+  const [tallaPolera, setTallaPolera] = useState<string>("M");
+  const [fotoQr, setFotoQr] = useState<File | null>(null);
+  const [fotoQrPreview, setFotoQrPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing || !city) {
+      if (!editing) setTiendas([]);
+      return;
+    }
+    setLoadingTiendas(true);
+    apiGet<TiendaData[]>(`/tiendas/by-city/${encodeURIComponent(city)}`)
+      .then((data) => setTiendas(Array.isArray(data) ? data : []))
+      .catch(() => setTiendas([]))
+      .finally(() => setLoadingTiendas(false));
+  }, [city, editing]);
 
   useEffect(() => {
     if (!user) return;
-    const load = async () => {
-      const { data: v } = await supabase
-        .from("vendors")
-        .select("id, full_name, email, phone, city, store_name, talla_polera, is_active, pending_approval")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (v) {
-        setVendor(v);
-        syncEditFields(v);
-        const { data: h } = await supabase
-          .from("vendor_store_history")
-          .select("id, previous_store, new_store, changed_at, observation")
-          .eq("vendor_id", v.id)
-          .order("changed_at", { ascending: false });
-        setHistory(h || []);
-      }
-      setLoading(false);
-    };
-    load();
+    apiGet<VendorData>("/vendor/me")
+      .then((v) => {
+        if (v) {
+          setVendor(v);
+          syncEditFields(v);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [user]);
 
   const syncEditFields = (v: VendorData) => {
-    setFullName(v.full_name);
-    setPhone(v.phone || "");
-    setStoreName(v.store_name || "");
-    setTallaPolera(v.talla_polera || "");
+    setFullName(v.nombreCompleto);
+    setPhone(v.telefono || "");
+    setCity(v.tienda?.ciudad?.nombre || "");
+    setTiendaId(v.tienda ? String(v.tienda.id) : "");
+    setTallaPolera(v.tallaPolera || "M");
+    setFotoQr(null);
+    setFotoQrPreview(v.fotoQr ? uploadUrl(v.fotoQr) : null);
   };
 
   const handleCancel = () => {
@@ -83,23 +102,42 @@ export default function VendorProfilePage() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from("vendors")
-      .update({
-        full_name: trimmedName,
-        phone: phone.trim() || null,
-        store_name: storeName.trim() || null,
-        talla_polera: tallaPolera || null,
-      })
-      .eq("id", vendor.id);
+    try {
+      const formData = new FormData();
+      formData.append("nombreCompleto", trimmedName);
+      formData.append("telefono", phone.trim());
+      formData.append("ciudad", city);
+      if (tiendaId) formData.append("tiendaId", tiendaId);
+      formData.append("tallaPolera", tallaPolera);
+      if (fotoQr) {
+        formData.append("fotoQr", fotoQr);
+      }
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      const updated = { ...vendor, full_name: trimmedName, phone: phone.trim() || null, store_name: storeName.trim() || null, talla_polera: tallaPolera || null };
+      // We use fetch directly since apiPut expects JSON usually. Or if apiPostFormData supports PUT method overrides.
+      // Easiest is to use the exact same logic apiPostFormData uses with PUT.
+      const url = uploadUrl('/vendor/me');
+      const _token = getToken();
+      const headers: HeadersInit = {};
+      if (_token) headers.Authorization = `Bearer ${_token}`;
+
+      const res = await fetch(url, {
+        method: "PUT",
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Fallo al actualizar el perfil.");
+      const updated = await res.json();
+      
       setVendor(updated);
       toast({ title: "Perfil actualizado" });
       setEditing(false);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        toast({ title: "Error", description: e.message, variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: "Ocurrió un error inesperado.", variant: "destructive" });
+      }
     }
     setSaving(false);
   };
@@ -107,11 +145,11 @@ export default function VendorProfilePage() {
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!vendor) return <p className="text-muted-foreground text-center py-12">No se encontró información de vendedor.</p>;
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
-
   const readOnlyItems = [
     { icon: Mail, label: "Email", value: vendor.email || "—" },
-    { icon: MapPin, label: "Ciudad", value: vendor.city },
+    { icon: MapPin, label: "Departamento", value: vendor.tienda?.ciudad?.departamento || "—" },
+    { icon: MapPin, label: "Ciudad", value: vendor.tienda?.ciudad?.nombre || "—" },
+    { icon: Shirt, label: "Talla de Polera", value: vendor.tallaPolera || "Sin definir" },
   ];
 
   return (
@@ -119,10 +157,9 @@ export default function VendorProfilePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
-            <UserCircle className="h-6 w-6 text-primary" />
-            Mi Perfil
+            <UserCircle className="h-6 w-6 text-primary" />Mi Perfil
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Datos personales y kardex</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Datos personales</p>
         </div>
         {!editing && (
           <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
@@ -135,13 +172,12 @@ export default function VendorProfilePage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display">Datos del Vendedor</CardTitle>
-            <Badge variant={vendor.is_active ? "default" : "secondary"} className="text-[10px]">
-              {vendor.pending_approval ? "Pendiente" : vendor.is_active ? "Activo" : "Inactivo"}
+            <Badge variant={vendor.activo ? "default" : "secondary"} className="text-[10px]">
+              {vendor.pendingApproval ? "Pendiente" : vendor.activo ? "Activo" : "Inactivo"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Read-only fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {readOnlyItems.map((item) => (
               <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
@@ -156,49 +192,92 @@ export default function VendorProfilePage() {
             ))}
           </div>
 
-          {/* Editable fields */}
           {editing ? (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label htmlFor="fullName" className="text-xs">Nombre completo</Label><Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} /></div>
+                <div className="space-y-1.5"><Label htmlFor="phone" className="text-xs">Teléfono</Label><Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} /></div>
+                
                 <div className="space-y-1.5">
-                  <Label htmlFor="fullName" className="text-xs">Nombre completo</Label>
-                  <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone" className="text-xs">Teléfono</Label>
-                  <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="storeName" className="text-xs">Nombre de tienda</Label>
-                  <Input id="storeName" value={storeName} onChange={(e) => setStoreName(e.target.value)} maxLength={100} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="talla" className="text-xs">Talla polera</Label>
-                  <Select value={tallaPolera} onValueChange={setTallaPolera}>
-                    <SelectTrigger id="talla"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <Label className="text-xs">Ciudad *</Label>
+                  <Select value={city} onValueChange={(val) => { setCity(val); setTiendaId(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona tu ciudad" /></SelectTrigger>
                     <SelectContent>
-                      {TALLAS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {departments.map((dept) => (
+                        <SelectGroup key={dept}>
+                          <SelectLabel className="text-muted-foreground">{dept}</SelectLabel>
+                          {cities.filter((c) => c.departamento === dept).map((c) => (
+                            <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tienda</Label>
+                  {loadingTiendas ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando...</div>
+                  ) : !city ? (
+                    <p className="text-xs text-muted-foreground">Selecciona una ciudad primero.</p>
+                  ) : tiendas.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No hay tiendas en {city}.</p>
+                  ) : (
+                    <Select value={tiendaId} onValueChange={setTiendaId}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona tienda (opcional)" /></SelectTrigger>
+                      <SelectContent>
+                        {tiendas.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Talla de Polera</Label>
+                  <Select value={tallaPolera} onValueChange={setTallaPolera}>
+                    <SelectTrigger><SelectValue placeholder="Seleccione talla" /></SelectTrigger>
+                    <SelectContent>
+                      {TALLAS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">QR de Pagos (Imagen)</Label>
+                  <Input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setFotoQr(e.target.files[0]);
+                        setFotoQrPreview(URL.createObjectURL(e.target.files[0]));
+                      }
+                    }} 
+                  />
+                  {fotoQrPreview && (
+                    <div className="mt-2 text-center border rounded p-2 bg-muted/20">
+                      <p className="text-xs text-muted-foreground mb-2">Vista previa QR actual:</p>
+                      <img src={fotoQrPreview} alt="QR" className="mx-auto max-h-[150px] object-contain" />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
-                  <X className="h-3.5 w-3.5 mr-1" /> Cancelar
-                </Button>
+                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}><X className="h-3.5 w-3.5 mr-1" /> Cancelar</Button>
                 <Button size="sm" onClick={handleSave} disabled={saving}>
-                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-                  Guardar
+                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}Guardar
                 </Button>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { icon: UserCircle, label: "Nombre", value: vendor.full_name },
-                { icon: Phone, label: "Teléfono", value: vendor.phone || "—" },
-                { icon: Store, label: "Tienda", value: vendor.store_name || "Sin tienda" },
-                { icon: Shirt, label: "Talla Polera", value: vendor.talla_polera || "No asignada" },
+                { icon: UserCircle, label: "Nombre", value: vendor.nombreCompleto },
+                { icon: Phone, label: "Teléfono", value: vendor.telefono || "—" },
+                { icon: Store, label: "Tienda", value: vendor.tienda?.nombre || "Sin tienda" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -210,39 +289,14 @@ export default function VendorProfilePage() {
                   </div>
                 </div>
               ))}
+              
+              {vendor.fotoQr && (
+                <div className="flex flex-col items-center gap-2 p-3 sm:col-span-2 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest w-full text-left">Foto QR Asociada</p>
+                  <img src={uploadUrl(vendor.fotoQr)} alt="QR Vendedor" className="max-h-[200px] object-contain border rounded" />
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-display">Historial de Cambios de Tienda</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {history.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12 text-sm">Sin cambios registrados.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Tienda Anterior</TableHead>
-                  <TableHead>Tienda Nueva</TableHead>
-                  <TableHead>Observación</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map((h) => (
-                  <TableRow key={h.id}>
-                    <TableCell className="text-sm">{formatDate(h.changed_at)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{h.previous_store || "—"}</TableCell>
-                    <TableCell className="text-sm font-medium">{h.new_store || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{h.observation || "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           )}
         </CardContent>
       </Card>

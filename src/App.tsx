@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import RequireAuth from "@/components/guards/RequireAuth";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 // Public pages
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 
@@ -23,6 +25,7 @@ import RegisterSalePage from "@/pages/RegisterSalePage";
 import MySalesPage from "@/pages/MySalesPage";
 import RankingPage from "@/pages/RankingPage";
 import VendorProfilePage from "@/pages/VendorProfilePage";
+import MyPaymentsPage from "@/pages/MyPaymentsPage";
 
 // Admin pages
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
@@ -31,13 +34,13 @@ import RegistrationRequestsPage from "@/pages/admin/RegistrationRequestsPage";
 import VendorsPage from "@/pages/admin/VendorsPage";
 import ProductsPage from "@/pages/admin/ProductsPage";
 import SerialsPage from "@/pages/admin/SerialsPage";
-import RestrictedPage from "@/pages/admin/RestrictedPage";
 import ReviewsPage from "@/pages/admin/ReviewsPage";
 import AuditPage from "@/pages/admin/AuditPage";
-import EmailRecipientsPage from "@/pages/admin/EmailRecipientsPage";
+import ReportsPage from "@/pages/admin/ReportsPage";
 import UsersRolesPage from "@/pages/admin/UsersRolesPage";
 import ConfigurationPage from "@/pages/admin/ConfigurationPage";
-import MetricsPage from "@/pages/admin/MetricsPage";
+import PaymentsAdminPage from "@/pages/PaymentsAdminPage";
+import TiendasPage from "@/pages/admin/TiendasPage";
 
 
 const queryClient = new QueryClient();
@@ -47,6 +50,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAInstallPrompt />
       <BrowserRouter>
         <AuthProvider>
           <Routes>
@@ -54,6 +58,7 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Vendor (protected) */}
@@ -69,6 +74,7 @@ const App = () => (
               <Route path="/v/mis-ventas" element={<MySalesPage />} />
               <Route path="/v/ranking" element={<RankingPage />} />
               <Route path="/v/perfil" element={<VendorProfilePage />} />
+              <Route path="/v/mis-pagos" element={<MyPaymentsPage />} />
             </Route>
 
             {/* Admin (protected) */}
@@ -85,13 +91,13 @@ const App = () => (
               <Route path="/admin/vendedores" element={<VendorsPage />} />
               <Route path="/admin/productos-modelos" element={<ProductsPage />} />
               <Route path="/admin/seriales" element={<SerialsPage />} />
-              <Route path="/admin/restringidos" element={<RestrictedPage />} />
               <Route path="/admin/revisiones" element={<ReviewsPage />} />
               <Route path="/admin/auditoria" element={<AuditPage />} />
-              <Route path="/admin/metricas" element={<MetricsPage />} />
-              <Route path="/admin/correos-ciudad" element={<EmailRecipientsPage />} />
+              <Route path="/admin/reportes" element={<ReportsPage />} />
               <Route path="/admin/usuarios-roles" element={<UsersRolesPage />} />
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
+              <Route path="/admin/pagos" element={<PaymentsAdminPage />} />
+              <Route path="/admin/tiendas" element={<TiendasPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

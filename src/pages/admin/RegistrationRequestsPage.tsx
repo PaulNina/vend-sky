@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiGet, apiPatch } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,16 +10,23 @@ import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { formatDateTimeBolivia } from "@/lib/utils";
 
 interface PendingVendor {
-  id: string;
-  user_id: string;
-  full_name: string;
+  id: number;
+  nombreCompleto: string;
   email: string | null;
-  phone: string | null;
-  city: string;
-  store_name: string | null;
-  created_at: string;
+  telefono: string | null;
+  tienda: {
+    id: number;
+    nombre: string;
+    ciudad: {
+      id: number;
+      nombre: string;
+      departamento?: string;
+    }
+  } | null;
+  createdAt?: string;
 }
 
 export default function RegistrationRequestsPage() {
@@ -28,15 +35,11 @@ export default function RegistrationRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [rejectDialog, setRejectDialog] = useState<PendingVendor | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [processing, setProcessing] = useState<string | null>(null);
+  const [processing, setProcessing] = useState<number | null>(null);
 
   const loadPending = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("vendors")
-      .select("id, user_id, full_name, email, phone, city, store_name, created_at")
-      .eq("pending_approval", true)
-      .order("created_at", { ascending: true });
+    const data = await apiGet<PendingVendor[]>("/vendors?pending=true").catch(() => []);
     setVendors(data || []);
     setLoading(false);
   };
@@ -45,32 +48,12 @@ export default function RegistrationRequestsPage() {
 
   const handleApprove = async (vendor: PendingVendor) => {
     setProcessing(vendor.id);
-
-    const { data: existingRole } = await supabase
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", vendor.user_id)
-      .eq("role", "vendedor")
-      .maybeSingle();
-
-    if (!existingRole) {
-      await supabase.from("user_roles").insert({
-        user_id: vendor.user_id,
-        role: "vendedor" as any,
-        city: vendor.city,
-      });
-    }
-
-    const { error } = await supabase
-      .from("vendors")
-      .update({ pending_approval: false, is_active: true })
-      .eq("id", vendor.id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Aprobado", description: `${vendor.full_name} fue aprobado como vendedor.` });
+    try {
+      await apiPatch(`/vendors/${vendor.id}/approve`, {});
+      toast({ title: "Aprobado", description: `${vendor.nombreCompleto} fue aprobado como vendedor.` });
       loadPending();
+    } catch (e: unknown) {
+      toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
     }
     setProcessing(null);
   };
@@ -78,23 +61,19 @@ export default function RegistrationRequestsPage() {
   const handleReject = async () => {
     if (!rejectDialog) return;
     setProcessing(rejectDialog.id);
-    const { error } = await supabase
-      .from("vendors")
-      .update({ pending_approval: false, is_active: false })
-      .eq("id", rejectDialog.id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Rechazado", description: `${rejectDialog.full_name} fue rechazado.` });
+    try {
+      await apiPatch(`/vendors/${rejectDialog.id}/reject-registration`, {});
+      toast({ title: "Rechazado", description: `${rejectDialog.nombreCompleto} fue rechazado.` });
       loadPending();
+    } catch (e: unknown) {
+      toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
     }
     setRejectDialog(null);
     setRejectReason("");
     setProcessing(null);
   };
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
+
 
   return (
     <div className="space-y-6">
@@ -106,52 +85,34 @@ export default function RegistrationRequestsPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : vendors.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground">
-              No hay solicitudes pendientes.
-            </div>
+            <div className="text-center p-8 text-muted-foreground">No hay solicitudes pendientes.</div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Ciudad</TableHead>
-                  <TableHead>Tienda</TableHead>
-                  <TableHead>Fecha</TableHead>
+                  <TableHead>Nombre</TableHead><TableHead>Email</TableHead><TableHead>Teléfono</TableHead>
+                  <TableHead>Ciudad</TableHead><TableHead>Depto</TableHead><TableHead>Tienda</TableHead><TableHead>Fecha</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vendors.map((v) => (
                   <TableRow key={v.id}>
-                    <TableCell className="font-medium">{v.full_name}</TableCell>
+                    <TableCell className="font-medium">{v.nombreCompleto}</TableCell>
                     <TableCell className="text-sm">{v.email || "—"}</TableCell>
-                    <TableCell className="text-sm">{v.phone || "—"}</TableCell>
-                    <TableCell><Badge variant="outline">{v.city}</Badge></TableCell>
-                    <TableCell className="text-sm">{v.store_name || "—"}</TableCell>
-                    <TableCell className="text-sm">{formatDate(v.created_at)}</TableCell>
+                    <TableCell className="text-sm">{v.telefono || "—"}</TableCell>
+                    <TableCell><Badge variant="outline">{v.tienda?.ciudad?.nombre || "—"}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="bg-muted text-muted-foreground">{v.tienda?.ciudad?.departamento || "—"}</Badge></TableCell>
+                    <TableCell className="text-sm">{v.tienda?.nombre || "—"}</TableCell>
+                    <TableCell className="text-sm">{formatDateTimeBolivia(v.createdAt)}</TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleApprove(v)}
-                        disabled={processing === v.id}
-                      >
-                        {processing === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                        Aprobar
+                      <Button size="sm" onClick={() => handleApprove(v)} disabled={processing === v.id}>
+                        {processing === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}Aprobar
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => setRejectDialog(v)}
-                        disabled={processing === v.id}
-                      >
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Rechazar
+                      <Button size="sm" variant="destructive" onClick={() => setRejectDialog(v)} disabled={processing === v.id}>
+                        <XCircle className="h-3 w-3 mr-1" />Rechazar
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -164,23 +125,14 @@ export default function RegistrationRequestsPage() {
 
       <Dialog open={!!rejectDialog} onOpenChange={(open) => !open && setRejectDialog(null)}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rechazar solicitud</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Rechazar solicitud</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              ¿Rechazar a <strong>{rejectDialog?.full_name}</strong>?
-            </p>
-            <div className="space-y-2">
-              <Label>Motivo (opcional)</Label>
-              <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Motivo del rechazo..." />
-            </div>
+            <p className="text-sm text-muted-foreground">¿Rechazar a <strong>{rejectDialog?.nombreCompleto}</strong>?</p>
+            <div className="space-y-2"><Label>Motivo (opcional)</Label><Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Motivo del rechazo..." /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectDialog(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={!!processing}>
-              Confirmar rechazo
-            </Button>
+            <Button variant="destructive" onClick={handleReject} disabled={!!processing}>Confirmar rechazo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,603 +1,403 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiGet, apiPostForm } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, XCircle, Upload, ImageIcon, Brain, AlertTriangle, Package, Camera, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useIsMobile } from "@/hooks/use-mobile";
-
+import { Loader2, Package, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { useCities } from "@/hooks/useCities";
+import { useGlobalConfig } from "@/hooks/useGlobalConfig";
 interface Product {
-  id: string;
-  model_code: string;
-  name: string;
-  size_inches: number | null;
-  points_value: number;
-  bonus_bs_value: number;
+  id: number;
+  nombre: string;
+  modelo?: string | null;
+  modeloCodigo?: string | null;
+  tamanoPulgadas?: number | null;
+  pulgadas?: number | null;
+  multiplicadorCupones?: number | null;
+  puntos?: number | null;
+  bonoBs?: number | null;
 }
 
 interface Campaign {
-  id: string;
-  name: string;
-  registration_enabled: boolean;
-  ai_date_validation: boolean;
-  registration_open_at: string | null;
-  registration_close_at: string | null;
+  id: number;
+  nombre: string;
 }
 
-type SerialValidation = {
-  status: "idle" | "checking" | "ok" | "error";
-  message: string;
-};
-
-type AiValidation = {
-  status: "idle" | "validating" | "ok" | "warning" | "error";
-  message: string;
-  date_detected?: string | null;
-  confidence?: number;
-};
-
-// --- Subcomponents ---
-
-function FileInput({ label, file, onFile, onClear, id, isMobile }: { label: string; file: File | null; onFile: (f: File) => void; onClear: () => void; id: string; isMobile: boolean }) {
-  const [preview, setPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!file) { setPreview(null); return; }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs font-medium">{label} *</Label>
-      {preview ? (
-        <div className="relative group rounded-lg overflow-hidden border border-border aspect-square">
-          <img src={preview} alt={label} className="w-full h-full object-cover" />
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onClear(); }}
-            className="absolute top-1 right-1 bg-background/80 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity sm:opacity-100"
-          >
-            <X className="h-3.5 w-3.5 text-destructive" />
-          </button>
-          <div className="absolute bottom-0 inset-x-0 bg-background/70 backdrop-blur-sm py-1 px-2">
-            <p className="text-[10px] text-foreground truncate">{file?.name}</p>
-          </div>
-        </div>
-      ) : (
-        <label
-          htmlFor={id}
-          className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg aspect-square cursor-pointer hover:border-primary/50 active:border-primary transition-colors"
-        >
-          <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-            {isMobile ? <Camera className="h-6 w-6" /> : <Upload className="h-5 w-5" />}
-            <span className="text-[10px] text-center leading-tight">{isMobile ? "Tomar foto" : "Subir imagen"}</span>
-          </div>
-        </label>
-      )}
-      <input
-        id={id}
-        type="file"
-        accept="image/*"
-        capture={isMobile ? "environment" : undefined}
-        className="hidden"
-        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-      />
-    </div>
-  );
+// Backend responde en español: valido, mensaje, modelo, producto, estado, productoId
+interface ValidacionSerial {
+  valido: boolean;
+  mensaje: string;
+  productoId?: number | null;  // FK directo al producto
+  modelo?: string;             // ej: "Q6600H"
+  producto?: string;           // ej: "Skyworth QLED Pro Q6 65\""
+  estado?: string;             // "DISPONIBLE" | "USADO" | "BLOQUEADO" | "NO_ENCONTRADO"
+  totalPuntos?: number;
+  totalBonoBs?: number;
+  cantCampanas?: number;
+  campanas?: Array<{campanaId: number, campanaNombre: string, puntos: number, bonoBs: number}>;
+  fechaRegistroVendedor?: string | null;
 }
-
-function AiValidationBadge({ ai }: { ai: AiValidation }) {
-  if (ai.status === "idle") return null;
-  return (
-    <div className={`mt-3 p-3 rounded-lg border ${
-      ai.status === "validating" ? "border-muted bg-muted/30" :
-      ai.status === "ok" ? "border-success/50 bg-success/10" :
-      ai.status === "warning" ? "border-warning/50 bg-warning/10" :
-      "border-destructive/50 bg-destructive/10"
-    }`}>
-      <div className="flex items-center gap-2 text-sm">
-        {ai.status === "validating" && <Loader2 className="h-4 w-4 animate-spin" />}
-        {ai.status === "ok" && <CheckCircle2 className="h-4 w-4 text-success" />}
-        {ai.status === "warning" && <AlertTriangle className="h-4 w-4 text-warning" />}
-        {ai.status === "error" && <XCircle className="h-4 w-4 text-destructive" />}
-        <Brain className="h-4 w-4" />
-        <span className="font-medium">Validación IA</span>
-      </div>
-      <p className="text-sm mt-1">{ai.message}</p>
-      {ai.date_detected && (
-        <p className="text-xs text-muted-foreground mt-1">
-          Fecha detectada: {ai.date_detected} · Confianza: {Math.round((ai.confidence || 0) * 100)}%
-        </p>
-      )}
-    </div>
-  );
-}
-
-// --- Helper Functions ---
-
-function getBoliviaWeek(dateStr: string) {
-  const date = new Date(dateStr + "T12:00:00-04:00");
-  const day = date.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return {
-    week_start: monday.toISOString().split("T")[0],
-    week_end: sunday.toISOString().split("T")[0],
-  };
-}
-
-function getBoliviaNow() {
-  const now = new Date();
-  const boliviaOffset = -4 * 60;
-  const utcNow = now.getTime() + now.getTimezoneOffset() * 60000;
-  return new Date(utcNow + boliviaOffset * 60000);
-}
-
-function getCurrentWeekBounds() {
-  const boliviaNow = getBoliviaNow();
-  const todayStr = boliviaNow.toISOString().split("T")[0];
-  const week = getBoliviaWeek(todayStr);
-  // max date is today (can't register future sales)
-  return { min: week.week_start, max: todayStr };
-}
-
-function isWithinCurrentWeek(dateStr: string) {
-  const boliviaNow = getBoliviaNow();
-  const currentWeek = getBoliviaWeek(boliviaNow.toISOString().split("T")[0]);
-  const inputWeek = getBoliviaWeek(dateStr);
-  return inputWeek.week_start === currentWeek.week_start;
-}
-
-function isCampaignRegistrationOpen(c: Campaign) {
-  if (!c.registration_enabled) return false;
-  const now = new Date();
-  if (c.registration_open_at && new Date(c.registration_open_at) > now) return false;
-  if (c.registration_close_at && new Date(c.registration_close_at) < now) return false;
-  return true;
-}
-
-// --- Main Component ---
 
 export default function RegisterSalePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCampaign, setSelectedCampaign] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [productAutoDetected, setProductAutoDetected] = useState(false);
+  const { cityNames: CITIES } = useCities();
+  const { ventaFechaMaxSemanas } = useGlobalConfig();
+
   const [serial, setSerial] = useState("");
-  const [serialValidation, setSerialValidation] = useState<SerialValidation>({ status: "idle", message: "" });
-  const [saleDate, setSaleDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [serialStatus, setSerialStatus] = useState<"idle" | "loading" | "valido" | "invalido">("idle");
+  const [serialMsg, setSerialMsg] = useState("");
+  const [serialInfo, setSerialInfo] = useState<ValidacionSerial | null>(null);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [saleDate, setSaleDate] = useState("");
   const [tagFile, setTagFile] = useState<File | null>(null);
-  const [polizaFile, setPolizaFile] = useState<File | null>(null);
-  const [notaFile, setNotaFile] = useState<File | null>(null);
+  const [policyFile, setPolicyFile] = useState<File | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [vendorCity, setVendorCity] = useState("");
-  const [vendorBlocked, setVendorBlocked] = useState(false);
-  const [blockReason, setBlockReason] = useState("");
-  const [aiValidation, setAiValidation] = useState<AiValidation>({ status: "idle", message: "" });
 
   useEffect(() => {
-    if (!user) return;
-    loadData();
-  }, [user]);
+    apiGet<Product[]>("/products/active").then(setProducts).catch(() => {});
+    const now = new Date();
+    const today = now.toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+    setSaleDate(today);
+  }, []);
 
-  const loadData = async () => {
-    if (!user) return;
-    const [campaignsRes, productsRes, vendorRes] = await Promise.all([
-      supabase.from("campaigns").select("id, name, registration_enabled, ai_date_validation, registration_open_at, registration_close_at").eq("is_active", true),
-      supabase.from("products").select("*").eq("is_active", true).order("name"),
-      supabase.from("vendors").select("id, city, pending_approval, is_active").eq("user_id", user.id).single(),
-    ]);
+  const getWeekRange = () => {
+    const now = new Date();
+    // Monday of the current week
+    const monday = new Date(now);
+    const day = now.getDay(); // 0 is Sunday, 1 is Monday...
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    monday.setDate(diff);
 
-    if (campaignsRes.data) {
-      setCampaigns(campaignsRes.data);
-      const openCampaigns = campaignsRes.data.filter(isCampaignRegistrationOpen);
-      if (openCampaigns.length >= 1) {
-        setSelectedCampaign(openCampaigns[0].id);
-      } else if (campaignsRes.data.length === 1) {
-        setSelectedCampaign(campaignsRes.data[0].id);
-      }
+    // Subtract configured weeks
+    if (ventaFechaMaxSemanas > 0) {
+      monday.setDate(monday.getDate() - (ventaFechaMaxSemanas * 7));
     }
-    if (productsRes.data) setProducts(productsRes.data);
-    if (vendorRes.data) {
-      setVendorId(vendorRes.data.id);
-      setVendorCity(vendorRes.data.city);
-      if (vendorRes.data.pending_approval) {
-        setVendorBlocked(true);
-        setBlockReason("Tu cuenta está pendiente de aprobación.");
-      } else if (!vendorRes.data.is_active) {
-        setVendorBlocked(true);
-        setBlockReason("Tu cuenta está inactiva. Contacta al administrador.");
+    
+    const minDate = monday.toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+    const maxDate = now.toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+    return { minDate, maxDate };
+  };
+
+  const { minDate, maxDate } = getWeekRange();
+
+  const validarSerial = async () => {
+    if (!serial.trim()) return;
+    setSerialStatus("loading");
+    setSerialMsg("");
+    setSerialInfo(null);
+    try {
+      const data = await apiGet<ValidacionSerial>(
+        `/serials/${encodeURIComponent(serial.trim())}/validate`,
+      );
+
+      if (data.valido) {
+        setSerialStatus("valido");
+        setSerialMsg(data.mensaje || "Serial válido");
+      } else {
+        setSerialStatus("invalido");
+        setSerialMsg(data.mensaje || "Serial no válido");
       }
+
+      setSerialInfo(data);
+
+      if (data.productoId) {
+        setSelectedProduct(String(data.productoId));
+      } else if (data.modelo) {
+        const m = data.modelo.toLowerCase();
+        const encontrado = products.find(
+          (p) =>
+            p.modelo?.toLowerCase() === m ||
+            p.modeloCodigo?.toLowerCase() === m,
+        );
+        if (encontrado) setSelectedProduct(String(encontrado.id));
+      }
+    } catch (e: unknown) {
+      setSerialStatus("invalido");
+      setSerialMsg(e instanceof Error ? e.message : "Error al validar");
     }
   };
 
-  // Serial validation + auto-detect product
-  useEffect(() => {
-    if (!serial || serial.length < 3) {
-      setSerialValidation({ status: "idle", message: "" });
-      setProductAutoDetected(false);
-      setSelectedProduct("");
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSerialValidation({ status: "checking", message: "Verificando serial..." });
-      const { data: restricted } = await supabase
-        .from("restricted_serials").select("reason").eq("serial", serial).maybeSingle();
-      if (restricted) {
-        setSerialValidation({ status: "error", message: `Serial restringido: ${restricted.reason}` });
-        setProductAutoDetected(false);
-        setSelectedProduct("");
-        return;
-      }
-      const [serialRes, salesRes] = await Promise.all([
-        supabase.from("serials").select("id, status, product_id").eq("serial", serial).maybeSingle(),
-        supabase.from("sales").select("id").eq("serial", serial).not("status", "eq", "rejected").limit(1),
-      ]);
-      const serialData = serialRes.data;
-      if (!serialData) {
-        setSerialValidation({ status: "error", message: "Serial no encontrado en el sistema" });
-        setProductAutoDetected(false);
-        setSelectedProduct("");
-        return;
-      }
-      if (serialData.status === "used" || (salesRes.data && salesRes.data.length > 0)) {
-        setSerialValidation({ status: "error", message: "Serial ya fue registrado en otra venta" });
-        setProductAutoDetected(false);
-        setSelectedProduct("");
-        return;
-      }
-      if (serialData.status === "blocked") {
-        setSerialValidation({ status: "error", message: "Serial bloqueado" });
-        setProductAutoDetected(false);
-        setSelectedProduct("");
-        return;
-      }
-      if (serialData.product_id) {
-        setSelectedProduct(serialData.product_id);
-        setProductAutoDetected(true);
-      } else {
-        setProductAutoDetected(false);
-        setSelectedProduct("");
-      }
-      setSerialValidation({ status: "ok", message: "Serial disponible ✓" });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [serial]);
-
-  const uploadFile = async (file: File, folder: string) => {
-    const ext = file.name.split(".").pop();
-    const path = `${user!.id}/${folder}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("sale-attachments").upload(path, file);
-    if (error) throw error;
-    return path;
+  const compressImage = async (file: File): Promise<File | Blob> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          
+          // Max dimension 1600px
+          const MAX_DIM = 1600;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height *= MAX_DIM / width;
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width *= MAX_DIM / height;
+              height = MAX_DIM;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                // Return original if blob is somehow larger (rare)
+                resolve(blob.size < file.size ? new File([blob], file.name, { type: "image/jpeg" }) : file);
+              } else {
+                resolve(file);
+              }
+            },
+            "image/jpeg",
+            0.75 // 75% quality
+          );
+        };
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedProduct) { toast({ title: "Selecciona un producto", variant: "destructive" }); return; }
+    if (!tagFile || !policyFile || !invoiceFile) {
+      toast({ title: "Adjunta las 3 fotos (TAG, Póliza, Nota)", variant: "destructive" }); return;
+    }
+    
+    // Check original size just in case, though we will compress
+    const totalSize = (tagFile?.size || 0) + (policyFile?.size || 0) + (invoiceFile?.size || 0);
+    const MAX_SIZE = 30 * 1024 * 1024; // 30MB
+    if (totalSize > MAX_SIZE) {
+      toast({ 
+        title: "Archivos demasiado grandes", 
+        description: `El tamaño total (${(totalSize / (1024 * 1024)).toFixed(2)}MB) excede el límite de 30MB. Por favor, use imágenes más pequeñas o reduzca su calidad.`, 
+        variant: "destructive" 
+      }); 
+      return; 
+    }
 
-    if (!vendorId || !selectedCampaign || !selectedProduct || !serial || !tagFile || !polizaFile || !notaFile) {
-      toast({ title: "Error", description: "Completa todos los campos obligatorios.", variant: "destructive" });
-      return;
-    }
-    if (serialValidation.status !== "ok") {
-      toast({ title: "Error", description: "El serial no pasó la validación.", variant: "destructive" });
-      return;
-    }
-    if (!isWithinCurrentWeek(saleDate)) {
-      toast({ title: "Error", description: "La fecha de venta debe estar dentro de la semana en curso (Lun–Dom).", variant: "destructive" });
-      return;
-    }
-    const campaign = campaigns.find((c) => c.id === selectedCampaign);
-    if (campaign) {
-      if (!campaign.registration_enabled) {
-        toast({ title: "Error", description: "El registro para esta campaña está deshabilitado.", variant: "destructive" });
-        return;
-      }
-      const now = new Date();
-      if (campaign.registration_open_at && new Date(campaign.registration_open_at) > now) {
-        toast({ title: "Error", description: `El registro abre el ${new Date(campaign.registration_open_at).toLocaleString("es-BO")}.`, variant: "destructive" });
-        return;
-      }
-      if (campaign.registration_close_at && new Date(campaign.registration_close_at) < now) {
-        toast({ title: "Error", description: "El periodo de registro para esta campaña ha finalizado.", variant: "destructive" });
-        return;
-      }
+    if (serialStatus !== "valido") {
+      toast({ title: "Valida el serial primero", variant: "destructive" }); return;
     }
 
     setSubmitting(true);
     try {
-      const [tagPath, polizaPath, notaPath] = await Promise.all([
-        uploadFile(tagFile, "tag"),
-        uploadFile(polizaFile, "poliza"),
-        uploadFile(notaFile, "nota"),
-      ]);
+      const form = new FormData();
+      form.append("serial", serial.trim());
+      form.append("productoId", selectedProduct);
+      form.append("saleDate", saleDate);
 
-      const product = products.find((p) => p.id === selectedProduct);
-      const week = getBoliviaWeek(saleDate);
+      // Compress images before sending
+      const compressedTag = await compressImage(tagFile);
+      const compressedPolicy = await compressImage(policyFile);
+      const compressedInvoice = await compressImage(invoiceFile);
 
-      let aiDateDetected: string | null = null;
-      let aiDateConfidence: number | null = null;
-      let aiFlag = false;
+      form.append("fotoTag", compressedTag);
+      form.append("fotoPoliza", compressedPolicy);
+      form.append("fotoNota", compressedInvoice);
 
-      if (campaign?.ai_date_validation) {
-        setAiValidation({ status: "validating", message: "Analizando fecha en la imagen con IA..." });
-        try {
-          const { data: fnData, error: fnError } = await supabase.functions.invoke("validate-sale-date", {
-            body: { image_path: notaPath, week_start: week.week_start, week_end: week.week_end },
-          });
-          if (fnError) throw fnError;
-          aiDateDetected = fnData?.date_detected || null;
-          aiDateConfidence = fnData?.confidence || null;
-          if (!fnData?.date_detected) {
-            setAiValidation({ status: "warning", message: "No se pudo detectar la fecha en la imagen. La venta será marcada para revisión." });
-            aiFlag = true;
-          } else if (!fnData?.matches_week) {
-            setAiValidation({ status: "error", message: `La fecha detectada (${fnData.date_detected}) no corresponde a la semana actual. Venta bloqueada.`, date_detected: fnData.date_detected, confidence: fnData.confidence });
-            setSubmitting(false);
-            return;
-          } else {
-            setAiValidation({ status: "ok", message: "Fecha verificada correctamente por IA.", date_detected: fnData.date_detected, confidence: fnData.confidence });
-          }
-        } catch (aiErr: any) {
-          console.error("AI validation error:", aiErr);
-          setAiValidation({ status: "warning", message: "Error en validación IA. La venta será marcada para revisión manual." });
-          aiFlag = true;
-        }
-      }
-
-      const { data: sale, error: saleError } = await supabase
-        .from("sales")
-        .insert({
-          campaign_id: selectedCampaign,
-          vendor_id: vendorId,
-          product_id: selectedProduct,
-          serial,
-          sale_date: saleDate,
-          week_start: week.week_start,
-          week_end: week.week_end,
-          points: product?.points_value || 0,
-          bonus_bs: product?.bonus_bs_value || 0,
-          city: vendorCity,
-          ai_flag: aiFlag,
-          ai_date_detected: aiDateDetected,
-          ai_date_confidence: aiDateConfidence,
-        })
-        .select()
-        .single();
-
-      if (saleError) throw saleError;
-
-      await supabase.from("sale_attachments").insert({
-        sale_id: sale.id,
-        tag_url: tagPath,
-        poliza_url: polizaPath,
-        nota_url: notaPath,
-      });
-
-      toast({ title: "¡Venta registrada!", description: "Tu venta fue enviada para revisión." });
+      await apiPostForm("/sales", form);
+      toast({ title: "✓ Venta registrada correctamente" });
       navigate("/v/mis-ventas");
-    } catch (error: any) {
-      toast({ title: "Error al registrar", description: error.message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
+    } catch (error: unknown) {
+      toast({
+        title: "Error al registrar",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
     }
+    setSubmitting(false);
   };
 
-  if (vendorBlocked) {
-    return (
-      <div className="max-w-2xl mx-auto px-2">
-        <Card className="border-destructive/50">
-          <CardContent className="pt-6 text-center space-y-3">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
-            <h2 className="text-xl font-bold">Acceso Bloqueado</h2>
-            <p className="text-muted-foreground">{blockReason}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const FileInput = ({
+    label,
+    file,
+    onChange,
+    accept = "image/*",
+  }: {
+    label: string;
+    file: File | null;
+    onChange: (f: File) => void;
+    accept?: string;
+  }) => (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all py-4 ${file ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/30"}`}>
+        <input type="file" className="sr-only" accept={accept} onChange={(e) => e.target.files?.[0] && onChange(e.target.files[0])} />
+        {file ? (
+          <>
+            <CheckCircle2 className="h-5 w-5 text-success" />
+            <span className="text-[10px] text-success font-medium truncate max-w-[100px]">{file.name}</span>
+          </>
+        ) : (
+          <>
+            <Upload className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Subir foto</span>
+          </>
+        )}
+      </label>
+    </div>
+  );
 
-  const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
-  const detectedProduct = products.find((p) => p.id === selectedProduct);
-  const weekBounds = getCurrentWeekBounds();
-
-  const completedSteps = [
-    !!selectedCampaign,
-    serialValidation.status === "ok",
-    !!selectedProduct,
-    !!saleDate && isWithinCurrentWeek(saleDate),
-    !!tagFile && !!polizaFile && !!notaFile,
-  ];
-  const progress = completedSteps.filter(Boolean).length;
+  const selectedProductObj = products.find((p) => String(p.id) === selectedProduct);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 pb-6">
-      {/* Header */}
+    <div className="space-y-4 sm:space-y-6 max-w-2xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight flex items-center gap-2">
-          <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+          <Package className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           Registrar Venta
         </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Completa los 5 pasos para registrar tu venta</p>
-
-        {/* Progress indicator */}
-        <div className="flex items-center gap-1.5 mt-3">
-          {completedSteps.map((done, i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${done ? "bg-primary" : "bg-muted"}`} />
-          ))}
-          <span className="text-[10px] text-muted-foreground ml-1">{progress}/5</span>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mt-2">
-          {selectedCampaignData?.ai_date_validation && (
-            <Badge variant="outline" className="gap-1 text-[10px]">
-              <Brain className="h-3 w-3" /> Validación IA activa
-            </Badge>
-          )}
-        </div>
-
-        {selectedCampaignData && !isCampaignRegistrationOpen(selectedCampaignData) && (
-          <div className="mt-2 p-2.5 rounded-lg border border-warning/50 bg-warning/10 text-xs sm:text-sm flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
-            <span>
-              {!selectedCampaignData.registration_enabled
-                ? "El registro está deshabilitado para esta campaña."
-                : selectedCampaignData.registration_open_at && new Date(selectedCampaignData.registration_open_at) > new Date()
-                  ? `El registro abre el ${new Date(selectedCampaignData.registration_open_at).toLocaleString("es-BO")}.`
-                  : "El periodo de registro para esta campaña ha finalizado."}
-            </span>
-          </div>
-        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
-        {/* Step 1: Campaign */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[0] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>1</span>
-              Campaña
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            {campaigns.length <= 1 && selectedCampaign ? (
-              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-xs sm:text-sm">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-                <span className="font-medium truncate">{selectedCampaignData?.name}</span>
-              </div>
-            ) : (
-              <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-                <SelectTrigger className="text-xs sm:text-sm"><SelectValue placeholder="Selecciona una campaña" /></SelectTrigger>
-                <SelectContent>
-                  {campaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Step 2: Serial */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[1] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>2</span>
-              Serial
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-2">
-            <Input
-              placeholder="Ingresa el número de serial"
-              value={serial}
-              onChange={(e) => setSerial(e.target.value.trim())}
-              className="text-sm"
-            />
-            {serialValidation.status !== "idle" && (
-              <div className={`flex items-center gap-2 text-xs sm:text-sm p-2 rounded-md ${
-                serialValidation.status === "ok" ? "text-success bg-success/10" :
-                serialValidation.status === "error" ? "text-destructive bg-destructive/10" : "text-muted-foreground bg-muted/30"
-              }`}>
-                {serialValidation.status === "checking" && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-                {serialValidation.status === "ok" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
-                {serialValidation.status === "error" && <XCircle className="h-3.5 w-3.5 shrink-0" />}
-                <span>{serialValidation.message}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Step 3: Product (auto-detected) */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[2] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>3</span>
-              Producto
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            {productAutoDetected && detectedProduct ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-md bg-success/10 border border-success/30 text-xs sm:text-sm">
-                <Package className="h-4 w-4 text-success shrink-0" />
-                <div className="min-w-0">
-                  <span className="font-medium text-foreground block truncate">{detectedProduct.name}</span>
-                  <span className="text-muted-foreground text-[10px] sm:text-xs">{detectedProduct.points_value} pts / Bs {detectedProduct.bonus_bs_value}</span>
-                </div>
-              </div>
-            ) : serialValidation.status === "ok" && !productAutoDetected ? (
-              <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                <SelectTrigger className="text-xs sm:text-sm"><SelectValue placeholder="Selecciona un producto" /></SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} — {p.points_value} pts / Bs {p.bonus_bs_value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <Package className="h-4 w-4 shrink-0" />
-                Se detectará automáticamente al ingresar un serial válido
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Step 4: Date */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[3] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>4</span>
-              Fecha de Venta
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <Input type="date" value={saleDate} min={weekBounds.min} max={weekBounds.max} onChange={(e) => setSaleDate(e.target.value)} className="text-sm" />
-            {saleDate && !isWithinCurrentWeek(saleDate) && (
-              <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-                <XCircle className="h-3.5 w-3.5 shrink-0" />
-                La fecha debe estar entre {weekBounds.min} y {weekBounds.max}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Step 5: Photos */}
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-display flex items-center gap-2">
-              <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-[11px] font-bold ${completedSteps[4] ? "gradient-gold text-primary-foreground" : "bg-muted text-muted-foreground"}`}>5</span>
-              Fotos (obligatorias)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <FileInput label="TAG" file={tagFile} onFile={setTagFile} onClear={() => setTagFile(null)} id="tag" isMobile={isMobile} />
-              <FileInput label="Póliza" file={polizaFile} onFile={setPolizaFile} onClear={() => setPolizaFile(null)} id="poliza" isMobile={isMobile} />
-              <FileInput label="Nota de Venta" file={notaFile} onFile={setNotaFile} onClear={() => setNotaFile(null)} id="nota" isMobile={isMobile} />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Serial */}
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Serial del Producto</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={serial}
+                onChange={(e) => { setSerial(e.target.value); setSerialStatus("idle"); setSerialInfo(null); }}
+                placeholder="Ingresa el número de serie..."
+                className="font-mono"
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), validarSerial())}
+              />
+              <Button type="button" variant="outline" onClick={validarSerial} disabled={serialStatus === "loading" || !serial.trim()}>
+                {serialStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Validar"}
+              </Button>
             </div>
-            <AiValidationBadge ai={aiValidation} />
+            {serialMsg && (
+              <div className="space-y-1">
+                <p className={`text-xs flex items-center gap-1 ${serialStatus === "valido" ? "text-success" : "text-destructive"}`}>
+                  {serialStatus === "valido" ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                  {serialMsg}
+                  {serialInfo?.producto && <span className="text-muted-foreground ml-1">— {serialInfo.producto}</span>}
+                </p>
+                {serialStatus === "invalido" && serialInfo?.fechaRegistroVendedor && (
+                  <p className="text-[10px] text-muted-foreground ml-4">
+                    Registrado el: {new Date(serialInfo.fechaRegistroVendedor).toLocaleString("es-BO", { 
+                      day: "2-digit", 
+                      month: "2-digit", 
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" size="lg" variant="premium" disabled={submitting || progress < 5}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Registrar Venta
+        {/* Producto (auto-detectado del serial) + Fecha + Ciudad */}
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Datos de la Venta</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Producto</Label>
+              {serialInfo ? (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 text-sm font-medium flex flex-col gap-2">
+                  {serialInfo.producto ? (
+                    <span className="text-base">{serialInfo.producto} {serialInfo.modelo ? `— ${serialInfo.modelo}` : ''}</span>
+                  ) : selectedProductObj ? (
+                    <span className="text-base opacity-90">{selectedProductObj.nombre} — {selectedProductObj.modelo || selectedProductObj.modeloCodigo || serialInfo.modelo}</span>
+                  ) : (
+                    <span className="text-base opacity-90">Producto de código: {serialInfo.modelo}</span>
+                  )}
+                  
+                  {(serialInfo.campanas && serialInfo.campanas.length > 0) ? (
+                    <div className="flex flex-col gap-2 mt-1">
+                       <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Participando en las campañas:</span>
+                       <div className="flex flex-col gap-2">
+                         {serialInfo.campanas.map(c => (
+                           <div key={c.campanaId} className="text-sm font-bold text-primary bg-primary/10 px-3 py-2 rounded-md border border-primary/20 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 align-start">
+                             <div className="flex items-start gap-1.5 break-words max-w-full">
+                               <span className="shrink-0 leading-tight">⭐</span>
+                               <span className="leading-tight">{c.campanaNombre}</span>
+                             </div>
+                             <div className="flex items-center gap-2 text-foreground bg-background/60 px-2 py-1.5 rounded-md whitespace-nowrap self-start sm:self-auto shrink-0 shadow-sm border border-black/5 dark:border-white/5">
+                               <span>{c.puntos} pts</span>
+                               <span className="text-muted-foreground/50">|</span>
+                               <span>Bs {c.bonoBs}</span>
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-destructive font-medium bg-destructive/10 px-2 py-1 rounded inline-block w-fit mt-1">
+                      Este producto no forma parte de ninguna campaña activa actualmente.
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <Select value={selectedProduct} onValueChange={setSelectedProduct} required>
+                  <SelectTrigger><SelectValue placeholder="Valida el serial para autocompletar..." /></SelectTrigger>
+                  <SelectContent>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.nombre} {(p.tamanoPulgadas ?? p.pulgadas) ? `${p.tamanoPulgadas ?? p.pulgadas}"` : ""} — {p.modelo ?? p.modeloCodigo ?? ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-2">
+                <Label>Fecha de venta</Label>
+                <Input 
+                  type="date" 
+                  value={saleDate} 
+                  onChange={(e) => setSaleDate(e.target.value)} 
+                  required 
+                  min={minDate}
+                  max={maxDate} 
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  * {ventaFechaMaxSemanas === 0 
+                      ? "Solo puedes registrar ventas de la semana actual" 
+                      : `Puedes registrar hasta ${ventaFechaMaxSemanas + 1} semanas atrás`} (desde el lunes {minDate.split('-').reverse().join('/')}).
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Fotos */}
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Fotos de Respaldo</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FileInput label="Foto TAG *" file={tagFile} onChange={setTagFile} />
+              <FileInput label="Foto Póliza *" file={policyFile} onChange={setPolicyFile} />
+              <FileInput label="Nota de entrega *" file={invoiceFile} onChange={setInvoiceFile} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Button type="submit" className="w-full" variant="premium" size="lg" disabled={submitting || serialStatus !== "valido"}>
+          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+          Confirmar Venta
         </Button>
       </form>
     </div>

@@ -1,120 +1,111 @@
-import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import { getToken, setToken, removeToken } from "@/lib/api";
 
 type AppRole = "vendedor" | "revisor_ciudad" | "supervisor" | "admin";
 
+interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  vendorId?: number;
+}
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  token: string | null;
   roles: AppRole[];
   loading: boolean;
-  signOut: () => Promise<void>;
-  refreshRoles: () => Promise<void>;
+  signIn: (token: string, role: string, name: string, userId: number, vendorId?: number) => void;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
+  token: null,
   roles: [],
   loading: true,
-  signOut: async () => {},
-  refreshRoles: async () => {},
+  signIn: () => {},
+  signOut: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
+function mapRole(role: string): AppRole {
+  const map: Record<string, AppRole> = {
+    VENDOR: "vendedor",
+    ADMIN: "admin",
+    REVIEWER: "revisor_ciudad",
+    SUPERVISOR: "supervisor",
+  };
+  return map[role?.toUpperCase()] ?? "vendedor";
+}
+
+// JWT claim key is 'role' (English, as set by JwtUtil.java)
+function decodeJwt(token: string): { sub?: string; role?: string; userId?: number; vendorId?: number } | null {
+  try {
+    const payload = token.split(".")[1];
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const processingRef = useRef(false);
-
-  const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      return data ? data.map((r) => r.role) : [];
-    } catch {
-      return [];
-    }
-  }, []);
-
-  const handleSession = useCallback(async (newSession: Session | null) => {
-    // Prevent concurrent processing
-    if (processingRef.current) return;
-    processingRef.current = true;
-
-    try {
-      if (newSession?.user) {
-        const userRoles = await fetchRoles(newSession.user.id);
-        // Set all state atomically before setting loading to false
-        setSession(newSession);
-        setUser(newSession.user);
-        setRoles(userRoles);
-      } else {
-        setSession(null);
-        setUser(null);
-        setRoles([]);
-      }
-    } finally {
-      setLoading(false);
-      processingRef.current = false;
-    }
-  }, [fetchRoles]);
 
   useEffect(() => {
-    // Safety timeout
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      handleSession(existingSession);
-    });
-
-    // Listen for auth changes (sign in, sign out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        // For token refreshes, just update session/user without re-fetching roles
-        if (_event === 'TOKEN_REFRESHED' && newSession?.user) {
-          setSession(newSession);
-          setUser(newSession.user);
-          return;
-        }
-        // For sign in/out events, do the full processing
-        if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
-          handleSession(newSession);
-        }
+    const stored = getToken();
+    if (stored) {
+      const payload = decodeJwt(stored);
+      if (payload) {
+        // JWT claim is 'role' (English) as set by JwtUtil.java
+        const rawRole = payload.role ?? "";
+        const appRole = mapRole(rawRole);
+        setUser({
+          id: payload.userId ?? 0,
+          name: "",
+          email: payload.sub ?? "",
+          role: rawRole,
+          vendorId: payload.vendorId,
+        });
+        setRoles([appRole]);
+        setTokenState(stored);
       }
-    );
-
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
-  }, [handleSession]);
-
-  const refreshRoles = useCallback(async () => {
-    if (user) {
-      const userRoles = await fetchRoles(user.id);
-      setRoles(userRoles);
     }
-  }, [user, fetchRoles]);
+    setLoading(false);
+  }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setRoles([]);
+  const signIn = useCallback(
+    (jwtToken: string, role: string, name: string, userId: number, vendorId?: number) => {
+      setToken(jwtToken);
+      setTokenState(jwtToken);
+      const appRole = mapRole(role);
+      const payload = decodeJwt(jwtToken);
+      setUser({
+        id: userId,
+        name,
+        email: payload?.sub ?? "",
+        role,
+        vendorId,
+      });
+      setRoles([appRole]);
+    },
+    []
+  );
+
+  const signOut = useCallback(() => {
+    removeToken();
+    setTokenState(null);
     setUser(null);
-    setSession(null);
-  };
+    setRoles([]);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, signOut, refreshRoles }}>
+    <AuthContext.Provider value={{ user, token, roles, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
