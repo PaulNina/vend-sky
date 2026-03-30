@@ -18,16 +18,6 @@ interface Campaign {
   activo: boolean;
 }
 
-interface Tienda {
-  id: number;
-  nombre: string;
-  ciudad: {
-    id: number;
-    nombre: string;
-    departamento?: string;
-  };
-}
-
 export default function RegisterPage() {
   const { user, loading: authLoading } = useAuth();
   const { cities, departments } = useCities();
@@ -35,11 +25,10 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [ci, setCi] = useState("");
   const [password, setPassword] = useState("");
   const [city, setCity] = useState("");
-  const [tiendaId, setTiendaId] = useState("");
-  const [tiendas, setTiendas] = useState<Tienda[]>([]);
-  const [loadingTiendas, setLoadingTiendas] = useState(false);
+  const [tiendaNombre, setTiendaNombre] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -49,20 +38,6 @@ export default function RegisterPage() {
       .then(() => setCampaignAllowed(true))
       .catch(() => setCampaignAllowed(false));
   }, []);
-
-  useEffect(() => {
-    if (!city) {
-      setTiendas([]);
-      setTiendaId("");
-      return;
-    }
-    setLoadingTiendas(true);
-    setTiendaId("");
-    apiGet<Tienda[]>(`/tiendas/by-city/${encodeURIComponent(city)}`)
-      .then((data) => setTiendas(Array.isArray(data) ? data : []))
-      .catch(() => setTiendas([]))
-      .finally(() => setLoadingTiendas(false));
-  }, [city]);
 
   if (authLoading) return null;
   if (user && !success) return <Navigate to="/v" replace />;
@@ -122,12 +97,14 @@ export default function RegisterPage() {
         email,
         password,
         telefono: phone,
+        ci,
         ciudad: city,
-        tiendaId: tiendaId ? Number(tiendaId) : null,
+        tienda: tiendaNombre.trim(),
       });
       setSuccess(true);
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Ocurrió un error inesperado.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -161,6 +138,10 @@ export default function RegisterPage() {
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" minLength={6} autoComplete="new-password" />
               </div>
               <div className="space-y-2">
+                <Label>Carnet de Identidad (CI) *</Label>
+                <Input value={ci} onChange={(e) => setCi(e.target.value)} required placeholder="Ej: 1234567" />
+              </div>
+              <div className="space-y-2">
                 <Label>Teléfono *</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+591 7XXXXXXX" />
               </div>
@@ -169,35 +150,21 @@ export default function RegisterPage() {
                 <Select value={city} onValueChange={setCity} required>
                   <SelectTrigger><SelectValue placeholder="Selecciona tu ciudad" /></SelectTrigger>
                   <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectGroup key={dept}>
-                        <SelectLabel className="text-muted-foreground">{dept}</SelectLabel>
-                        {cities.filter((c) => c.departamento === dept).map((c) => (
-                          <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
-                        ))}
-                      </SelectGroup>
+                    {cities.map((c) => (
+                      <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Tienda</Label>
-                {loadingTiendas ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando tiendas...</div>
-                ) : !city ? (
-                  <p className="text-xs text-muted-foreground">Selecciona una ciudad primero.</p>
-                ) : tiendas.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No hay tiendas registradas en {city}. El administrador la asignará luego.</p>
-                ) : (
-                  <Select value={tiendaId} onValueChange={setTiendaId}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona tu tienda (opcional)" /></SelectTrigger>
-                    <SelectContent>
-                      {tiendas.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Label>Nombre de tienda *</Label>
+                <Input
+                  value={tiendaNombre}
+                  onChange={(e) => setTiendaNombre(e.target.value)}
+                  required
+                  placeholder="Ej: Tienda Centro, Electro Sur..."
+                  maxLength={200}
+                />
               </div>
               <div className="flex items-start gap-2">
                 <Checkbox id="terms" checked={acceptTerms} onCheckedChange={(v) => setAcceptTerms(v === true)} />
@@ -205,7 +172,7 @@ export default function RegisterPage() {
                   Acepto los términos, condiciones y política de privacidad del programa Bono Vendedor SKYWORTH.
                 </label>
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !city}>
+              <Button type="submit" className="w-full" disabled={loading || !city || !tiendaNombre.trim()}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Registrarme
               </Button>

@@ -7,11 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Package, DollarSign, Users, Clock, CheckCircle2, XCircle, Percent, Activity, ArrowUpRight, TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { useCities } from "@/hooks/useCities";
 import { formatTimeAgoBolivia } from "@/lib/utils";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+
+const formatChartDate = (dateStr: string) => {
+  try {
+    return format(parseISO(dateStr), "dd MMM", { locale: es });
+  } catch {
+    return dateStr;
+  }
+};
 
 interface PageResponse<T> {
   content: T[];
@@ -30,6 +40,7 @@ interface DashboardStats {
   totalPuntos: number;
   totalVendedores: number;
   ventasPorCiudad?: { ciudad: string; total: number; aprobadas: number; pendientes: number; rechazadas: number; bonusBs: number }[];
+  ventasPorDia?: { fecha: string; total: number; aprobadas: number; pendientes: number; rechazadas: number }[];
 }
 
 interface Campaign { id: number; nombre: string; }
@@ -239,6 +250,8 @@ export default function AdminDashboardPage() {
             </CardContent></Card>
           </div>
 
+         
+
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* City chart */}
@@ -252,9 +265,15 @@ export default function AdminDashboardPage() {
                       <XAxis dataKey="ciudad" tick={{ fill: "hsl(215, 15%, 50%)", fontSize: isMobile ? 10 : 12 }} />
                       <YAxis tick={{ fill: "hsl(215, 15%, 50%)", fontSize: 12 }} hide={isMobile} />
                       <Tooltip contentStyle={{ background: "hsl(220, 25%, 11%)", border: "1px solid hsl(220, 15%, 18%)", borderRadius: 8, color: "hsl(210, 40%, 96%)" }} />
-                      <Bar dataKey="aprobadas" name="Aprobadas" fill="hsl(152, 60%, 42%)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="pendientes" name="Pendientes" fill="hsl(43, 96%, 56%)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="rechazadas" name="Rechazadas" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="aprobadas" name="Aprobadas" fill="hsl(152, 60%, 42%)" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="aprobadas" position="top" fill="hsl(215, 15%, 50%)" fontSize={10} formatter={(v: number) => v > 0 ? v : ""} />
+                      </Bar>
+                      <Bar dataKey="pendientes" name="Pendientes" fill="hsl(43, 96%, 56%)" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="pendientes" position="top" fill="hsl(215, 15%, 50%)" fontSize={10} formatter={(v: number) => v > 0 ? v : ""} />
+                      </Bar>
+                      <Bar dataKey="rechazadas" name="Rechazadas" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="rechazadas" position="top" fill="hsl(215, 15%, 50%)" fontSize={10} formatter={(v: number) => v > 0 ? v : ""} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -282,6 +301,36 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
           </div>
+           {/* Daily Sales Chart */}
+          {stats.ventasPorDia && stats.ventasPorDia.length > 0 && (
+            <Card className="mb-4 sm:mb-6">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-warning" />
+                  Ventas por fecha
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={isMobile ? 220 : 300}>
+                  <BarChart data={stats.ventasPorDia.map(d => ({ ...d, fechaFormatted: formatChartDate(d.fecha) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 18%)" vertical={false} />
+                    <XAxis dataKey="fechaFormatted" tick={{ fill: "hsl(215, 15%, 50%)", fontSize: isMobile ? 10 : 12 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "hsl(215, 15%, 50%)", fontSize: 12 }} hide={isMobile} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: "hsl(220, 25%, 11%)", border: "1px solid hsl(220, 15%, 18%)", borderRadius: 8, color: "hsl(210, 40%, 96%)" }} />
+                    <Bar dataKey="aprobadas" name="Aprobadas" fill="hsl(152, 60%, 42%)" stackId="a">
+                      <LabelList dataKey="aprobadas" position="center" fill="#ffffff" fontSize={11} formatter={(v: number) => v > 0 ? v : ""} />
+                    </Bar>
+                    <Bar dataKey="pendientes" name="Pendientes" fill="hsl(43, 96%, 56%)" stackId="a">
+                      <LabelList dataKey="pendientes" position="center" fill="#000000" fontSize={11} formatter={(v: number) => v > 0 ? v : ""} />
+                    </Bar>
+                    <Bar dataKey="rechazadas" name="Rechazadas" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} stackId="a">
+                      <LabelList dataKey="rechazadas" position="center" fill="#ffffff" fontSize={11} formatter={(v: number) => v > 0 ? v : ""} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Status Pie + Ranking */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

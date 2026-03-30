@@ -17,22 +17,13 @@ import { exportToExcel } from "@/lib/exportExcel";
 import { cn, formatDateBolivia } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-interface Tienda {
-  id: number;
-  nombre: string;
-  ciudad: {
-    id: number;
-    nombre: string;
-    departamento?: string;
-  };
-}
-
 interface Vendor {
   id: number;
   nombreCompleto: string;
   email: string;
   telefono?: string;
-  tienda?: Tienda | null;
+  tienda?: string | null;
+  ciudad?: { id: number; nombre: string; departamento?: string } | null;
   activo: boolean;
   createdAt?: string;
   ci?: string;
@@ -56,14 +47,12 @@ export default function VendorsPage() {
     email: "", 
     telefono: "", 
     ci: "", 
-    ciudadId: "", 
-    tiendaId: "" 
+    ciudadId: "",
+    tiendaNombre: ""
   });
-  const [tiendas, setTiendas] = useState<Tienda[]>([]);
   const [allCities, setAllCities] = useState<Ciudad[]>([]);
   const [saving, setSaving] = useState(false);
   const [citySelectorOpen, setCitySelectorOpen] = useState(false);
-  const [shopSelectorOpen, setShopSelectorOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const load = useCallback(async () => {
@@ -73,7 +62,7 @@ export default function VendorsPage() {
     if (search) params.set("search", search);
     const data = await apiGet<Vendor[]>(`/vendors?${params}`).catch(() => [] as Vendor[]);
     setVendors(data);
-    const uniqueCities = [...new Set(data.map((v) => v.tienda?.ciudad?.nombre).filter(Boolean).map(String))];
+    const uniqueCities = [...new Set(data.map((v) => v.ciudad?.nombre).filter(Boolean).map(String))];
     setCities(uniqueCities);
     setLoading(false);
   }, [cityFilter, search]);
@@ -87,32 +76,12 @@ export default function VendorsPage() {
       email: v.email || "",
       telefono: v.telefono || "",
       ci: v.ci || "",
-      ciudadId: v.tienda?.ciudad?.id ? String(v.tienda.ciudad.id) : "",
-      tiendaId: v.tienda ? String(v.tienda.id) : ""
+      ciudadId: v.ciudad?.id ? String(v.ciudad.id) : "",
+      tiendaNombre: v.tienda || ""
     });
-
-    // Load cities if not already loaded
     if (allCities.length === 0) {
       const cityData = await apiGet<Ciudad[]>("/cities/active").catch(() => [] as Ciudad[]);
       setAllCities(cityData);
-    }
-
-    if (v.tienda?.ciudad?.nombre) {
-      const data = await apiGet<Tienda[]>(`/tiendas?city=${encodeURIComponent(v.tienda.ciudad.nombre)}`).catch(() => [] as Tienda[]);
-      setTiendas(data);
-    } else {
-      setTiendas([]);
-    }
-  };
-
-  const handleCityChange = async (cityId: string) => {
-    const cityName = allCities.find(c => String(c.id) === cityId)?.nombre || "";
-    setEditForm(prev => ({ ...prev, ciudadId: cityId, tiendaId: "" }));
-    if (cityId && cityId !== "none") {
-      const data = await apiGet<Tienda[]>(`/tiendas?city=${encodeURIComponent(cityName)}`).catch(() => [] as Tienda[]);
-      setTiendas(data);
-    } else {
-      setTiendas([]);
     }
   };
 
@@ -120,19 +89,17 @@ export default function VendorsPage() {
     if (!editVendor) return;
     setSaving(true);
     try {
+      const selectedCity = allCities.find(c => String(c.id) === editForm.ciudadId) || null;
       const updatedVendor = {
         ...editVendor,
         nombreCompleto: editForm.nombreCompleto,
         email: editForm.email,
         telefono: editForm.telefono,
         ci: editForm.ci,
-        tienda: editForm.tiendaId && editForm.tiendaId !== "" && editForm.tiendaId !== "none" 
-          ? { id: Number(editForm.tiendaId) } 
-          : null
+        ciudad: selectedCity ? { id: selectedCity.id, nombre: selectedCity.nombre } : null,
+        tienda: editForm.tiendaNombre || null,
       };
-      
       await apiPut(`/vendors/${editVendor.id}`, updatedVendor);
-      
       toast({ title: "Vendedor actualizado" });
       setEditVendor(null);
       load();
@@ -155,7 +122,7 @@ export default function VendorsPage() {
   const handleExport = () => {
     exportToExcel(vendors.map((v) => ({
       Nombre: v.nombreCompleto, Email: v.email || "", Teléfono: v.telefono || "",
-      Ciudad: v.tienda?.ciudad?.nombre || "—", Tienda: v.tienda?.nombre || "", Activo: v.activo ? "Sí" : "No",
+      Ciudad: v.ciudad?.nombre || "—", Tienda: v.tienda || "", Activo: v.activo ? "Sí" : "No",
     })), "vendedores");
   };
 
@@ -204,9 +171,9 @@ export default function VendorsPage() {
                         <Badge variant="destructive" className="h-5 text-[9px] px-1.5" onClick={(e) => { e.stopPropagation(); toggleActive(v); }}>Inactivo</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{v.tienda?.nombre || "Sin tienda"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{v.tienda || "Sin tienda"}</p>
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline" className="text-[10px] h-5">{v.tienda?.ciudad?.nombre || "—"}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5">{v.ciudad?.nombre || "—"}</Badge>
                       <p className="text-[10px] text-muted-foreground">{v.telefono || v.email || ""}</p>
                     </div>
                   </div>
@@ -231,9 +198,9 @@ export default function VendorsPage() {
                     <TableCell className="font-medium">{v.nombreCompleto}</TableCell>
                     <TableCell className="text-sm">{v.email || "—"}</TableCell>
                     <TableCell className="text-sm">{v.telefono || "—"}</TableCell>
-                    <TableCell><Badge variant="outline">{v.tienda?.ciudad?.nombre || "—"}</Badge></TableCell>
-                    <TableCell><Badge variant="outline" className="bg-muted text-muted-foreground">{v.tienda?.ciudad?.departamento || "—"}</Badge></TableCell>
-                    <TableCell className="text-sm">{v.tienda?.nombre || "—"}</TableCell>
+                    <TableCell><Badge variant="outline">{v.ciudad?.nombre || "—"}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="bg-muted text-muted-foreground">{v.ciudad?.departamento || "—"}</Badge></TableCell>
+                    <TableCell className="text-sm">{v.tienda || "—"}</TableCell>
                     <TableCell>
                       {v.activo ? (
                         <Badge className="cursor-pointer" onClick={() => toggleActive(v)}>Activo</Badge>
@@ -302,7 +269,7 @@ export default function VendorsPage() {
                                 key={c.id}
                                 value={c.nombre}
                                 onSelect={() => {
-                                  handleCityChange(String(c.id));
+                                  setEditForm(prev => ({ ...prev, ciudadId: String(c.id) }));
                                   setCitySelectorOpen(false);
                                 }}
                               >
@@ -318,51 +285,13 @@ export default function VendorsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tienda</Label>
-                  <Popover open={shopSelectorOpen} onOpenChange={setShopSelectorOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" role="combobox" aria-expanded={shopSelectorOpen} className="w-full justify-between font-normal" disabled={!editForm.ciudadId}>
-                        {editForm.tiendaId 
-                          ? tiendas.find((t) => String(t.id) === editForm.tiendaId)?.nombre 
-                          : "Seleccionar tienda..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Buscar tienda..." />
-                        <CommandList>
-                          <CommandEmpty>{tiendas.length === 0 ? "Primero selecciona una ciudad." : "Tienda no encontrada."}</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="none"
-                              onSelect={() => {
-                                setEditForm({ ...editForm, tiendaId: "none" });
-                                setShopSelectorOpen(false);
-                              }}
-                            >
-                              <Check className={cn("mr-2 h-4 w-4", editForm.tiendaId === "none" ? "opacity-100" : "opacity-0")} />
-                              Sin tienda
-                            </CommandItem>
-                            {tiendas.map((t) => (
-                              <CommandItem
-                                key={t.id}
-                                value={t.nombre}
-                                onSelect={() => {
-                                  setEditForm({ ...editForm, tiendaId: String(t.id) });
-                                  setShopSelectorOpen(false);
-                                }}
-                              >
-                                <Check className={cn("mr-2 h-4 w-4", editForm.tiendaId === String(t.id) ? "opacity-100" : "opacity-0")} />
-                                {t.nombre}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  {!editForm.ciudadId && <p className="text-[10px] text-muted-foreground mt-1">Selecciona una ciudad para ver sus tiendas.</p>}
+                  <Label>Tienda <span className="text-muted-foreground text-xs"></span></Label>
+                  <Input
+                    value={editForm.tiendaNombre}
+                    onChange={(e) => setEditForm({ ...editForm, tiendaNombre: e.target.value })}
+                    placeholder="Ej: Tienda Centro..."
+                    maxLength={200}
+                  />
                 </div>
               </div>
             </div>

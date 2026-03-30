@@ -161,7 +161,24 @@ export default function CampaignsPage() {
     setSaving(false);
   };
 
-
+  const handleDeleteCampaign = async (c: Campaign) => {
+    const confirmed = window.confirm(
+      `¿Eliminar la campaña "${c.nombre}"? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+    try {
+      await apiDelete(`/campaigns/${c.id}`);
+      toast({ title: "Campaña eliminada" });
+      load();
+    } catch (e: unknown) {
+      const error = e as Error;
+      toast({
+        title: "No se puede eliminar",
+        description: error.message || "La campaña tiene ventas registradas.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -221,6 +238,15 @@ export default function CampaignsPage() {
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(c)} title="Editar Campaña">
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteCampaign(c)}
+                          title="Eliminar campaña"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

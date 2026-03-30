@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiPut, getToken, uploadUrl } from "@/lib/api";
+import { apiGet, getToken, uploadUrl } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,22 +11,15 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, UserCircle, Store, Shirt, MapPin, Phone, Mail, Pencil, Save, X } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
-interface TiendaData {
-  id: number;
-  nombre: string;
-  ciudad: {
-    id: number;
-    nombre: string;
-    departamento?: string;
-  };
-}
-
 interface VendorData {
   id: number;
   nombreCompleto: string;
   email: string | null;
   telefono: string | null;
-  tienda: TiendaData | null;
+  /** Ahora tienda es texto libre (string), no objeto */
+  tienda: string | null;
+  /** Ciudad es objeto con nombre */
+  ciudad: { id: number; nombre: string; departamento?: string } | null;
   activo: boolean;
   pendingApproval?: boolean;
   tallaPolera?: string | null;
@@ -47,24 +39,10 @@ export default function VendorProfilePage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
-  const [tiendaId, setTiendaId] = useState("");
-  const [tiendas, setTiendas] = useState<TiendaData[]>([]);
-  const [loadingTiendas, setLoadingTiendas] = useState(false);
+  const [tiendaNombre, setTiendaNombre] = useState("");
   const [tallaPolera, setTallaPolera] = useState<string>("M");
   const [fotoQr, setFotoQr] = useState<File | null>(null);
   const [fotoQrPreview, setFotoQrPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!editing || !city) {
-      if (!editing) setTiendas([]);
-      return;
-    }
-    setLoadingTiendas(true);
-    apiGet<TiendaData[]>(`/tiendas/by-city/${encodeURIComponent(city)}`)
-      .then((data) => setTiendas(Array.isArray(data) ? data : []))
-      .catch(() => setTiendas([]))
-      .finally(() => setLoadingTiendas(false));
-  }, [city, editing]);
 
   useEffect(() => {
     if (!user) return;
@@ -82,8 +60,8 @@ export default function VendorProfilePage() {
   const syncEditFields = (v: VendorData) => {
     setFullName(v.nombreCompleto);
     setPhone(v.telefono || "");
-    setCity(v.tienda?.ciudad?.nombre || "");
-    setTiendaId(v.tienda ? String(v.tienda.id) : "");
+    setCity(v.ciudad?.nombre || "");
+    setTiendaNombre(v.tienda || "");
     setTallaPolera(v.tallaPolera || "M");
     setFotoQr(null);
     setFotoQrPreview(v.fotoQr ? uploadUrl(v.fotoQr) : null);
@@ -107,14 +85,12 @@ export default function VendorProfilePage() {
       formData.append("nombreCompleto", trimmedName);
       formData.append("telefono", phone.trim());
       formData.append("ciudad", city);
-      if (tiendaId) formData.append("tiendaId", tiendaId);
+      formData.append("tienda", tiendaNombre.trim());
       formData.append("tallaPolera", tallaPolera);
       if (fotoQr) {
         formData.append("fotoQr", fotoQr);
       }
 
-      // We use fetch directly since apiPut expects JSON usually. Or if apiPostFormData supports PUT method overrides.
-      // Easiest is to use the exact same logic apiPostFormData uses with PUT.
       const url = uploadUrl('/vendor/me');
       const _token = getToken();
       const headers: HeadersInit = {};
@@ -147,8 +123,8 @@ export default function VendorProfilePage() {
 
   const readOnlyItems = [
     { icon: Mail, label: "Email", value: vendor.email || "—" },
-    { icon: MapPin, label: "Departamento", value: vendor.tienda?.ciudad?.departamento || "—" },
-    { icon: MapPin, label: "Ciudad", value: vendor.tienda?.ciudad?.nombre || "—" },
+    { icon: MapPin, label: "Departamento", value: vendor.ciudad?.departamento || "—" },
+    { icon: MapPin, label: "Ciudad", value: vendor.ciudad?.nombre || "—" },
     { icon: Shirt, label: "Talla de Polera", value: vendor.tallaPolera || "Sin definir" },
   ];
 
@@ -200,7 +176,7 @@ export default function VendorProfilePage() {
                 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Ciudad *</Label>
-                  <Select value={city} onValueChange={(val) => { setCity(val); setTiendaId(""); }}>
+                  <Select value={city} onValueChange={setCity}>
                     <SelectTrigger><SelectValue placeholder="Selecciona tu ciudad" /></SelectTrigger>
                     <SelectContent>
                       {departments.map((dept) => (
@@ -216,23 +192,13 @@ export default function VendorProfilePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Tienda</Label>
-                  {loadingTiendas ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando...</div>
-                  ) : !city ? (
-                    <p className="text-xs text-muted-foreground">Selecciona una ciudad primero.</p>
-                  ) : tiendas.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No hay tiendas en {city}.</p>
-                  ) : (
-                    <Select value={tiendaId} onValueChange={setTiendaId}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona tienda (opcional)" /></SelectTrigger>
-                      <SelectContent>
-                        {tiendas.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Label className="text-xs">Nombre de tienda <span className="text-muted-foreground">(opcional)</span></Label>
+                  <Input
+                    value={tiendaNombre}
+                    onChange={(e) => setTiendaNombre(e.target.value)}
+                    placeholder="Ej: Tienda Centro..."
+                    maxLength={200}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
@@ -277,7 +243,7 @@ export default function VendorProfilePage() {
               {[
                 { icon: UserCircle, label: "Nombre", value: vendor.nombreCompleto },
                 { icon: Phone, label: "Teléfono", value: vendor.telefono || "—" },
-                { icon: Store, label: "Tienda", value: vendor.tienda?.nombre || "Sin tienda" },
+                { icon: Store, label: "Tienda", value: vendor.tienda || "Sin tienda" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

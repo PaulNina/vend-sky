@@ -51,7 +51,7 @@ const adminNav = [
   { title: "Campañas", url: "/admin/campanias", icon: Target, roles: ["admin"] },
   { title: "Solicitudes", url: "/admin/solicitudes-registro", icon: UserPlus, roles: ["admin"], requiresManualApproval: true },
   { title: "Vendedores", url: "/admin/vendedores", icon: Users, roles: ["admin"] },
-  { title: "Tiendas", url: "/admin/tiendas", icon: Store, roles: ["admin"] },
+  { title: "Tiendas", url: "/admin/tiendas", icon: Store, roles: ["admin"], hidden: true },
   { title: "Productos", url: "/admin/productos-modelos", icon: Package, roles: ["admin"] },
   { title: "Seriales", url: "/admin/seriales", icon: Hash, roles: ["admin"] },
   { title: "Revisiones", url: "/admin/revisiones", icon: ClipboardCheck, roles: ["admin", "revisor_ciudad", "supervisor"] },
@@ -73,6 +73,7 @@ export function AppSidebar() {
   
   // Filter admin/staff navigation dynamically based on permissions
   const visibleAdminNav = adminNav.filter(item => {
+    if ((item as { hidden?: boolean }).hidden) return false;
     // Hide items that require manual approval when auto-approve is enabled
     if ((item as { requiresManualApproval?: boolean }).requiresManualApproval && autoAprobarVendedores) return false;
     if (roles.includes("admin") && item.roles.includes("admin")) return true;
