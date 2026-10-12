@@ -22,6 +22,9 @@ export function useRolePermissions() {
 
   useEffect(() => {
     fetchPermissions();
+    const handleUpdated = () => fetchPermissions();
+    window.addEventListener("permissions-updated", handleUpdated);
+    return () => window.removeEventListener("permissions-updated", handleUpdated);
   }, []);
 
   return { permissions, loading, refreshPermissions: fetchPermissions };

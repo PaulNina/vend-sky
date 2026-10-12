@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { toast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
+import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -20,20 +21,20 @@ export default function ForgotPasswordPage() {
       await apiPost("/auth/forgot-password", { email });
       setSent(true);
       toast({ title: "Correo enviado", description: "Revisa tu bandeja de entrada o spam para continuar." });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "No se pudo solicitar la recuperación.", variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "No se pudo solicitar la recuperación.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
     setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 bg-[url('/bg-pattern.svg')] bg-cover bg-center">
-      <Card className="w-full max-w-md border-border/50 shadow-2xl backdrop-blur-sm bg-card/95">
+    <div className="login-stage relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="login-grid pointer-events-none absolute inset-0" />
+      <Card className="admin-panel relative w-full max-w-md rounded-[22px] shadow-2xl">
         <CardHeader className="space-y-1 pb-4">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-2xl gradient-blue flex items-center justify-center shadow-blue">
-              <span className="text-white font-display font-bold text-2xl tracking-tighter">SW</span>
-            </div>
+          <div className="mb-5 flex justify-center">
+            <SkyworthLogo tone="white" className="w-44" />
           </div>
           <CardTitle className="text-2xl text-center font-display font-bold">Recuperar Contraseña</CardTitle>
           <CardDescription className="text-center">

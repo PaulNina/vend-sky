@@ -6,31 +6,38 @@ import { AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
 export default function VendorLayout() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const [vendorPending, setVendorPending] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    const isVendorRole = user.role?.toUpperCase() === "VENDOR" || roles.includes("vendedor");
+    if (!isVendorRole) {
+      setVendorPending(false);
+      return;
+    }
     apiGet<{ activo: boolean; pendingApproval: boolean }>("/vendor/me")
       .then((data) => {
         setVendorPending(!data?.activo || data?.pendingApproval);
       })
       .catch(() => setVendorPending(false));
-  }, [user]);
+  }, [user, roles]);
 
   const isPending = vendorPending === true;
 
   return (
-    <SidebarProvider>
+    <SidebarProvider style={{ "--sidebar-width": "17.5rem", "--sidebar-width-icon": "4.25rem" } as React.CSSProperties}>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
           <header className="h-12 sm:h-14 flex items-center border-b border-border/50 px-3 sm:px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
-            <SidebarTrigger className="mr-3 sm:mr-4 text-muted-foreground hover:text-foreground transition-colors" />
+            <SidebarTrigger className="sky-sidebar-trigger mr-3 h-9 w-9 rounded-xl sm:mr-4" />
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-bold text-primary font-display tracking-wide">SKYWORTH</span>
+              <SkyworthLogo tone="white" className="w-24 sm:w-28" />
+              <span className="h-5 w-px bg-white/10" />
               <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
             </div>
           </header>

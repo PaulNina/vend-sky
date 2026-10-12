@@ -60,19 +60,19 @@ export default function MyPaymentsPage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="glass-card border-white/5 overflow-hidden shadow-xl">
         <CardContent className="p-0">
           {isMobile ? (
             <div className="divide-y divide-border">
               {payments.map((p) => (
-                <div key={p.id} className="p-3 flex items-center justify-between gap-3">
+                <div key={p.id} className="p-3 flex items-center justify-between gap-3 hover:bg-white/5 transition-all duration-150">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{p.fecha}</p>
-                    <p className="text-base font-bold text-green-600 mt-0.5">Bs {p.montoTotal}</p>
-                    <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] mt-1">{p.estado}</Badge>
+                    <p className="text-base font-bold text-success mt-0.5">Bs {p.montoTotal}</p>
+                    <Badge variant="outline" className="border-success/30 text-success bg-success/10 text-[10px] mt-1">{p.estado}</Badge>
                   </div>
                   {p.fotoComprobante && (
-                    <Button size="sm" variant="outline" onClick={() => setSelectedReceipt(uploadUrl(p.fotoComprobante))} className="shrink-0 h-9">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedReceipt(uploadUrl(p.fotoComprobante))} className="shrink-0 h-9 glass-card border-white/10 hover:bg-white/5">
                       <Eye className="w-4 h-4 mr-1" /> Ver
                     </Button>
                   )}
@@ -85,7 +85,7 @@ export default function MyPaymentsPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/50">
+                <TableRow className="hover:bg-transparent border-white/5">
                   <TableHead>Fecha</TableHead>
                   <TableHead>Monto (Bs)</TableHead>
                   <TableHead>Estado</TableHead>
@@ -94,22 +94,22 @@ export default function MyPaymentsPage() {
               </TableHeader>
               <TableBody>
                 {payments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground border-white/5">
                       Aún no tienes registros de pago.
                     </TableCell>
                   </TableRow>
                 ) : (
                   payments.map((p) => (
-                    <TableRow key={p.id}>
+                    <TableRow key={p.id} className="transition-all duration-150 hover:bg-white/5 border-white/5">
                       <TableCell className="font-medium">{p.fecha}</TableCell>
-                      <TableCell className="font-bold text-green-600">Bs {p.montoTotal}</TableCell>
+                      <TableCell className="font-bold text-success">Bs {p.montoTotal}</TableCell>
                       <TableCell>
-                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">{p.estado}</Badge>
+                        <Badge variant="outline" className="border-success/30 text-success bg-success/10">{p.estado}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         {p.fotoComprobante && (
-                          <Button size="sm" variant="outline" onClick={() => setSelectedReceipt(uploadUrl(p.fotoComprobante))}>
+                          <Button size="sm" variant="outline" className="glass-card border-white/10 hover:bg-white/5" onClick={() => setSelectedReceipt(uploadUrl(p.fotoComprobante))}>
                             <Eye className="w-4 h-4 mr-1" /> Ver
                           </Button>
                         )}
@@ -125,7 +125,7 @@ export default function MyPaymentsPage() {
 
       {/* DIÁLOGO DE COMPROBANTE */}
       <Dialog open={selectedReceipt !== null} onOpenChange={(open) => !open && setSelectedReceipt(null)}>
-        <DialogContent className="w-full sm:max-w-md">
+        <DialogContent className="w-full sm:max-w-md glass-card border-white/10 shadow-2xl">
           <DialogHeader>
             <DialogTitle>Comprobante de Depósito</DialogTitle>
           </DialogHeader>
@@ -134,7 +134,7 @@ export default function MyPaymentsPage() {
               <img 
                 src={selectedReceipt} 
                 alt="Comprobante" 
-                className="w-full h-auto border rounded shadow-sm"
+                className="w-full h-auto border border-white/5 rounded shadow-sm"
               />
             </div>
           )}

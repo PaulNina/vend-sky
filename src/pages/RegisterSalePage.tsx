@@ -1,16 +1,33 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiPostForm } from "@/lib/api";
+import { apiGet, apiPostForm, apiPostFormWithProgress } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Package, CheckCircle2, AlertCircle, Upload } from "lucide-react";
+import { Loader2, Package, CheckCircle2, AlertCircle, Upload, Store, RefreshCw, UploadCloud } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 import { useGlobalConfig } from "@/hooks/useGlobalConfig";
+import { compressImage, formatBytes } from "@/lib/imageCompressor";
+
+interface MyStore {
+  id: number;
+  codigo?: string;
+  nombre: string;
+  canal?: string;
+  ciudad?: {
+    id: number;
+    nombre: string;
+    departamento?: string;
+  };
+}
+
 interface Product {
   id: number;
   nombre: string;
@@ -57,13 +74,33 @@ export default function RegisterSalePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [saleDate, setSaleDate] = useState("");
+  const [myStores, setMyStores] = useState<MyStore[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
+  const [loadingStores, setLoadingStores] = useState(true);
   const [tagFile, setTagFile] = useState<File | null>(null);
   const [policyFile, setPolicyFile] = useState<File | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Estado del modal interactivo de subida y reintento
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadState, setUploadState] = useState<"uploading" | "processing" | "success" | "error">("uploading");
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [uploadDetailText, setUploadDetailText] = useState("");
+  const [uploadErrorMessage, setUploadErrorMessage] = useState("");
+
   useEffect(() => {
     apiGet<Product[]>("/products/active").then(setProducts).catch(() => {});
+    apiGet<MyStore[]>("/tiendas/my-stores")
+      .then((stores) => {
+        setMyStores(stores);
+        if (stores && stores.length > 0) {
+          setSelectedStoreId(String(stores[0].id));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingStores(false));
+
     const now = new Date();
     const today = now.toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
     setSaleDate(today);
@@ -126,125 +163,186 @@ export default function RegisterSalePage() {
     }
   };
 
-  const compressImage = async (file: File): Promise<File | Blob> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          
-          // Max dimension 1600px
-          const MAX_DIM = 1600;
-          if (width > height) {
-            if (width > MAX_DIM) {
-              height *= MAX_DIM / width;
-              width = MAX_DIM;
-            }
-          } else {
-            if (height > MAX_DIM) {
-              width *= MAX_DIM / height;
-              height = MAX_DIM;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                // Return original if blob is somehow larger (rare)
-                resolve(blob.size < file.size ? new File([blob], file.name, { type: "image/jpeg" }) : file);
-              } else {
-                resolve(file);
-              }
-            },
-            "image/jpeg",
-            0.75 // 75% quality
-          );
-        };
-      };
-    });
+  const [compressingTag, setCompressingTag] = useState(false);
+  const [compressingPolicy, setCompressingPolicy] = useState(false);
+  const [compressingInvoice, setCompressingInvoice] = useState(false);
+
+  const handlePhotoSelect = async (
+    file: File,
+    type: "tag" | "policy" | "invoice"
+  ) => {
+    if (!file) return;
+
+    if (type === "tag") setCompressingTag(true);
+    else if (type === "policy") setCompressingPolicy(true);
+    else if (type === "invoice") setCompressingInvoice(true);
+
+    try {
+      const compressed = await compressImage(file, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.75,
+      });
+
+      if (type === "tag") setTagFile(compressed);
+      else if (type === "policy") setPolicyFile(compressed);
+      else if (type === "invoice") setInvoiceFile(compressed);
+    } catch (err) {
+      console.warn("Fallo al comprimir imagen, usando archivo original:", err);
+      if (type === "tag") setTagFile(file);
+      else if (type === "policy") setPolicyFile(file);
+      else if (type === "invoice") setInvoiceFile(file);
+    } finally {
+      if (type === "tag") setCompressingTag(false);
+      else if (type === "policy") setCompressingPolicy(false);
+      else if (type === "invoice") setCompressingInvoice(false);
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProduct) { toast({ title: "Selecciona un producto", variant: "destructive" }); return; }
-    if (!tagFile || !policyFile || !invoiceFile) {
-      toast({ title: "Adjunta las 3 fotos (TAG, Póliza, Nota)", variant: "destructive" }); return;
-    }
-    
-    // Check original size just in case, though we will compress
-    const totalSize = (tagFile?.size || 0) + (policyFile?.size || 0) + (invoiceFile?.size || 0);
-    const MAX_SIZE = 30 * 1024 * 1024; // 30MB
-    if (totalSize > MAX_SIZE) {
-      toast({ 
-        title: "Archivos demasiado grandes", 
-        description: `El tamaño total (${(totalSize / (1024 * 1024)).toFixed(2)}MB) excede el límite de 30MB. Por favor, use imágenes más pequeñas o reduzca su calidad.`, 
-        variant: "destructive" 
-      }); 
-      return; 
-    }
+  const ejecutarEnvioVenta = async () => {
+    if (!tagFile || !policyFile || !invoiceFile || !selectedProduct) return;
 
-    if (serialStatus !== "valido") {
-      toast({ title: "Valida el serial primero", variant: "destructive" }); return;
-    }
-
+    setUploadModalOpen(true);
+    setUploadState("uploading");
+    setUploadPercent(0);
+    setUploadDetailText("Preparando fotografías...");
+    setUploadErrorMessage("");
     setSubmitting(true);
+
     try {
       const form = new FormData();
       form.append("serial", serial.trim());
       form.append("productoId", selectedProduct);
       form.append("saleDate", saleDate);
+      if (selectedStoreId) {
+        form.append("tiendaId", selectedStoreId);
+      }
 
-      // Compress images before sending
-      const compressedTag = await compressImage(tagFile);
-      const compressedPolicy = await compressImage(policyFile);
-      const compressedInvoice = await compressImage(invoiceFile);
+      // Las fotos ya se encuentran 100% optimizadas (< 400KB cada una)
+      form.append("fotoTag", tagFile, tagFile.name.endsWith(".jpg") ? tagFile.name : "foto_tag.jpg");
+      form.append("fotoPoliza", policyFile, policyFile.name.endsWith(".jpg") ? policyFile.name : "foto_poliza.jpg");
+      form.append("fotoNota", invoiceFile, invoiceFile.name.endsWith(".jpg") ? invoiceFile.name : "foto_nota.jpg");
 
-      form.append("fotoTag", compressedTag);
-      form.append("fotoPoliza", compressedPolicy);
-      form.append("fotoNota", compressedInvoice);
+      await apiPostFormWithProgress("/sales", form, (prog) => {
+        setUploadPercent(prog.percent);
+        if (prog.percent < 100) {
+          setUploadState("uploading");
+          setUploadDetailText(`${formatBytes(prog.loaded)} de ${formatBytes(prog.total)} (${prog.percent}%)`);
+        } else {
+          setUploadState("processing");
+          setUploadDetailText("Procesando venta en el servidor...");
+        }
+      });
 
-      await apiPostForm("/sales", form);
+      setUploadState("success");
+      setUploadPercent(100);
+      setUploadDetailText("¡Venta confirmada exitosamente!");
       toast({ title: "✓ Venta registrada correctamente" });
-      navigate("/v/mis-ventas");
+
+      setTimeout(() => {
+        navigate("/v/mis-ventas");
+      }, 1400);
     } catch (error: unknown) {
+      setUploadState("error");
+      let msg = error instanceof Error ? error.message : "Error desconocido al procesar la solicitud.";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("Error de red")) {
+        msg = "Error de conexión o red inestable mientras se subían las fotografías. Por favor, verifica tu internet e inténtalo de nuevo.";
+      } else if (msg.includes("proxy") || msg.includes("Session") || msg.includes("NullPointerException") || msg.includes("Hibernate")) {
+        msg = "Inconveniente momentáneo en el servidor. Presiona 'Reintentar Subida' para enviar nuevamente sin perder tus datos.";
+      }
+      setUploadErrorMessage(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (compressingTag || compressingPolicy || compressingInvoice) {
       toast({
-        title: "Error al registrar",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        title: "Optimizando fotografías",
+        description: "Por favor espera un momento mientras se termina de optimizar la imagen.",
+      });
+      return;
+    }
+
+    if (!selectedProduct) {
+      toast({
+        title: "Selecciona un producto",
+        description: "Debes seleccionar el modelo de televisor que vendiste.",
         variant: "destructive",
       });
+      return;
     }
-    setSubmitting(false);
+    if (!tagFile || !policyFile || !invoiceFile) {
+      toast({
+        title: "Faltan fotografías obligatorias",
+        description: "Debes adjuntar las 3 fotos de respaldo: Foto TAG, Póliza de garantía y Nota o factura de venta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (serialStatus !== "valido") {
+      toast({
+        title: "Número de serie no verificado",
+        description: serialMsg || "Escribe el número de serie y presiona 'Verificar' antes de confirmar la venta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    ejecutarEnvioVenta();
   };
 
   const FileInput = ({
     label,
     file,
-    onChange,
-    accept = "image/*",
+    isCompressing,
+    onSelect,
+    accept = "image/*,.heic,.heif",
   }: {
     label: string;
     file: File | null;
-    onChange: (f: File) => void;
+    isCompressing: boolean;
+    onSelect: (f: File) => void;
     accept?: string;
   }) => (
     <div className="space-y-1.5">
       <Label className="text-xs">{label}</Label>
-      <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all py-4 ${file ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/30"}`}>
-        <input type="file" className="sr-only" accept={accept} onChange={(e) => e.target.files?.[0] && onChange(e.target.files[0])} />
-        {file ? (
+      <label
+        className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all py-3.5 px-2 min-h-[96px] ${
+          isCompressing
+            ? "border-primary/50 bg-primary/10 glass-card animate-pulse"
+            : file
+            ? "border-emerald-500/40 bg-emerald-500/10 glass-card"
+            : "border-white/10 glass-card hover:border-primary/30 hover:bg-white/5"
+        }`}
+      >
+        <input
+          type="file"
+          className="sr-only"
+          accept={accept}
+          disabled={isCompressing}
+          onChange={(e) => {
+            const selected = e.target.files?.[0];
+            if (selected) onSelect(selected);
+            e.target.value = "";
+          }}
+        />
+        {isCompressing ? (
           <>
-            <CheckCircle2 className="h-5 w-5 text-success" />
-            <span className="text-[10px] text-success font-medium truncate max-w-[100px]">{file.name}</span>
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            <span className="text-[11px] text-primary font-medium text-center">Optimizando foto...</span>
+          </>
+        ) : file ? (
+          <>
+            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[120px]">{file.name}</span>
+            <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-500/30">
+              ✓ {formatBytes(file.size)}
+            </span>
           </>
         ) : (
           <>
@@ -269,7 +367,7 @@ export default function RegisterSalePage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Serial */}
-        <Card>
+        <Card className="glass-card border-white/5 shadow-xl transition-all duration-300 hover:border-primary/20">
           <CardHeader className="pb-3"><CardTitle className="text-base">Serial del Producto</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
@@ -277,10 +375,10 @@ export default function RegisterSalePage() {
                 value={serial}
                 onChange={(e) => { setSerial(e.target.value); setSerialStatus("idle"); setSerialInfo(null); }}
                 placeholder="Ingresa el número de serie..."
-                className="font-mono"
+                className="font-mono glass-card border-white/10"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), validarSerial())}
               />
-              <Button type="button" variant="outline" onClick={validarSerial} disabled={serialStatus === "loading" || !serial.trim()}>
+              <Button type="button" variant="outline" className="glass-card border-white/10 hover:bg-white/5" onClick={validarSerial} disabled={serialStatus === "loading" || !serial.trim()}>
                 {serialStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Validar"}
               </Button>
             </div>
@@ -308,7 +406,7 @@ export default function RegisterSalePage() {
         </Card>
 
         {/* Producto (auto-detectado del serial) + Fecha + Ciudad */}
-        <Card>
+        <Card className="glass-card border-white/5 shadow-xl transition-all duration-300 hover:border-primary/20">
           <CardHeader className="pb-3"><CardTitle className="text-base">Datos de la Venta</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -328,7 +426,7 @@ export default function RegisterSalePage() {
                        <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Participando en las campañas:</span>
                        <div className="flex flex-col gap-2">
                          {serialInfo.campanas.map(c => (
-                           <div key={c.campanaId} className="text-sm font-bold text-primary bg-primary/10 px-3 py-2 rounded-md border border-primary/20 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 align-start">
+                           <div key={c.campanaId} className="text-sm font-bold text-primary bg-primary/15 px-3 py-2 rounded-md border border-primary/25 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 align-start">
                              <div className="flex items-start gap-1.5 break-words max-w-full">
                                <span className="shrink-0 leading-tight">⭐</span>
                                <span className="leading-tight">{c.campanaNombre}</span>
@@ -350,8 +448,8 @@ export default function RegisterSalePage() {
                 </div>
               ) : (
                 <Select value={selectedProduct} onValueChange={setSelectedProduct} required>
-                  <SelectTrigger><SelectValue placeholder="Valida el serial para autocompletar..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="glass-card border-white/10"><SelectValue placeholder="Valida el serial para autocompletar..." /></SelectTrigger>
+                  <SelectContent className="glass-card">
                     {products.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>
                         {p.nombre} {(p.tamanoPulgadas ?? p.pulgadas) ? `${p.tamanoPulgadas ?? p.pulgadas}"` : ""} — {p.modelo ?? p.modeloCodigo ?? ""}
@@ -363,6 +461,60 @@ export default function RegisterSalePage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3">
+              {/* Selección de Tienda Asignada */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-sm font-medium">
+                  <Store className="h-4 w-4 text-primary" /> Tienda / Punto de Venta *
+                </Label>
+                {loadingStores ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" /> Cargando tiendas asignadas...
+                  </div>
+                ) : myStores.length > 0 ? (
+                  <div className="space-y-2">
+                    <Select value={selectedStoreId} onValueChange={setSelectedStoreId} required>
+                      <SelectTrigger className="glass-card border-white/10 text-white">
+                        <SelectValue placeholder="Selecciona la tienda..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/10 text-white max-h-56">
+                        {myStores.map((s) => (
+                          <SelectItem key={s.id} value={String(s.id)} className="focus:bg-white/5 focus:text-white">
+                            {s.nombre} {s.codigo ? `(${s.codigo})` : ""} {s.canal ? `· ${s.canal}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {(() => {
+                      const curStore = myStores.find(s => String(s.id) === selectedStoreId);
+                      if (!curStore) return null;
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          {curStore.codigo && (
+                            <Badge variant="outline" className="border-white/15 bg-white/5 font-mono text-[10px]">
+                              {curStore.codigo}
+                            </Badge>
+                          )}
+                          {curStore.canal && (
+                            <Badge variant="outline" className="border-primary/30 text-primary bg-primary/10 text-[10px]">
+                              Canal: {curStore.canal}
+                            </Badge>
+                          )}
+                          {curStore.ciudad && (
+                            <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5 text-[10px]">
+                              {curStore.ciudad.nombre} {curStore.ciudad.departamento ? `(${curStore.ciudad.departamento})` : ""}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
+                    Tu cuenta registrará la venta con tu tienda habitual ({user?.tienda || "General"}).
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Fecha de venta</Label>
                 <Input 
@@ -371,7 +523,8 @@ export default function RegisterSalePage() {
                   onChange={(e) => setSaleDate(e.target.value)} 
                   required 
                   min={minDate}
-                  max={maxDate} 
+                  max={maxDate}
+                  className="glass-card border-white/10"
                 />
                 <p className="text-[10px] text-muted-foreground italic">
                   * {ventaFechaMaxSemanas === 0 
@@ -384,13 +537,28 @@ export default function RegisterSalePage() {
         </Card>
 
         {/* Fotos */}
-        <Card>
+        <Card className="glass-card border-white/5 shadow-xl transition-all duration-300 hover:border-primary/20">
           <CardHeader className="pb-3"><CardTitle className="text-base">Fotos de Respaldo</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <FileInput label="Foto TAG *" file={tagFile} onChange={setTagFile} />
-              <FileInput label="Foto Póliza *" file={policyFile} onChange={setPolicyFile} />
-              <FileInput label="Nota de entrega *" file={invoiceFile} onChange={setInvoiceFile} />
+              <FileInput
+                label="Foto TAG *"
+                file={tagFile}
+                isCompressing={compressingTag}
+                onSelect={(file) => handlePhotoSelect(file, "tag")}
+              />
+              <FileInput
+                label="Foto Póliza *"
+                file={policyFile}
+                isCompressing={compressingPolicy}
+                onSelect={(file) => handlePhotoSelect(file, "policy")}
+              />
+              <FileInput
+                label="Nota de entrega *"
+                file={invoiceFile}
+                isCompressing={compressingInvoice}
+                onSelect={(file) => handlePhotoSelect(file, "invoice")}
+              />
             </div>
           </CardContent>
         </Card>
@@ -400,6 +568,128 @@ export default function RegisterSalePage() {
           Confirmar Venta
         </Button>
       </form>
+
+      {/* Modal de estado de subida y reintento */}
+      <Dialog
+        open={uploadModalOpen}
+        onOpenChange={(open) => {
+          if (!open && (uploadState === "error" || uploadState === "success")) {
+            setUploadModalOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-slate-950 border-white/10 text-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg font-semibold flex items-center justify-center gap-2">
+              {uploadState === "uploading" && (
+                <>
+                  <UploadCloud className="h-5 w-5 text-primary animate-bounce" />
+                  Subiendo Fotografías
+                </>
+              )}
+              {uploadState === "processing" && (
+                <>
+                  <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+                  Registrando Venta
+                </>
+              )}
+              {uploadState === "success" && (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                  ¡Venta Confirmada!
+                </>
+              )}
+              {uploadState === "error" && (
+                <>
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  No se pudo completar el registro
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground">
+              {uploadState === "uploading" && "Transfiriendo las fotos de respaldo optimizadas al servidor..."}
+              {uploadState === "processing" && "Verificando serial y asignando tus puntos y bonos..."}
+              {uploadState === "success" && "Tu venta ha sido registrada con éxito."}
+              {uploadState === "error" && "Ocurrió un problema de conexión durante el envío."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {/* Barra de progreso interactiva */}
+            {(uploadState === "uploading" || uploadState === "processing") && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                  <span>{uploadState === "processing" ? "Procesando en servidor..." : uploadDetailText}</span>
+                  <span className="font-bold text-primary">{uploadPercent}%</span>
+                </div>
+                <Progress value={uploadPercent} className="h-3 bg-white/10" />
+                <p className="text-[11px] text-center text-muted-foreground animate-pulse">
+                  {uploadState === "processing"
+                    ? "Asignando cupones y puntos a tu cuenta..."
+                    : "Por favor no cierres esta ventana..."}
+                </p>
+              </div>
+            )}
+
+            {uploadState === "success" && (
+              <div className="flex flex-col items-center justify-center py-3 space-y-2 text-center">
+                <div className="h-14 w-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <CheckCircle2 className="h-8 w-8" />
+                </div>
+                <p className="text-sm font-medium text-emerald-300">¡Venta registrada con éxito!</p>
+                <p className="text-xs text-muted-foreground">Redirigiendo a tu historial de ventas...</p>
+              </div>
+            )}
+
+            {uploadState === "error" && (
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-1.5">
+                  <p className="font-semibold flex items-center gap-1.5 text-red-400">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Detalle del problema:
+                  </p>
+                  <p className="text-destructive-foreground/90 pl-5 break-words">{uploadErrorMessage}</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground text-center">
+                  💡 Tus datos y fotografías siguen guardados en el formulario. Puedes presionar <strong>Reintentar Subida</strong> para enviar nuevamente sin tener que volver a tomar las fotos.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            {uploadState === "error" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/10 text-xs"
+                  onClick={() => setUploadModalOpen(false)}
+                >
+                  Revisar datos / Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-primary hover:bg-primary/90 text-xs font-semibold gap-1.5"
+                  onClick={ejecutarEnvioVenta}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Reintentar Subida
+                </Button>
+              </>
+            )}
+            {uploadState === "success" && (
+              <Button
+                type="button"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold"
+                onClick={() => navigate("/v/mis-ventas")}
+              >
+                Ir a Mis Ventas
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

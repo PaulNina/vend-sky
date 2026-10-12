@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
+import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
 interface Campaign {
   id: number;
@@ -111,14 +112,17 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-primary">SKYWORTH</h1>
-          <p className="text-sm text-muted-foreground">Registro de Vendedor</p>
+    <div className="login-stage relative flex min-h-screen items-center justify-center overflow-hidden p-4 py-10">
+      <div className="login-grid pointer-events-none absolute inset-0" />
+      <div className="relative w-full max-w-lg space-y-6">
+        <div className="flex flex-col items-center space-y-3 text-center">
+          <SkyworthLogo tone="white" className="w-48" />
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_12px_rgba(46,113,247,.9)]" /> Registro de vendedor
+          </div>
         </div>
 
-        <Card className="border-border/50">
+        <Card className="admin-panel rounded-[22px]">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">Crear cuenta</CardTitle>
             <CardDescription>Completa tus datos para registrarte como vendedor</CardDescription>

@@ -41,7 +41,23 @@ import UsersRolesPage from "@/pages/admin/UsersRolesPage";
 import ConfigurationPage from "@/pages/admin/ConfigurationPage";
 import PaymentsAdminPage from "@/pages/PaymentsAdminPage";
 import TiendasPage from "@/pages/admin/TiendasPage";
+import DamagedEquipmentListPage from "@/pages/admin/damaged/DamagedEquipmentListPage";
+import DamagedEquipmentRegisterPage from "@/pages/admin/damaged/DamagedEquipmentRegisterPage";
 
+// Módulos Nuevos: Cliente Final, Ruleta, Supervisión y Sorteos
+import LandingCampanaClientePage from "@/pages/LandingCampanaClientePage";
+import ConsultaTicketsPage from "@/pages/ConsultaTicketsPage";
+import BandeoRuletaPage from "@/pages/BandeoRuletaPage";
+import InventarioImpulsadorPage from "@/pages/InventarioImpulsadorPage";
+import SupervisorClientePage from "@/pages/admin/SupervisorClientePage";
+import TombolaSorteoPage from "@/pages/admin/TombolaSorteoPage";
+import AdminCampanasClientePage from "@/pages/admin/AdminCampanasClientePage";
+import AdminInventariosPremiosPage from "@/pages/admin/AdminInventariosPremiosPage";
+import AdminGanadoresPage from "@/pages/admin/AdminGanadoresPage";
+import WhatsappPage from "@/pages/admin/WhatsappPage";
+import WhatsappConfigPage from "@/pages/admin/WhatsappConfigPage";
+import AdminPremiosVendedoresPage from "@/pages/admin/AdminPremiosVendedoresPage";
+import VendorCanjesPage from "@/pages/VendorCanjesPage";
 
 const queryClient = new QueryClient();
 
@@ -56,41 +72,116 @@ const App = () => (
           <Routes>
             {/* Public */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/sorteo" element={<LandingCampanaClientePage />} />
+            <Route path="/registro-cliente" element={<LandingCampanaClientePage />} />
+            <Route path="/mis-tickets" element={<ConsultaTicketsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Vendor (protected) */}
+            {/* Vendor & Operador Bandeo (protected layout) */}
             <Route
               element={
-                <RequireAuth allowedRoles={["vendedor"]}>
+                <RequireAuth allowedRoles={["vendedor", "operador_bandeo"]}>
                   <VendorLayout />
                 </RequireAuth>
               }
             >
-              <Route path="/v" element={<VendorDashboard />} />
-              <Route path="/v/registrar-venta" element={<RegisterSalePage />} />
-              <Route path="/v/mis-ventas" element={<MySalesPage />} />
-              <Route path="/v/ranking" element={<RankingPage />} />
+              {/* Exclusivo Operador de Bandeo */}
+              <Route
+                path="/v/bandeo-ruleta"
+                element={
+                  <RequireAuth allowedRoles={["operador_bandeo", "admin"]}>
+                    <BandeoRuletaPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/mi-inventario-premios"
+                element={
+                  <RequireAuth allowedRoles={["operador_bandeo", "admin"]}>
+                    <InventarioImpulsadorPage />
+                  </RequireAuth>
+                }
+              />
+
+              {/* Exclusivo Vendedor de Tienda */}
+              <Route
+                path="/v"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <VendorDashboard />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/registrar-venta"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <RegisterSalePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/mis-ventas"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <MySalesPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/ranking"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <RankingPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/mis-pagos"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <MyPaymentsPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/v/canjes"
+                element={
+                  <RequireAuth allowedRoles={["vendedor", "admin"]}>
+                    <VendorCanjesPage />
+                  </RequireAuth>
+                }
+              />
               <Route path="/v/perfil" element={<VendorProfilePage />} />
-              <Route path="/v/mis-pagos" element={<MyPaymentsPage />} />
+
             </Route>
 
-            {/* Admin (protected) */}
+            {/* Admin & Staff (protected) */}
             <Route
               element={
-                <RequireAuth allowedRoles={["admin", "supervisor", "revisor_ciudad"]}>
+                <RequireAuth allowedRoles={["admin", "supervisor", "revisor_ciudad", "tecnico"]}>
                   <AdminLayout />
                 </RequireAuth>
               }
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/supervision-clientes" element={<SupervisorClientePage />} />
+              <Route path="/admin/tombola-sorteos" element={<TombolaSorteoPage />} />
+              <Route path="/admin/campanas-cliente" element={<AdminCampanasClientePage />} />
+              <Route path="/admin/inventario-premios" element={<AdminInventariosPremiosPage />} />
+              <Route path="/admin/ganadores-sorteos" element={<AdminGanadoresPage />} />
               <Route path="/admin/campanias" element={<CampaignsPage />} />
+              <Route path="/admin/premios-vendedores" element={<AdminPremiosVendedoresPage />} />
+
               <Route path="/admin/solicitudes-registro" element={<RegistrationRequestsPage />} />
               <Route path="/admin/vendedores" element={<VendorsPage />} />
               <Route path="/admin/productos-modelos" element={<ProductsPage />} />
               <Route path="/admin/seriales" element={<SerialsPage />} />
+              <Route path="/admin/equipos-danados" element={<DamagedEquipmentListPage />} />
+              <Route path="/admin/equipos-danados/nuevo" element={<DamagedEquipmentRegisterPage />} />
               <Route path="/admin/revisiones" element={<ReviewsPage />} />
               <Route path="/admin/auditoria" element={<AuditPage />} />
               <Route path="/admin/reportes" element={<ReportsPage />} />
@@ -98,6 +189,8 @@ const App = () => (
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
               <Route path="/admin/pagos" element={<PaymentsAdminPage />} />
               <Route path="/admin/tiendas" element={<TiendasPage />} />
+              <Route path="/admin/whatsapp" element={<WhatsappPage />} />
+              <Route path="/admin/whatsapp-config" element={<WhatsappConfigPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

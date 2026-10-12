@@ -121,10 +121,13 @@ export default function VendorProfilePage() {
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!vendor) return <p className="text-muted-foreground text-center py-12">No se encontró información de vendedor.</p>;
 
-  const readOnlyItems = [
+  const profileItems = [
+    { icon: UserCircle, label: "Nombre Completo", value: vendor.nombreCompleto },
     { icon: Mail, label: "Email", value: vendor.email || "—" },
-    { icon: MapPin, label: "Departamento", value: vendor.ciudad?.departamento || "—" },
+    { icon: Phone, label: "Teléfono", value: vendor.telefono || "—" },
     { icon: MapPin, label: "Ciudad", value: vendor.ciudad?.nombre || "—" },
+    { icon: MapPin, label: "Departamento", value: vendor.ciudad?.departamento || "—" },
+    { icon: Store, label: "Tienda", value: vendor.tienda || "Sin tienda" },
     { icon: Shirt, label: "Talla de Polera", value: vendor.tallaPolera || "Sin definir" },
   ];
 
@@ -135,16 +138,16 @@ export default function VendorProfilePage() {
           <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
             <UserCircle className="h-6 w-6 text-primary" />Mi Perfil
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Datos personales</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Información personal y de contacto</p>
         </div>
         {!editing && (
           <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
-            <Pencil className="h-3.5 w-3.5" /> Editar
+            <Pencil className="h-3.5 w-3.5" /> Editar Perfil
           </Button>
         )}
       </div>
 
-      <Card>
+      <Card className="glass-card border-white/5 shadow-xl">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display">Datos del Vendedor</CardTitle>
@@ -154,34 +157,29 @@ export default function VendorProfilePage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {readOnlyItems.map((item) => (
-              <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <item.icon className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label}</p>
-                  <p className="text-sm font-medium mt-0.5">{item.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {editing ? (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label htmlFor="fullName" className="text-xs">Nombre completo</Label><Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} /></div>
-                <div className="space-y-1.5"><Label htmlFor="phone" className="text-xs">Teléfono</Label><Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} /></div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="fullName" className="text-xs font-semibold">Nombre completo *</Label>
+                  <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} />
+                </div>
                 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Ciudad *</Label>
+                  <Label htmlFor="phone" className="text-xs font-semibold">Teléfono *</Label>
+                  <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Ciudad *</Label>
                   <Select value={city} onValueChange={setCity}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona tu ciudad" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona tu ciudad" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
                       {departments.map((dept) => (
                         <SelectGroup key={dept}>
-                          <SelectLabel className="text-muted-foreground">{dept}</SelectLabel>
+                          <SelectLabel className="text-muted-foreground text-xs uppercase tracking-wider">{dept}</SelectLabel>
                           {cities.filter((c) => c.departamento === dept).map((c) => (
                             <SelectItem key={c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
                           ))}
@@ -192,7 +190,7 @@ export default function VendorProfilePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Nombre de tienda <span className="text-muted-foreground">(opcional)</span></Label>
+                  <Label className="text-xs font-semibold">Nombre de tienda <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                   <Input
                     value={tiendaNombre}
                     onChange={(e) => setTiendaNombre(e.target.value)}
@@ -202,7 +200,7 @@ export default function VendorProfilePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Talla de Polera</Label>
+                  <Label className="text-xs font-semibold">Talla de Polera</Label>
                   <Select value={tallaPolera} onValueChange={setTallaPolera}>
                     <SelectTrigger><SelectValue placeholder="Seleccione talla" /></SelectTrigger>
                     <SelectContent>
@@ -211,8 +209,13 @@ export default function VendorProfilePage() {
                   </Select>
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Email</Label>
+                  <Input value={vendor.email || ""} disabled className="bg-muted/50 cursor-not-allowed text-xs text-muted-foreground" />
+                </div>
+
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">QR de Pagos (Imagen)</Label>
+                  <Label className="text-xs font-semibold">QR de Pagos (Imagen)</Label>
                   <Input 
                     type="file" 
                     accept="image/*" 
@@ -231,33 +234,34 @@ export default function VendorProfilePage() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}><X className="h-3.5 w-3.5 mr-1" /> Cancelar</Button>
+              <div className="flex gap-2 justify-end pt-2 border-t border-border/50">
+                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
+                  <X className="h-3.5 w-3.5 mr-1" /> Cancelar
+                </Button>
                 <Button size="sm" onClick={handleSave} disabled={saving}>
-                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}Guardar
+                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                  Guardar Cambios
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { icon: UserCircle, label: "Nombre", value: vendor.nombreCompleto },
-                { icon: Phone, label: "Teléfono", value: vendor.telefono || "—" },
-                { icon: Store, label: "Tienda", value: vendor.tienda || "Sin tienda" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <item.icon className="h-4 w-4 text-primary" />
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {profileItems.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <item.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label}</p>
+                      <p className="text-sm font-medium mt-0.5 truncate">{item.value}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label}</p>
-                    <p className="text-sm font-medium mt-0.5">{item.value}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
               
               {vendor.fotoQr && (
-                <div className="flex flex-col items-center gap-2 p-3 sm:col-span-2 rounded-lg bg-muted/30 border border-border/50">
+                <div className="flex flex-col items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest w-full text-left">Foto QR Asociada</p>
                   <img src={uploadUrl(vendor.fotoQr)} alt="QR Vendedor" className="max-h-[200px] object-contain border rounded" />
                 </div>

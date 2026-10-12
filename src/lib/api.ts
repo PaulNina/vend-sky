@@ -5,7 +5,7 @@
  */
 
 const BASE_URL =
-  (import.meta.env.VITE_API_URL as string) || "http://localhost:8080";
+  (import.meta.env.VITE_API_URL as string) || "http://localhost:8081";
 
 export const TOKEN_KEY = "bono_jwt";
 
@@ -95,6 +95,22 @@ export async function apiGetBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+}
+
+export async function apiDownloadFile(path: string, defaultFilename: string): Promise<void> {
+  const blob = await apiGetBlob(path);
+  downloadBlob(blob, defaultFilename);
+}
+
 export async function apiGetPublic<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -161,6 +177,113 @@ export async function apiPostForm<T>(
   } catch (error) {
     if (error instanceof Error && (error.message.includes("fetch") || error.name === "TypeError")) {
       throw new Error("Error de red o el servidor tardó demasiado en responder mientras se subían las fotos. Por favor, intente con fotos más pequeñas o una conexión más estable.");
+    }
+    throw error;
+  }
+}
+
+export interface UploadProgressInfo {
+  loaded: number;
+  total: number;
+  percent: number;
+}
+
+export type UploadProgressCallback = (progress: UploadProgressInfo) => void;
+
+/**
+ * Multipart form upload con monitoreo de progreso en tiempo real (XHR nativo)
+ */
+export function apiPostFormWithProgress<T>(
+  path: string,
+  formData: FormData,
+  onProgress?: UploadProgressCallback
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE_URL}${path}`);
+
+    const headers = authHeaders();
+    Object.entries(headers).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          onProgress({ loaded: event.loaded, total: event.total, percent });
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      try {
+        const status = xhr.status;
+        const text = xhr.responseText;
+        let data: Record<string, unknown> | string | null = null;
+        try {
+          data = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+        } catch {
+          data = text;
+        }
+
+        if (status >= 200 && status < 300) {
+          resolve(data as T);
+        } else {
+          let errorMsg = "";
+          if (data && typeof data === "object") {
+            const candidate = data.error ?? data.message;
+            if (typeof candidate === "string") {
+              errorMsg = candidate;
+            }
+          } else if (typeof data === "string" && !data.includes("<!DOCTYPE") && !data.includes("<html") && data.trim().length > 0) {
+            errorMsg = data.trim();
+          }
+
+          if (!errorMsg) {
+            if (status === 413) {
+              errorMsg = "Las fotografías adjuntas superan el límite de tamaño permitido por el servidor. Por favor, usa fotos con menor resolución.";
+            } else if (status === 401) {
+              errorMsg = "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.";
+            } else if (status === 403) {
+              errorMsg = "No tienes permisos para registrar esta venta.";
+            } else {
+              errorMsg = `Error del servidor (${status}). Por favor, intenta de nuevo o consulta con tu supervisor.`;
+            }
+          }
+          reject(new Error(errorMsg));
+        }
+      } catch (e) {
+        reject(e);
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Error de red o conexión inestable mientras se subían las fotos. Por favor, verifica tu internet y reintenta."));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error("La subida tardó demasiado y se agotó el tiempo de espera. Por favor, reintenta con una conexión más estable."));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+export async function apiPutForm<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: formData,
+    });
+    return handleResponse<T>(res);
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("fetch") || error.name === "TypeError")) {
+      throw new Error("Error de red o el servidor tardó demasiado en responder mientras se enviaban las fotos.");
     }
     throw error;
   }

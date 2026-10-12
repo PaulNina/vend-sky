@@ -13,9 +13,6 @@ export default defineConfig(({ mode }) => ({
       mode === "production"
         ? false
         : {
-            clientPort: 8080,
-            port: 8080,
-            protocol: "ws",
             overlay: false,
           },
   },
@@ -24,13 +21,13 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["pwa-512.png"],
+      includeAssets: ["skyworth-app-icon.svg"],
       manifest: {
         name: "SKYWORTH Bono Vendedor",
         short_name: "Bono Vendedor",
         description: "Sistema de bono vendedor SKYWORTH Bolivia",
-        theme_color: "#0a0a0a",
-        background_color: "#0a0a0a",
+        theme_color: "#0069C8",
+        background_color: "#080B10",
         display: "standalone",
         orientation: "portrait-primary",
         start_url: "/",
@@ -38,21 +35,21 @@ export default defineConfig(({ mode }) => ({
         lang: "es",
         icons: [
           {
-            src: "pwa-512.png",
-            sizes: "192x192",
-            type: "image/png",
+            src: "skyworth-app-icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
             purpose: "any",
           },
           {
-            src: "pwa-512.png",
-            sizes: "512x512",
-            type: "image/png",
+            src: "skyworth-app-icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
             purpose: "any",
           },
           {
-            src: "pwa-512.png",
-            sizes: "512x512",
-            type: "image/png",
+            src: "skyworth-app-icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
             purpose: "maskable",
           },
         ],
@@ -60,6 +57,7 @@ export default defineConfig(({ mode }) => ({
         categories: ["business", "productivity"],
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {

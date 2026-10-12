@@ -10,6 +10,7 @@ import { LANDING_DEFAULTS, type LandingConfig } from "@/components/admin/Landing
 import { Confetti, FloatingCoins, fadeUp, scaleIn } from "@/components/landing/LandingAnimations";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
 interface ActiveCampaign {
   id: number;
@@ -90,9 +91,10 @@ export default function LandingPage() {
         <motion.div 
           animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }} 
           transition={{ duration: 1.5, repeat: Infinity }}
-          className="text-primary font-bold text-2xl font-display"
+          className="flex flex-col items-center gap-4"
         >
-          SKYWORTH
+          <SkyworthLogo tone="white" className="w-48" />
+          <span className="h-1 w-16 rounded-full bg-primary shadow-[0_0_18px_rgba(46,113,247,.9)]" />
         </motion.div>
       </div>
     );
@@ -107,9 +109,10 @@ export default function LandingPage() {
         transition={{ duration: 0.5 }}
         className="border-b border-border px-6 py-4 flex items-center justify-between sticky top-0 z-50 bg-background/80 backdrop-blur-md"
       >
-        <div>
-          <h1 className="text-xl font-bold text-primary font-display tracking-tight">SKYWORTH</h1>
-          <p className="text-[10px] text-muted-foreground">Bono Vendedor · El Sueño del Hincha</p>
+        <div className="flex min-w-0 items-center gap-3">
+          <SkyworthLogo tone="white" className="w-32 sm:w-40" />
+          <div className="hidden h-7 w-px bg-white/10 sm:block" />
+          <p className="hidden text-[9px] font-semibold uppercase tracking-[.16em] text-slate-400 sm:block">Bono Vendedor<br />El Sueño del Hincha</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" size="sm" asChild>
@@ -177,7 +180,7 @@ export default function LandingPage() {
               className="flex flex-col sm:flex-row gap-3"
             >
               {!multiCampaign && (
-                <Button size="lg" variant="default" className="text-base gradient-gold shadow-gold text-primary-foreground border-none hover:opacity-90" asChild>
+                <Button size="lg" variant="default" className="gradient-brand shadow-brand border-none text-base text-white hover:brightness-110" asChild>
                   <Link to="/register">
                     <Zap className="h-5 w-5 mr-1" />
                     {cfg.landing_cta_text}
@@ -185,7 +188,7 @@ export default function LandingPage() {
                 </Button>
               )}
               {multiCampaign && (
-                <Button size="lg" variant="default" className="text-base gradient-gold shadow-gold text-primary-foreground border-none hover:opacity-90" asChild>
+                <Button size="lg" variant="default" className="gradient-brand shadow-brand border-none text-base text-white hover:brightness-110" asChild>
                   <a href="#campaigns">
                     <Zap className="h-5 w-5 mr-1" />
                     Ver campañas activas
@@ -318,7 +321,7 @@ export default function LandingPage() {
                 whileHover={{ y: -6, scale: 1.03, transition: { duration: 0.2 } }}
                 className="group relative p-5 rounded-xl border border-border bg-card text-center space-y-3 hover:border-primary/40 transition-colors"
               >
-                <span className="absolute -top-3 -right-3 text-xs font-bold bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center font-display shadow-gold">
+                <span className="shadow-brand absolute -top-3 -right-3 text-xs font-bold bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center font-display">
                   {i + 1}
                 </span>
                 <motion.div
@@ -361,7 +364,7 @@ export default function LandingPage() {
               </motion.div>
               <h3 className="text-xl md:text-2xl font-bold font-display">{cfg.landing_cta_final_title}</h3>
               <p className="text-sm text-muted-foreground">{cfg.landing_cta_final_desc}</p>
-              <Button size="lg" variant="default" className="text-base px-8 gradient-gold shadow-gold text-primary-foreground border-none hover:opacity-90" asChild>
+              <Button size="lg" variant="default" className="gradient-brand shadow-brand border-none px-8 text-base text-white hover:brightness-110" asChild>
                 <Link to="/register">{cfg.landing_cta_final_button}</Link>
               </Button>
             </div>

@@ -3,6 +3,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiGet } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { LayoutDashboard, Package, Trophy, Clock, XCircle, AlertCircle, DollarSign } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface Campaign {
+  id: number;
+  nombre: string;
+  activo: boolean;
+  registroHabilitado?: boolean;
+}
 
 interface VendorStats {
   approved: number;
@@ -16,10 +24,32 @@ export default function VendorDashboard() {
   const { user } = useAuth();
   const [countdown, setCountdown] = useState("");
   const [stats, setStats] = useState<VendorStats>({ approved: 0, bonusBs: 0, points: 0, pending: 0, rejected: 0 });
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
+
+  useEffect(() => {
+    apiGet<Campaign[]>("/campaigns")
+      .then((data) => {
+        const list = data || [];
+        setCampaigns(list);
+        const active = list.find((c) => c.activo);
+        if (active) {
+          setSelectedCampaign(String(active.id));
+        } else if (list.length > 0) {
+          setSelectedCampaign(String(list[0].id));
+        } else {
+          setSelectedCampaign("all");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
-    apiGet<VendorStats>("/vendor/stats")
+    const url = selectedCampaign && selectedCampaign !== "all"
+      ? `/vendor/stats?campanaId=${selectedCampaign}`
+      : "/vendor/stats";
+    apiGet<VendorStats>(url)
       .then((data) => {
         setStats({
           approved: data.approved ?? 0,
@@ -30,7 +60,7 @@ export default function VendorDashboard() {
         });
       })
       .catch(() => {});
-  }, [user]);
+  }, [user, selectedCampaign]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -57,11 +87,11 @@ export default function VendorDashboard() {
   }, []);
 
   const statCards = [
-    { label: "Aprobadas", value: String(stats.approved), icon: Package, color: "text-success" },
-    { label: "Bono", value: `Bs ${stats.bonusBs.toLocaleString()}`, icon: DollarSign, color: "text-primary" },
-    { label: "Puntos", value: String(stats.points), icon: Trophy, color: "text-warning" },
-    { label: "Pendientes", value: String(stats.pending), icon: AlertCircle, color: "text-muted-foreground" },
-    { label: "Rechazados", value: String(stats.rejected), icon: XCircle, color: "text-destructive" },
+    { label: "Aprobadas", value: String(stats.approved), icon: Package, color: "text-success", glow: "hover-glow-success" },
+    { label: "Bono", value: `Bs ${stats.bonusBs.toLocaleString()}`, icon: DollarSign, color: "text-primary", glow: "hover-glow-primary" },
+    { label: "Puntos", value: String(stats.points), icon: Trophy, color: "text-warning", glow: "hover-glow-warning" },
+    { label: "Pendientes", value: String(stats.pending), icon: AlertCircle, color: "text-muted-foreground", glow: "hover-glow-muted" },
+    { label: "Rechazados", value: String(stats.rejected), icon: XCircle, color: "text-destructive", glow: "hover-glow-destructive" },
   ];
 
   return (
@@ -75,12 +105,27 @@ export default function VendorDashboard() {
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Resumen de tu actividad</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+            <SelectTrigger className="w-[220px] text-xs sm:text-sm glass-card border-white/10 truncate">
+              <SelectValue placeholder="Campaña" />
+            </SelectTrigger>
+            <SelectContent className="glass-card bg-slate-900 border-white/10 text-white max-h-72">
+              <SelectItem value="all">Todas las campañas (Total)</SelectItem>
+              {campaigns.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.nombre} {c.activo ? "🟢 (Activa)" : "⚪ (Antigua)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Countdown card */}
-      <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-card to-primary/5">
+      <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-card to-primary/5 glass-card shadow-xl hover-glow-primary">
         <CardContent className="py-3 sm:py-4 px-4 sm:px-5 flex items-center gap-3 sm:gap-4">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl gradient-gold flex items-center justify-center shadow-gold shrink-0">
+          <div className="gradient-brand shadow-brand w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0">
             <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
           </div>
           <div className="min-w-0">
@@ -93,7 +138,7 @@ export default function VendorDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         {statCards.map((stat) => (
-          <Card key={stat.label} className="hover:border-primary/20 transition-all duration-200">
+          <Card key={stat.label} className={`glass-card border-white/5 transition-all duration-300 ${stat.glow}`}>
             <CardContent className="py-2.5 sm:py-3 px-3 sm:px-4">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{stat.label}</p>
@@ -108,7 +153,7 @@ export default function VendorDashboard() {
       </div>
 
       {/* Welcome info */}
-      <Card>
+      <Card className="glass-card border-white/5 hover-glow-muted transition-all duration-300">
         <CardContent className="py-4 sm:py-5 px-4 sm:px-6">
           <h3 className="font-semibold font-display text-sm sm:text-base mb-2">Bienvenido al Programa Bono Vendedor</h3>
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">

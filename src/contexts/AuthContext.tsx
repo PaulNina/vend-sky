@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { getToken, setToken, removeToken } from "@/lib/api";
 
-type AppRole = "vendedor" | "revisor_ciudad" | "supervisor" | "admin";
+export type AppRole = "vendedor" | "revisor_ciudad" | "supervisor" | "admin" | "tecnico" | "operador_bandeo";
 
-interface AuthUser {
+export interface AuthUser {
   id: number;
   name: string;
   email: string;
   role: string;
   vendorId?: number;
+  tienda?: string;
+  ciudad?: string;
 }
 
 interface AuthContextType {
@@ -37,12 +39,14 @@ function mapRole(role: string): AppRole {
     ADMIN: "admin",
     REVIEWER: "revisor_ciudad",
     SUPERVISOR: "supervisor",
+    TECNICO: "tecnico",
+    OPERADOR_BANDEO: "operador_bandeo",
   };
   return map[role?.toUpperCase()] ?? "vendedor";
 }
 
 // JWT claim key is 'role' (English, as set by JwtUtil.java)
-function decodeJwt(token: string): { sub?: string; role?: string; userId?: number; vendorId?: number } | null {
+function decodeJwt(token: string): { sub?: string; role?: string; userId?: number; vendorId?: number; tienda?: string; ciudad?: string } | null {
   try {
     const payload = token.split(".")[1];
     return JSON.parse(atob(payload));
@@ -71,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: payload.sub ?? "",
           role: rawRole,
           vendorId: payload.vendorId,
+          tienda: payload.tienda,
+          ciudad: payload.ciudad,
         });
         setRoles([appRole]);
         setTokenState(stored);
@@ -91,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: payload?.sub ?? "",
         role,
         vendorId,
+        tienda: payload?.tienda,
+        ciudad: payload?.ciudad,
       });
       setRoles([appRole]);
     },

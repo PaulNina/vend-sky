@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -36,16 +37,21 @@ export default function ResetPasswordPage() {
       await apiPost("/auth/reset-password", { token, newPassword: password });
       toast({ title: "Contraseña actualizada", description: "Ya puedes iniciar sesión con tu nueva contraseña." });
       navigate("/login");
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "No se pudo actualizar la contraseña.", variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "No se pudo actualizar la contraseña.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
     setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 bg-[url('/bg-pattern.svg')] bg-cover bg-center">
-      <Card className="w-full max-w-md border-border/50 shadow-xl backdrop-blur-sm bg-card/95">
+    <div className="login-stage relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="login-grid pointer-events-none absolute inset-0" />
+      <Card className="admin-panel relative w-full max-w-md rounded-[22px] shadow-xl">
         <CardHeader className="text-center">
+          <div className="mb-5 flex justify-center">
+            <SkyworthLogo tone="white" className="w-44" />
+          </div>
           <CardTitle className="text-2xl font-display font-bold">Nueva Contraseña</CardTitle>
           <CardDescription>Ingresa tu nueva contraseña</CardDescription>
         </CardHeader>

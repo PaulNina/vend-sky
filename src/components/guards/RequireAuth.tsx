@@ -1,19 +1,20 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, AppRole } from "@/contexts/AuthContext";
 import { Loader2, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 
 interface Props {
   children: React.ReactNode;
-  allowedRoles?: string[];
+  allowedRoles?: AppRole[];
 }
 
-function getRoleRedirect(roles: string[]): string {
+function getRoleRedirect(roles: AppRole[]): string {
   if (roles.includes("admin")) return "/admin";
   if (roles.includes("supervisor")) return "/admin/auditoria";
+  if (roles.includes("tecnico")) return "/admin/equipos-danados";
   if (roles.includes("revisor_ciudad")) return "/admin/revisiones";
+  if (roles.includes("operador_bandeo")) return "/v/bandeo-ruleta";
   if (roles.includes("vendedor")) return "/v";
   return "";
 }
@@ -54,7 +55,7 @@ export default function RequireAuth({ children, allowedRoles }: Props) {
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const hasAllowed = allowedRoles.some((r) => roles.includes(r as any));
+    const hasAllowed = allowedRoles.some((r) => roles.includes(r));
     if (!hasAllowed) {
       const redirect = getRoleRedirect(roles);
       if (redirect) return <Navigate to={redirect} replace />;
