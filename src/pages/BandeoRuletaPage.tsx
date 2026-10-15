@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { compressImage, formatBytes } from "@/lib/imageCompressor";
+import { ImageUploadBox } from "@/components/common/ImageUploadBox";
 import { 
   CheckCircle2, 
   Sparkles, 
@@ -82,12 +83,16 @@ export default function BandeoRuletaPage() {
   const [validatingSerial, setValidatingSerial] = useState(false);
   const [serialValidation, setSerialValidation] = useState<{
     valido: boolean;
+    noParticipa?: boolean;
+    serialExiste?: boolean;
     modelo?: string;
     pulgadas?: number;
     ticketsProyectados?: number;
     mensaje?: string;
     productoId?: number;
   } | null>(null);
+
+  const [isRuletaFullscreen, setIsRuletaFullscreen] = useState(false);
 
   const [nombreCliente, setNombreCliente] = useState("");
   const [apellidoCliente, setApellidoCliente] = useState("");
@@ -442,6 +447,8 @@ export default function BandeoRuletaPage() {
       const campanaParam = campana?.id ? `?campanaId=${campana.id}` : "";
       const res = await apiGet<{
         valido: boolean;
+        noParticipa?: boolean;
+        serialExiste?: boolean;
         modelo?: string;
         pulgadas?: number;
         ticketsProyectados?: number;
@@ -452,6 +459,8 @@ export default function BandeoRuletaPage() {
       setSerialValidation(res);
       if (res.valido) {
         toast({ title: "Serial Legítimo", description: res.mensaje || "Serial validado con éxito." });
+      } else if (res.noParticipa) {
+        toast({ title: "Producto Fuera de Campaña", description: res.mensaje || "Este producto no participa en la campaña.", variant: "destructive" });
       } else {
         toast({ title: "Serial Observado", description: res.mensaje || "El serial no está disponible.", variant: "destructive" });
       }
@@ -461,6 +470,22 @@ export default function BandeoRuletaPage() {
     } finally {
       setValidatingSerial(false);
     }
+  };
+
+  const handleToggleRuletaFullscreen = () => {
+    setIsRuletaFullscreen((prev) => {
+      const next = !prev;
+      if (next) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+      return next;
+    });
   };
 
   // Validación, subida con barra de estado y preparación de ruleta
@@ -480,6 +505,8 @@ export default function BandeoRuletaPage() {
           ticketsProyectados?: number;
           mensaje?: string;
           productoId?: number;
+          noParticipa?: boolean;
+          serialExiste?: boolean;
         }>(`/cliente/validar-serial/${encodeURIComponent(serial.trim())}${campanaParam}`);
         currentValidation = res;
         setSerialValidation(res);
@@ -726,66 +753,27 @@ export default function BandeoRuletaPage() {
     file,
     isCompressing,
     onSelect,
+    onRemove,
     accept = "image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp",
-    capture,
   }: {
     title: string;
     subtitle: string;
     file: File | null;
     isCompressing: boolean;
     onSelect: (f: File) => void;
+    onRemove?: () => void;
     accept?: string;
     capture?: "user" | "environment";
   }) => (
-    <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/10 flex flex-col justify-between space-y-2">
-      <div>
-        <Label className="text-xs font-semibold text-slate-200">{title}</Label>
-        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{subtitle}</p>
-      </div>
-
-      <label
-        className={`mt-2 flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all py-3.5 px-2 min-h-[96px] ${
-          isCompressing
-            ? "border-amber-400/60 bg-amber-500/10 animate-pulse"
-            : file
-            ? "border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-            : "border-white/15 bg-slate-900/40 hover:border-amber-400/40 hover:bg-white/5"
-        }`}
-      >
-        <input
-          type="file"
-          className="sr-only"
-          accept={accept}
-          capture={capture}
-          disabled={isCompressing}
-          onChange={(e) => {
-            const selected = e.target.files?.[0];
-            if (selected) onSelect(selected);
-            e.target.value = "";
-          }}
-        />
-        {isCompressing ? (
-          <>
-            <Loader2 className="h-6 w-6 text-amber-400 animate-spin" />
-            <span className="text-[11px] text-amber-300 font-medium text-center">Optimizando foto...</span>
-          </>
-        ) : file ? (
-          <>
-            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-            <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[170px]">{file.name}</span>
-            <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/90 px-2 py-0.5 rounded-full border border-emerald-500/40">
-              ✓ {formatBytes(file.size)} (Optimizada)
-            </span>
-          </>
-        ) : (
-          <>
-            <Camera className="h-6 w-6 text-slate-400" />
-            <span className="text-[11px] text-slate-300 font-medium">Tocar para tomar o subir foto</span>
-            <span className="text-[9px] text-slate-500">Múltiples formatos: JPG, PNG, WebP o iPhone HEIC</span>
-          </>
-        )}
-      </label>
-    </div>
+    <ImageUploadBox
+      title={title}
+      subtitle={subtitle}
+      file={file}
+      isCompressing={isCompressing}
+      onSelect={onSelect}
+      onRemove={onRemove}
+      accept={accept}
+    />
   );
 
   return (
@@ -948,11 +936,24 @@ export default function BandeoRuletaPage() {
               <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
                 serialValidation.valido 
                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                  : "bg-red-500/10 border-red-500/30 text-red-300"
+                  : serialValidation.noParticipa
+                    ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                    : "bg-red-500/10 border-red-500/30 text-red-300"
               }`}>
-                {serialValidation.valido ? <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />}
+                {serialValidation.valido ? (
+                  <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
+                ) : serialValidation.noParticipa ? (
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                )}
                 <div className="space-y-1 text-xs sm:text-sm">
                   <p className="font-semibold">{serialValidation.mensaje}</p>
+                  {serialValidation.noParticipa && serialValidation.modelo && (
+                    <p className="text-amber-200/90 text-xs">
+                      El producto fue detectado como <span className="font-bold text-white">{serialValidation.modelo}</span> ({serialValidation.pulgadas}"). Para ingresar a la ruleta o sorteos, el producto debe pertenecer a la campaña activa.
+                    </p>
+                  )}
                   {serialValidation.valido && (
                     <p className="text-slate-300">
                       Modelo: <span className="font-bold text-white">{serialValidation.modelo}</span> ({serialValidation.pulgadas}") · Tickets para sorteos: <span className="font-bold text-amber-400 text-base">{serialValidation.ticketsProyectados} ticket(s)</span>
@@ -981,9 +982,9 @@ export default function BandeoRuletaPage() {
               <Input
                 required
                 value={nombreCliente}
-                onChange={(e) => setNombreCliente(e.target.value)}
-                placeholder="Juan Carlos"
-                className="bg-slate-950/60 border-white/10 mt-1 rounded-xl"
+                onChange={(e) => setNombreCliente(e.target.value.toUpperCase())}
+                placeholder="JUAN CARLOS"
+                className="uppercase bg-slate-950/60 border-white/10 mt-1 rounded-xl"
               />
             </div>
             <div>
@@ -991,18 +992,18 @@ export default function BandeoRuletaPage() {
               <Input
                 required
                 value={apellidoCliente}
-                onChange={(e) => setApellidoCliente(e.target.value)}
-                placeholder="Pérez Mamani"
-                className="bg-slate-950/60 border-white/10 mt-1 rounded-xl"
+                onChange={(e) => setApellidoCliente(e.target.value.toUpperCase())}
+                placeholder="PÉREZ MAMANI"
+                className="uppercase bg-slate-950/60 border-white/10 mt-1 rounded-xl"
               />
             </div>
             <div>
               <Label className="text-xs text-slate-400">Cédula de Identidad (C.I.) (Opcional)</Label>
               <Input
                 value={ci}
-                onChange={(e) => setCi(e.target.value)}
+                onChange={(e) => setCi(e.target.value.toUpperCase())}
                 placeholder="1234567 SC"
-                className="bg-slate-950/60 border-white/10 mt-1 rounded-xl"
+                className="uppercase bg-slate-950/60 border-white/10 mt-1 rounded-xl"
               />
             </div>
             <div>
@@ -1099,9 +1100,9 @@ export default function BandeoRuletaPage() {
                 <div className="mt-1">
                   <Input
                     value={puntoVenta}
-                    onChange={(e) => setPuntoVenta(e.target.value)}
+                    onChange={(e) => setPuntoVenta(e.target.value.toUpperCase())}
                     placeholder={`Escriba el nombre de la tienda o punto de venta en ${ciudad} (Opcional)...`}
-                    className="bg-slate-950/60 border-primary/30 rounded-xl text-white placeholder:text-slate-500"
+                    className="uppercase bg-slate-950/60 border-primary/30 rounded-xl text-white placeholder:text-slate-500"
                     autoFocus
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
@@ -1141,6 +1142,7 @@ export default function BandeoRuletaPage() {
               file={fotoTag}
               isCompressing={compressingTag}
               onSelect={(file) => handlePhotoSelect(file, "tag")}
+              onRemove={() => setFotoTag(null)}
             />
 
             <FotoUploadCard
@@ -1149,6 +1151,7 @@ export default function BandeoRuletaPage() {
               file={fotoPoliza}
               isCompressing={compressingPoliza}
               onSelect={(file) => handlePhotoSelect(file, "poliza")}
+              onRemove={() => setFotoPoliza(null)}
             />
 
             <FotoUploadCard
@@ -1157,6 +1160,7 @@ export default function BandeoRuletaPage() {
               file={fotoNota}
               isCompressing={compressingNota}
               onSelect={(file) => handlePhotoSelect(file, "nota")}
+              onRemove={() => setFotoNota(null)}
             />
 
             <FotoUploadCard
@@ -1165,6 +1169,7 @@ export default function BandeoRuletaPage() {
               file={fotoCiAnverso}
               isCompressing={compressingCiAnverso}
               onSelect={(file) => handlePhotoSelect(file, "ciAnverso")}
+              onRemove={() => setFotoCiAnverso(null)}
             />
 
             <FotoUploadCard
@@ -1173,6 +1178,7 @@ export default function BandeoRuletaPage() {
               file={fotoCiReverso}
               isCompressing={compressingCiReverso}
               onSelect={(file) => handlePhotoSelect(file, "ciReverso")}
+              onRemove={() => setFotoCiReverso(null)}
             />
           </CardContent>
         </Card>
@@ -1724,7 +1730,11 @@ export default function BandeoRuletaPage() {
 
       {/* Modal de la Ruleta Interactiva Inmersiva Móvil */}
       <Dialog open={showRuletaModal} onOpenChange={setShowRuletaModal}>
-        <DialogContent className="max-w-md w-[95vw] sm:max-w-lg p-0 overflow-hidden bg-[#001038] border-2 border-amber-400/50 text-white rounded-3xl shadow-[0_0_60px_rgba(2,44,125,0.9)] max-h-[96vh] overflow-y-auto">
+        <DialogContent className={
+          isRuletaFullscreen
+            ? "fixed inset-0 z-50 w-screen h-screen max-w-none m-0 p-0 gap-0 overflow-y-auto bg-[#001038] border-none text-white rounded-none flex flex-col justify-center items-center shadow-none"
+            : "max-w-md w-full p-0 gap-0 overflow-hidden bg-[#001038] border-2 border-amber-400/50 text-white rounded-3xl shadow-[0_0_60px_rgba(2,44,125,0.9)] max-h-[96vh] overflow-y-auto"
+        }>
           <DialogHeader className="sr-only">
             <DialogTitle>Ruleta Oficial Skyworth</DialogTitle>
             <DialogDescription>Giro de ruleta promocional</DialogDescription>
@@ -1740,6 +1750,8 @@ export default function BandeoRuletaPage() {
             isSubmitting={submittingRegistration}
             clienteNombre={`${nombreCliente} ${apellidoCliente}`.trim()}
             clienteCi={ci}
+            isFullscreen={isRuletaFullscreen}
+            onToggleFullscreen={handleToggleRuletaFullscreen}
           />
         </DialogContent>
       </Dialog>
@@ -1766,7 +1778,7 @@ export default function BandeoRuletaPage() {
               file={fotoEntrega}
               isCompressing={compressingEntrega}
               onSelect={(file) => handlePhotoSelect(file, "entrega")}
-              capture="environment"
+              onRemove={() => setFotoEntrega(null)}
             />
 
             <DialogFooter>
@@ -1830,6 +1842,7 @@ export default function BandeoRuletaPage() {
                     file={subFotoTag}
                     isCompressing={subCompressingTag}
                     onSelect={(file) => handlePhotoSubsanarSelect(file, "tag")}
+                    onRemove={() => setSubFotoTag(null)}
                   />
 
                   <FotoUploadCard
@@ -1838,6 +1851,7 @@ export default function BandeoRuletaPage() {
                     file={subFotoPoliza}
                     isCompressing={subCompressingPoliza}
                     onSelect={(file) => handlePhotoSubsanarSelect(file, "poliza")}
+                    onRemove={() => setSubFotoPoliza(null)}
                   />
 
                   <FotoUploadCard
@@ -1846,6 +1860,7 @@ export default function BandeoRuletaPage() {
                     file={subFotoNota}
                     isCompressing={subCompressingNota}
                     onSelect={(file) => handlePhotoSubsanarSelect(file, "nota")}
+                    onRemove={() => setSubFotoNota(null)}
                   />
 
                   <FotoUploadCard
@@ -1854,6 +1869,7 @@ export default function BandeoRuletaPage() {
                     file={subFotoCiAnverso}
                     isCompressing={subCompressingCiAnverso}
                     onSelect={(file) => handlePhotoSubsanarSelect(file, "ciAnverso")}
+                    onRemove={() => setSubFotoCiAnverso(null)}
                   />
 
                   <FotoUploadCard
@@ -1862,6 +1878,7 @@ export default function BandeoRuletaPage() {
                     file={subFotoCiReverso}
                     isCompressing={subCompressingCiReverso}
                     onSelect={(file) => handlePhotoSubsanarSelect(file, "ciReverso")}
+                    onRemove={() => setSubFotoCiReverso(null)}
                   />
                 </div>
               </div>

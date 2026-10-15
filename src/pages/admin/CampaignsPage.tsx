@@ -14,6 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Pencil, Package, Trash2, Check, ChevronsUpDown, BarChart3, Printer, X, Target, Copy, Store, CheckCircle2, XCircle, Play, Pause, Archive } from "lucide-react";
 import { cn, formatDateBolivia } from "@/lib/utils";
+import { ProductSearchSelect } from "@/components/common/ProductSearchSelect";
 import { AdminEmptyState, AdminPageHeader } from "@/components/admin/AdminInterface";
 
 interface Campaign {
@@ -821,46 +822,13 @@ export default function CampaignsPage() {
             <div className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-slate-300">Seleccionar Producto</Label>
-                <Popover open={openProductCombo} onOpenChange={setOpenProductCombo}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal bg-black/20 border-white/10 text-white hover:bg-white/5">
-                      {selectedProductToAdd
-                        ? (() => {
-                            const p = allProducts.find((p) => String(p.id) === selectedProductToAdd);
-                            return p ? `[${p.tipoProducto?.nombre || "General"}] ${p.nombre} ${p.modelo || p.modeloCodigo || ""}` : "Seleccionar producto";
-                          })()
-                        : "Seleccionar producto para la campaña..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[450px] p-0 bg-slate-900 border-white/10 text-white" align="start">
-                    <Command className="bg-transparent text-white">
-                      <CommandInput placeholder="Buscar por modelo o nombre..." className="text-white" />
-                      <CommandList>
-                        <CommandEmpty>No se encontraron productos.</CommandEmpty>
-                        <CommandGroup>
-                          {allProducts.map((p) => (
-                            <CommandItem
-                              key={p.id}
-                              value={`${p.nombre} ${p.modelo || p.modeloCodigo || ""} ${p.tipoProducto?.nombre || ""}`}
-                              onSelect={() => {
-                                setSelectedProductToAdd(String(p.id));
-                                setOpenProductCombo(false);
-                              }}
-                              className="hover:bg-white/10 cursor-pointer"
-                            >
-                              <Check className={cn("mr-2 h-4 w-4 text-primary", selectedProductToAdd === String(p.id) ? "opacity-100" : "opacity-0")} />
-                              <div className="flex flex-col">
-                                <span className="font-medium text-white">{p.nombre} {p.modelo || p.modeloCodigo || ""}</span>
-                                <span className="text-[10px] text-muted-foreground uppercase">{p.tipoProducto?.nombre || "Sin Categoría"}</span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                <ProductSearchSelect
+                  value={selectedProductToAdd}
+                  onChange={(val) => setSelectedProductToAdd(val && val !== "none" ? val : "")}
+                  productos={allProducts}
+                  placeholder="Buscar producto por modelo, nombre o pulgadas..."
+                  allowEmpty={false}
+                />
               </div>
 
               {/* Beneficios Divididos: Vendedor vs Tienda */}

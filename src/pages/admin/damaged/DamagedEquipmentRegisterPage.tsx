@@ -44,6 +44,7 @@ import ManageClientsDialog from "@/components/damaged/ManageClientsDialog";
 import ManageFailuresDialog from "@/components/damaged/ManageFailuresDialog";
 import { Settings, Users } from "lucide-react";
 import heic2any from "heic2any";
+import { ImageSourceModal } from "@/components/common/ImageSourceModal";
 
 interface SerialLookupResult {
   encontrado: boolean;
@@ -103,6 +104,7 @@ export default function DamagedEquipmentRegisterPage() {
 
   // Fotos de Daño (hasta 3)
   const [fotosFalla, setFotosFalla] = useState<File[]>([]);
+  const [showFallaSourceModal, setShowFallaSourceModal] = useState(false);
 
   // Submitting and multi-equipment modal
   const [submitting, setSubmitting] = useState(false);
@@ -227,15 +229,12 @@ export default function DamagedEquipmentRegisterPage() {
   };
 
   // Add damage photo (up to 3)
-  const handleAddFotoFalla = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      if (fotosFalla.length >= 3) {
-        toast({ title: "Máximo 3 fotografías de la falla permitidas", variant: "destructive" });
-        return;
-      }
-      setFotosFalla((prev) => [...prev, e.target.files![0]]);
-      e.target.value = "";
+  const handleAddFotoFalla = (file: File) => {
+    if (fotosFalla.length >= 3) {
+      toast({ title: "Máximo 3 fotografías de la falla permitidas", variant: "destructive" });
+      return;
     }
+    setFotosFalla((prev) => [...prev, file]);
   };
 
   const handleRemoveFotoFalla = (index: number) => {
@@ -835,24 +834,33 @@ export default function DamagedEquipmentRegisterPage() {
                   })}
 
                   {fotosFalla.length < 3 && (
-                    <label className={`border-2 border-dashed rounded-lg h-28 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-center p-2 ${
-                      fotosFalla.length === 0
-                        ? "border-amber-500/40 bg-amber-500/5 hover:border-primary/60 hover:bg-white/5"
-                        : "border-white/15 hover:border-primary/40 hover:bg-white/5"
-                    }`}>
+                    <div
+                      onClick={() => setShowFallaSourceModal(true)}
+                      className={`border-2 border-dashed rounded-lg h-28 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-center p-2 select-none ${
+                        fotosFalla.length === 0
+                          ? "border-amber-500/40 bg-amber-500/5 hover:border-primary/60 hover:bg-white/5"
+                          : "border-white/15 hover:border-primary/40 hover:bg-white/5"
+                      }`}
+                    >
                       <Upload className={`h-5 w-5 ${fotosFalla.length === 0 ? "text-amber-400" : "text-muted-foreground"}`} />
-                      <span className="text-[11px] text-slate-300">
+                      <span className="text-[11px] text-slate-300 font-medium">
                         {fotosFalla.length === 0 ? "Subir foto del daño *" : `Subir foto ${fotosFalla.length + 1}`}
                       </span>
-                      <input
-                        type="file"
-                        accept="image/*,.heic,.heif"
-                        capture="environment"
-                        onChange={handleAddFotoFalla}
-                        className="hidden"
-                      />
-                    </label>
+                      <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                        <span className="text-amber-400">📸 Cámara</span>
+                        <span>o</span>
+                        <span className="text-cyan-400">🖼️ Galería</span>
+                      </div>
+                    </div>
                   )}
+
+                  <ImageSourceModal
+                    open={showFallaSourceModal}
+                    onOpenChange={setShowFallaSourceModal}
+                    title="Foto de Falla / Daño"
+                    subtitle="Captura una foto de la falla con la cámara o elígela de tu galería."
+                    onSelect={handleAddFotoFalla}
+                  />
                 </div>
                 {fotosFalla.length === 0 && (
                   <p className="text-[11px] text-amber-400/90 italic">

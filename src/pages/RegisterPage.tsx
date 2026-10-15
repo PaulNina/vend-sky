@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, Lock } from "lucide-react";
+import { Loader2, CheckCircle2, Lock, Store } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
@@ -184,6 +184,11 @@ export default function RegisterPage() {
                 ¿Ya tienes cuenta?{" "}
                 <Link to="/login" className="text-primary hover:underline">Ingresar</Link>
               </p>
+              <div className="pt-2 border-t border-white/10 text-center">
+                <Link to="/registro-tienda" className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium hover:underline">
+                  <Store className="h-3.5 w-3.5" /> ¿Eres dueño de tienda? Registra o reclama tu tienda aquí
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>

@@ -10,7 +10,7 @@ import {
   ShieldCheck, Loader2, CheckCheck, XCircle, Search, Sparkles,
   BarChart3, Target, Gift, UserPlus, Users, Store, Package,
   Hash, Wrench, ClipboardCheck, FileSpreadsheet, DollarSign,
-  Trophy, Medal, MessageSquare, Bot, Settings, Layers
+  Trophy, Medal, MessageSquare, Bot, Settings, Layers, Building2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,39 +28,42 @@ interface PageModule {
 }
 
 const ALL_SYSTEM_PAGES: PageModule[] = [
-  // Resumen
+  // 01. Resumen
   { url: "/admin", label: "Panel General / Dashboard", description: "Vista consolidada de métricas en tiempo real", icon: BarChart3, section: "Resumen" },
 
-  // Comercial
-  { url: "/admin/campanias", label: "Campañas Vendedor", description: "Configuración y calendario de incentivos", icon: Target, section: "Comercial" },
-  { url: "/admin/premios-vendedores", label: "Premios Vendedor", description: "Catálogo de premios canjeables por puntos", icon: Gift, section: "Comercial" },
-  { url: "/admin/solicitudes-registro", label: "Solicitudes de Registro", description: "Aprobación de nuevos vendedores", icon: UserPlus, section: "Comercial" },
-  { url: "/admin/vendedores", label: "Vendedores", description: "Directorio general de vendedores registrados", icon: Users, section: "Comercial" },
-  { url: "/admin/tiendas", label: "Tiendas", description: "Puntos de venta autorizados y exclusiones", icon: Store, section: "Comercial" },
-  { url: "/admin/productos-modelos", label: "Productos y Modelos", description: "Catálogo oficial de productos bonificables", icon: Package, section: "Comercial" },
+  // 02. Clientes & Sorteos
+  { url: "/admin/campanas-cliente", label: "Campañas Cliente", description: "Promociones y dinámicas para consumidores finales", icon: Target, section: "Clientes & Sorteos" },
+  { url: "/admin/supervision-clientes", label: "Revisión de Clientes", description: "Verificación de registros de clientes finales", icon: ShieldCheck, section: "Clientes & Sorteos" },
+  { url: "/admin/tombola-sorteos", label: "Tómbola de Sorteos", description: "Ejecución de sorteos de cupones y tómbolas", icon: Trophy, section: "Clientes & Sorteos" },
+  { url: "/admin/ganadores-sorteos", label: "Ganadores de Sorteos", description: "Historial de ganadores y actas oficiales", icon: Medal, section: "Clientes & Sorteos" },
+  { url: "/admin/inventario-premios", label: "Stock Premios Ruleta", description: "Inventario físico de regalos y souvenirs para bandeo", icon: Gift, section: "Clientes & Sorteos" },
 
-  // Operación
-  { url: "/admin/seriales", label: "Lotes de Seriales", description: "Gestión de números de serie y disponibilidad", icon: Hash, section: "Operación" },
-  { url: "/admin/equipos-danados", label: "Equipos Dañados", description: "Módulo técnico para diagnóstico y sustitución", icon: Wrench, section: "Operación" },
-  { url: "/admin/revisiones", label: "Revisiones Bono / Ventas", description: "Mesa de control de facturas y aprobación de bonos", icon: ClipboardCheck, section: "Operación" },
+  // 03. Ventas & Vendedores
+  { url: "/admin/revisiones", label: "Revisión de Ventas", description: "Mesa de control de facturas y aprobación de bonos", icon: ClipboardCheck, section: "Ventas & Vendedores" },
+  { url: "/admin/vendedores", label: "Vendedores", description: "Directorio general de vendedores registrados", icon: Users, section: "Ventas & Vendedores" },
+  { url: "/admin/solicitudes-registro", label: "Solicitudes de Registro", description: "Aprobación de nuevos vendedores pendientes", icon: UserPlus, section: "Ventas & Vendedores" },
+  { url: "/admin/campanias", label: "Campañas Vendedor", description: "Configuración y calendario de incentivos y bonos", icon: Target, section: "Ventas & Vendedores" },
+  { url: "/admin/premios-vendedores", label: "Premios Vendedor", description: "Catálogo de premios canjeables por puntos", icon: Gift, section: "Ventas & Vendedores" },
+  { url: "/admin/pagos", label: "Pagos a Vendedores", description: "Liquidación y órdenes de transferencias bancarias", icon: DollarSign, section: "Ventas & Vendedores" },
 
-  // Control & Finanzas
-  { url: "/admin/auditoria", label: "Bitácora / Auditoría", description: "Registro histórico inmutable de eventos", icon: ShieldCheck, section: "Control" },
-  { url: "/admin/reportes", label: "Reportes y Envíos", description: "Exportación de datos a Excel y reportes oficiales", icon: FileSpreadsheet, section: "Control" },
-  { url: "/admin/pagos", label: "Pagos a Vendedores", description: "Liquidación y órdenes de transferencias bancarias", icon: DollarSign, section: "Control" },
+  // 04. Red de Tiendas
+  { url: "/admin/tiendas", label: "Tiendas", description: "Puntos de venta autorizados, sucursales y encargados", icon: Store, section: "Red de Tiendas" },
+  { url: "/admin/solicitudes-tiendas", label: "Solicitudes de Tiendas", description: "Aprobación de nuevas tiendas y reclamos de titularidad", icon: Building2, section: "Red de Tiendas" },
 
-  // Cliente Final & Sorteos
-  { url: "/admin/supervision-clientes", label: "Revisión de Clientes", description: "Verificación de registros de clientes finales", icon: ShieldCheck, section: "Cliente Final & Sorteos" },
-  { url: "/admin/tombola-sorteos", label: "Tómbola de Sorteos", description: "Ejecución de sorteos de cupones y tómbolas", icon: Trophy, section: "Cliente Final & Sorteos" },
-  { url: "/admin/ganadores-sorteos", label: "Ganadores de Sorteos", description: "Historial de ganadores y actas oficiales", icon: Medal, section: "Cliente Final & Sorteos" },
-  { url: "/admin/campanas-cliente", label: "Campañas Cliente", description: "Promociones y dinámicas para consumidores finales", icon: Target, section: "Cliente Final & Sorteos" },
-  { url: "/admin/inventario-premios", label: "Stock de Premios", description: "Inventario físico de regalos y souvenirs", icon: Gift, section: "Cliente Final & Sorteos" },
-  { url: "/admin/whatsapp", label: "WhatsApp Chat", description: "Bandeja de atención en vivo vía WhatsApp", icon: MessageSquare, section: "Cliente Final & Sorteos" },
-  { url: "/admin/whatsapp-config", label: "Configuración Chatbot", description: "Flujos automatizados y respuestas rápidas", icon: Bot, section: "Cliente Final & Sorteos" },
+  // 05. Productos & Soporte
+  { url: "/admin/productos-modelos", label: "Productos y Modelos", description: "Catálogo oficial de productos bonificables", icon: Package, section: "Productos & Soporte" },
+  { url: "/admin/seriales", label: "Control de Seriales", description: "Gestión y validación de números de serie", icon: Hash, section: "Productos & Soporte" },
+  { url: "/admin/equipos-danados", label: "Equipos Dañados / ST", description: "Módulo técnico para diagnóstico y sustitución", icon: Wrench, section: "Productos & Soporte" },
 
-  // Sistema
-  { url: "/admin/usuarios-roles", label: "Usuarios y Roles", description: "Administración de cuentas y asignación de roles", icon: Users, section: "Sistema" },
-  { url: "/admin/configuracion", label: "Configuración Global", description: "Parámetros del sistema y permisos", icon: Settings, section: "Sistema" },
+  // 06. Comunicación
+  { url: "/admin/whatsapp", label: "WhatsApp Chat", description: "Bandeja de atención en vivo vía WhatsApp", icon: MessageSquare, section: "Comunicación" },
+  { url: "/admin/whatsapp-config", label: "Configuración Chatbot", description: "Flujos automatizados y respuestas rápidas", icon: Bot, section: "Comunicación" },
+
+  // 07. Sistema & Auditoría
+  { url: "/admin/reportes", label: "Reportes y Envíos", description: "Exportación de datos a Excel y reportes oficiales", icon: FileSpreadsheet, section: "Sistema & Auditoría" },
+  { url: "/admin/auditoria", label: "Bitácora / Auditoría", description: "Registro histórico inmutable de eventos de seguridad", icon: ShieldCheck, section: "Sistema & Auditoría" },
+  { url: "/admin/usuarios-roles", label: "Usuarios y Roles", description: "Administración de cuentas y asignación de roles", icon: Users, section: "Sistema & Auditoría" },
+  { url: "/admin/configuracion", label: "Configuración Global", description: "Parámetros del sistema y permisos", icon: Settings, section: "Sistema & Auditoría" },
 ];
 
 const CONFIGURABLE_ROLES = [

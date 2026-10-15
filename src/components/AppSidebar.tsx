@@ -45,6 +45,7 @@ import {
   Medal,
   MessageSquare,
   Bot,
+  Building2,
 } from "lucide-react";
 import { useWhatsAppUnreadCount } from "@/components/whatsapp/WhatsAppNotificationListener";
 
@@ -116,29 +117,42 @@ const vendorNav = [
 ];
 
 const adminNav = [
+  // 01. Resumen
   { title: "Panel General", url: "/admin", icon: BarChart3, end: true, roles: ["admin"], section: "Resumen" },
-  { title: "Revisión de Clientes", url: "/admin/supervision-clientes", icon: ShieldCheck, roles: ["admin", "supervisor", "revisor_ciudad"], section: "Cliente Final & Sorteos" },
-  { title: "Tómbola de Sorteos", url: "/admin/tombola-sorteos", icon: Trophy, roles: ["admin", "supervisor"], section: "Cliente Final & Sorteos" },
-  { title: "Ganadores de Sorteos", url: "/admin/ganadores-sorteos", icon: Medal, roles: ["admin", "supervisor"], section: "Cliente Final & Sorteos" },
-  { title: "Campañas Cliente", url: "/admin/campanas-cliente", icon: Target, roles: ["admin"], section: "Cliente Final & Sorteos" },
-  { title: "Stock de Premios", url: "/admin/inventario-premios", icon: Gift, roles: ["admin"], section: "Cliente Final & Sorteos" },
-  { title: "WhatsApp Chat", url: "/admin/whatsapp", icon: MessageSquare, roles: ["admin", "supervisor"], section: "Cliente Final & Sorteos" },
-  { title: "Config. Chatbot", url: "/admin/whatsapp-config", icon: Bot, roles: ["admin"], section: "Cliente Final & Sorteos" },
-  { title: "Campañas Vendedor", url: "/admin/campanias", icon: Target, roles: ["admin"], section: "Comercial" },
-  { title: "Premios Vendedor", url: "/admin/premios-vendedores", icon: Gift, roles: ["admin", "supervisor"], section: "Comercial" },
 
-  { title: "Solicitudes", url: "/admin/solicitudes-registro", icon: UserPlus, roles: ["admin"], requiresManualApproval: true, section: "Comercial" },
-  { title: "Vendedores", url: "/admin/vendedores", icon: Users, roles: ["admin"], section: "Comercial" },
-  { title: "Tiendas", url: "/admin/tiendas", icon: Store, roles: ["admin", "supervisor"], section: "Comercial" },
-  { title: "Productos", url: "/admin/productos-modelos", icon: Package, roles: ["admin"], section: "Comercial" },
-  { title: "Seriales", url: "/admin/seriales", icon: Hash, roles: ["admin"], section: "Operación" },
-  { title: "Equipos Dañados", url: "/admin/equipos-danados", icon: Wrench, roles: ["admin", "supervisor", "tecnico"], section: "Operación" },
-  { title: "Revisión de Vendedores", url: "/admin/revisiones", icon: ClipboardCheck, roles: ["admin", "revisor_ciudad", "supervisor"], section: "Operación" },
-  { title: "Auditoría", url: "/admin/auditoria", icon: ShieldCheck, roles: ["admin", "supervisor"], section: "Control" },
-  { title: "Reportes y Envíos", url: "/admin/reportes", icon: FileSpreadsheet, roles: ["admin"], section: "Control" },
-  { title: "Pagos a Vendedores", url: "/admin/pagos", icon: DollarSign, roles: ["admin"], section: "Control" },
-  { title: "Usuarios/Roles", url: "/admin/usuarios-roles", icon: Users, roles: ["admin"], section: "Sistema" },
-  { title: "Configuración", url: "/admin/configuracion", icon: Settings, roles: ["admin"], section: "Sistema" },
+  // 02. Clientes & Sorteos
+  { title: "Campañas Cliente", url: "/admin/campanas-cliente", icon: Target, roles: ["admin"], section: "Clientes & Sorteos" },
+  { title: "Revisión de Clientes", url: "/admin/supervision-clientes", icon: ShieldCheck, roles: ["admin", "supervisor", "revisor_ciudad"], section: "Clientes & Sorteos" },
+  { title: "Tómbola de Sorteos", url: "/admin/tombola-sorteos", icon: Trophy, roles: ["admin", "supervisor"], section: "Clientes & Sorteos" },
+  { title: "Ganadores de Sorteos", url: "/admin/ganadores-sorteos", icon: Medal, roles: ["admin", "supervisor"], section: "Clientes & Sorteos" },
+  { title: "Stock Premios Ruleta", url: "/admin/inventario-premios", icon: Gift, roles: ["admin"], section: "Clientes & Sorteos" },
+
+  // 03. Ventas & Vendedores
+  { title: "Revisión de Ventas", url: "/admin/revisiones", icon: ClipboardCheck, roles: ["admin", "revisor_ciudad", "supervisor"], section: "Ventas & Vendedores" },
+  { title: "Vendedores", url: "/admin/vendedores", icon: Users, roles: ["admin"], section: "Ventas & Vendedores" },
+  { title: "Solicitudes Vendedores", url: "/admin/solicitudes-registro", icon: UserPlus, roles: ["admin"], requiresManualApproval: true, section: "Ventas & Vendedores" },
+  { title: "Campañas Vendedor", url: "/admin/campanias", icon: Target, roles: ["admin"], section: "Ventas & Vendedores" },
+  { title: "Premios Vendedor", url: "/admin/premios-vendedores", icon: Gift, roles: ["admin", "supervisor"], section: "Ventas & Vendedores" },
+  { title: "Pagos a Vendedores", url: "/admin/pagos", icon: DollarSign, roles: ["admin"], section: "Ventas & Vendedores" },
+
+  // 04. Red de Tiendas
+  { title: "Tiendas", url: "/admin/tiendas", icon: Store, roles: ["admin", "supervisor"], section: "Red de Tiendas" },
+  { title: "Solicitudes de Tiendas", url: "/admin/solicitudes-tiendas", icon: Building2, roles: ["admin", "supervisor"], section: "Red de Tiendas" },
+
+  // 05. Productos & Soporte
+  { title: "Catálogo de Productos", url: "/admin/productos-modelos", icon: Package, roles: ["admin"], section: "Productos & Soporte" },
+  { title: "Control de Seriales", url: "/admin/seriales", icon: Hash, roles: ["admin"], section: "Productos & Soporte" },
+  { title: "Equipos Dañados / ST", url: "/admin/equipos-danados", icon: Wrench, roles: ["admin", "supervisor", "tecnico"], section: "Productos & Soporte" },
+
+  // 06. Comunicación
+  { title: "WhatsApp Chat", url: "/admin/whatsapp", icon: MessageSquare, roles: ["admin", "supervisor"], section: "Comunicación" },
+  { title: "Config. Chatbot", url: "/admin/whatsapp-config", icon: Bot, roles: ["admin"], section: "Comunicación" },
+
+  // 07. Sistema & Auditoría
+  { title: "Reportes y Envíos", url: "/admin/reportes", icon: FileSpreadsheet, roles: ["admin"], section: "Sistema & Auditoría" },
+  { title: "Auditoría", url: "/admin/auditoria", icon: ShieldCheck, roles: ["admin", "supervisor"], section: "Sistema & Auditoría" },
+  { title: "Usuarios y Roles", url: "/admin/usuarios-roles", icon: Users, roles: ["admin"], section: "Sistema & Auditoría" },
+  { title: "Configuración General", url: "/admin/configuracion", icon: Settings, roles: ["admin"], section: "Sistema & Auditoría" },
 ];
 
 export function AppSidebar() {

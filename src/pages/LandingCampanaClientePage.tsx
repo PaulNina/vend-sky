@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 import { compressImage } from "@/lib/imageCompressor";
+import { ImageUploadBox } from "@/components/common/ImageUploadBox";
 import {
   Trophy,
   Sparkles,
@@ -50,6 +51,28 @@ export default function LandingCampanaClientePage() {
   const [fotoNota, setFotoNota] = useState<File | null>(null);
   const [fotoCiAnverso, setFotoCiAnverso] = useState<File | null>(null);
   const [fotoCiReverso, setFotoCiReverso] = useState<File | null>(null);
+
+  const [compressingTag, setCompressingTag] = useState(false);
+  const [compressingPoliza, setCompressingPoliza] = useState(false);
+  const [compressingNota, setCompressingNota] = useState(false);
+  const [compressingCiAnverso, setCompressingCiAnverso] = useState(false);
+  const [compressingCiReverso, setCompressingCiReverso] = useState(false);
+
+  const handleOptimizarFoto = async (
+    file: File,
+    setter: (f: File | null) => void,
+    setComp: (c: boolean) => void
+  ) => {
+    try {
+      setComp(true);
+      const opt = await compressImage(file);
+      setter(opt);
+    } catch {
+      setter(file);
+    } finally {
+      setComp(false);
+    }
+  };
 
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState<boolean>(false);
@@ -103,6 +126,11 @@ export default function LandingCampanaClientePage() {
     }
     if (!fotoTag || !fotoPoliza || !fotoNota) {
       toast({ title: "Fotos obligatorias", description: "Debe cargar las fotografías de TAG, Póliza de Garantía y Factura/Nota de Venta.", variant: "destructive" });
+      return;
+    }
+
+    if (compressingTag || compressingPoliza || compressingNota || compressingCiAnverso || compressingCiReverso) {
+      toast({ title: "Optimizando fotos", description: "Espere un momento mientras termina la optimización de las imágenes.", variant: "destructive" });
       return;
     }
 
@@ -276,8 +304,8 @@ export default function LandingCampanaClientePage() {
                   <Input
                     required
                     value={nombreCliente}
-                    onChange={(e) => setNombreCliente(e.target.value)}
-                    placeholder="Carlos Alberto"
+                    onChange={(e) => setNombreCliente(e.target.value.toUpperCase())}
+                    placeholder="CARLOS ALBERTO"
                     className="bg-slate-950 border-white/10 mt-1 rounded-xl"
                   />
                 </div>
@@ -286,8 +314,8 @@ export default function LandingCampanaClientePage() {
                   <Input
                     required
                     value={apellidoCliente}
-                    onChange={(e) => setApellidoCliente(e.target.value)}
-                    placeholder="Mamani Quispe"
+                    onChange={(e) => setApellidoCliente(e.target.value.toUpperCase())}
+                    placeholder="MAMANI QUISPE"
                     className="bg-slate-950 border-white/10 mt-1 rounded-xl"
                   />
                 </div>
@@ -295,7 +323,7 @@ export default function LandingCampanaClientePage() {
                   <Label className="text-xs text-slate-400">Cédula de Identidad (C.I.) (Opcional)</Label>
                   <Input
                     value={ci}
-                    onChange={(e) => setCi(e.target.value)}
+                    onChange={(e) => setCi(e.target.value.toUpperCase())}
                     placeholder="1234567 SC"
                     className="bg-slate-950 border-white/10 mt-1 rounded-xl"
                   />
@@ -351,30 +379,50 @@ export default function LandingCampanaClientePage() {
                   3. Fotografías de Respaldo Obligatorias
                 </CardTitle>
                 <CardDescription className="text-slate-400 text-xs">
-                  Sube fotos nítidas para la validación de tus tickets.
+                  Puedes tomar la foto en vivo con la cámara o seleccionarla desde tu galería.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-300">1. Foto TAG (Etiqueta Trasera) *</Label>
-                  <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" required onChange={(e) => setFotoTag(e.target.files?.[0] || null)} className="bg-slate-900 border-white/10 text-xs" />
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-300">2. Póliza de Garantía Sellada *</Label>
-                  <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" required onChange={(e) => setFotoPoliza(e.target.files?.[0] || null)} className="bg-slate-900 border-white/10 text-xs" />
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-300">3. Factura o Nota de Venta *</Label>
-                  <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" required onChange={(e) => setFotoNota(e.target.files?.[0] || null)} className="bg-slate-900 border-white/10 text-xs" />
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-300">4. Carnet de Identidad (Anverso) (Opcional)</Label>
-                  <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoCiAnverso(e.target.files?.[0] || null)} className="bg-slate-900 border-white/10 text-xs" />
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-300">5. Carnet de Identidad (Reverso) (Opcional)</Label>
-                  <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoCiReverso(e.target.files?.[0] || null)} className="bg-slate-900 border-white/10 text-xs" />
-                </div>
+                <ImageUploadBox
+                  title="1. Foto TAG (Etiqueta Trasera) *"
+                  subtitle="Etiqueta con modelo y número de serie"
+                  file={fotoTag}
+                  isCompressing={compressingTag}
+                  onSelect={(f) => handleOptimizarFoto(f, setFotoTag, setCompressingTag)}
+                  onRemove={() => setFotoTag(null)}
+                />
+                <ImageUploadBox
+                  title="2. Póliza de Garantía Sellada *"
+                  subtitle="Documento de garantía sellado por la tienda"
+                  file={fotoPoliza}
+                  isCompressing={compressingPoliza}
+                  onSelect={(f) => handleOptimizarFoto(f, setFotoPoliza, setCompressingPoliza)}
+                  onRemove={() => setFotoPoliza(null)}
+                />
+                <ImageUploadBox
+                  title="3. Factura o Nota de Venta *"
+                  subtitle="Comprobante fiscal o nota oficial de compra"
+                  file={fotoNota}
+                  isCompressing={compressingNota}
+                  onSelect={(f) => handleOptimizarFoto(f, setFotoNota, setCompressingNota)}
+                  onRemove={() => setFotoNota(null)}
+                />
+                <ImageUploadBox
+                  title="4. Carnet de Identidad (Anverso)"
+                  subtitle="Opcional - Lado frontal de tu cédula"
+                  file={fotoCiAnverso}
+                  isCompressing={compressingCiAnverso}
+                  onSelect={(f) => handleOptimizarFoto(f, setFotoCiAnverso, setCompressingCiAnverso)}
+                  onRemove={() => setFotoCiAnverso(null)}
+                />
+                <ImageUploadBox
+                  title="5. Carnet de Identidad (Reverso)"
+                  subtitle="Opcional - Lado posterior de tu cédula"
+                  file={fotoCiReverso}
+                  isCompressing={compressingCiReverso}
+                  onSelect={(f) => handleOptimizarFoto(f, setFotoCiReverso, setCompressingCiReverso)}
+                  onRemove={() => setFotoCiReverso(null)}
+                />
               </CardContent>
             </Card>
 

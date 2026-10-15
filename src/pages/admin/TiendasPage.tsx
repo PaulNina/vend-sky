@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { apiGet, apiPost, apiPostForm, apiPut, apiPatch, uploadUrl } from "@/lib/api";
+import { Link } from "react-router-dom";
+import { apiGet, apiPost, apiPostForm, apiPut, apiPatch, apiDelete, uploadUrl } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { 
   Loader2, PlusCircle, Pencil, BarChart2, Store, Search, Globe, 
   Users, UserPlus, Trash2, Tag, Building2, Phone, CreditCard, 
-  QrCode, Eye, Upload, UserCheck, ShieldCheck, Wallet, Image as ImageIcon, X 
+  QrCode, Eye, Upload, UserCheck, ShieldCheck, Wallet, Image as ImageIcon, X, Check 
 } from "lucide-react";
 import { useCities } from "@/hooks/useCities";
 
@@ -109,10 +110,49 @@ export default function TiendasPage() {
   const [vendorSearch, setVendorSearch] = useState("");
   const [assigningVendor, setAssigningVendor] = useState(false);
 
+  // Pending Store Requests Count
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  // Store Manager (Encargado / Dueño) State
+  const [encargadoModalOpen, setEncargadoModalOpen] = useState(false);
+  const [selectedTiendaForEncargado, setSelectedTiendaForEncargado] = useState<Tienda | null>(null);
+  const [encargadoData, setEncargadoData] = useState<{
+    tiendaId: number;
+    tiendaNombre: string;
+    nombrePropietario?: string;
+    encargadoNombre?: string;
+    encargadoEmail?: string;
+    encargadoTelefono?: string;
+    tieneUsuario: boolean;
+    usuarioId?: number;
+    usuarioEmail?: string;
+    usuarioNombre?: string;
+    usuarioRol?: string;
+    usuarioActivo?: boolean;
+  } | null>(null);
+  const [loadingEncargado, setLoadingEncargado] = useState(false);
+  const [encargadoTab, setEncargadoTab] = useState<"nuevo" | "existente">("nuevo");
+  const [nuevoEncargadoNombre, setNuevoEncargadoNombre] = useState("");
+  const [nuevoEncargadoEmail, setNuevoEncargadoEmail] = useState("");
+  const [nuevoEncargadoTelefono, setNuevoEncargadoTelefono] = useState("");
+  const [nuevoEncargadoPassword, setNuevoEncargadoPassword] = useState("");
+  const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>("");
+  const [availableUsers, setAvailableUsers] = useState<Array<{
+    id: number;
+    email: string;
+    nombreCompleto?: string;
+    rol: string;
+  }>>([]);
+  const [savingEncargado, setSavingEncargado] = useState(false);
+
   const load = async () => {
     setLoading(true);
-    const data = await apiGet<Tienda[]>(`/tiendas`).catch(() => [] as Tienda[]);
+    const [data, statsRes] = await Promise.all([
+      apiGet<Tienda[]>(`/tiendas`).catch(() => [] as Tienda[]),
+      apiGet<{ pendientes: number }>(`/tiendas/solicitudes/stats`).catch(() => null)
+    ]);
     setTiendas(data);
+    if (statsRes) setPendingRequestsCount(statsRes.pendientes || 0);
     setLoading(false);
   };
 
@@ -280,6 +320,68 @@ export default function TiendasPage() {
     setLoadingStats(false);
   };
 
+  const openEncargadoModal = async (t: Tienda) => {
+    setSelectedTiendaForEncargado(t);
+    setEncargadoModalOpen(true);
+    setLoadingEncargado(true);
+    setNuevoEncargadoNombre(t.encargadoNombre || t.nombrePropietario || "");
+    setNuevoEncargadoEmail(t.encargadoEmail || "");
+    setNuevoEncargadoTelefono(t.encargadoTelefono || "");
+    setNuevoEncargadoPassword("");
+    setSelectedExistingUserId("");
+    try {
+      const [data, usersList] = await Promise.all([
+        apiGet<typeof encargadoData>(`/tiendas/${t.id}/encargado`),
+        apiGet<typeof availableUsers>("/users/roles").catch(() => [])
+      ]);
+      setEncargadoData(data);
+      setAvailableUsers(usersList || []);
+    } catch {
+      toast({ title: "Error al cargar datos del encargado", variant: "destructive" });
+    } finally {
+      setLoadingEncargado(false);
+    }
+  };
+
+  const handleVincularEncargado = async () => {
+    if (!selectedTiendaForEncargado) return;
+    setSavingEncargado(true);
+    try {
+      const payload = encargadoTab === "nuevo"
+        ? {
+            nombre: nuevoEncargadoNombre.trim(),
+            email: nuevoEncargadoEmail.trim(),
+            telefono: nuevoEncargadoTelefono.trim(),
+            password: nuevoEncargadoPassword.trim() || undefined
+          }
+        : { usuarioId: selectedExistingUserId };
+
+      await apiPost(`/tiendas/${selectedTiendaForEncargado.id}/vincular-encargado`, payload);
+      toast({ title: "Encargado vinculado correctamente" });
+      openEncargadoModal(selectedTiendaForEncargado);
+      load();
+    } catch (err: unknown) {
+      toast({ title: "Error al vincular", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSavingEncargado(false);
+    }
+  };
+
+  const handleDesvincularEncargado = async () => {
+    if (!selectedTiendaForEncargado || !encargadoData?.usuarioId) return;
+    setSavingEncargado(true);
+    try {
+      await apiDelete(`/tiendas/${selectedTiendaForEncargado.id}/desvincular-encargado/${encargadoData.usuarioId}`);
+      toast({ title: "Encargado desvinculado de la tienda" });
+      openEncargadoModal(selectedTiendaForEncargado);
+      load();
+    } catch (err: unknown) {
+      toast({ title: "Error al desvincular", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSavingEncargado(false);
+    }
+  };
+
   const setField = (key: keyof typeof EMPTY_FORM, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
@@ -295,7 +397,21 @@ export default function TiendasPage() {
             {tiendas.length > 0 && ` de ${tiendas.length} registradas`}
           </p>
         </div>
-        <Button onClick={openCreate} className="bg-primary hover:bg-primary/95 text-white w-fit"><PlusCircle className="h-4 w-4 mr-2" />Nueva Tienda</Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 text-xs">
+            <Link to="/admin/solicitudes-tiendas">
+              <Store className="h-3.5 w-3.5 mr-1.5" /> Solicitudes de Tiendas
+              {pendingRequestsCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-bold text-[10px]">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </Link>
+          </Button>
+          <Button onClick={openCreate} className="bg-primary hover:bg-primary/95 text-white w-fit text-xs">
+            <PlusCircle className="h-4 w-4 mr-2" /> Nueva Tienda
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 items-end">
@@ -478,6 +594,15 @@ export default function TiendasPage() {
                     </TableCell>
                     <TableCell className="pr-4">
                       <div className="flex items-center justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => openEncargadoModal(t)} 
+                          title="Gestionar Dueño / Encargado Vinculado"
+                          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                        >
+                          <UserCheck className="h-4 w-4" />
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -984,6 +1109,193 @@ export default function TiendasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Encargado / Dueño Vinculado Dialog */}
+      <Dialog open={encargadoModalOpen} onOpenChange={(o) => !o && setEncargadoModalOpen(false)}>
+        <DialogContent className="max-w-xl glass-card border-white/10 shadow-2xl text-white max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-white text-base sm:text-lg flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-emerald-400" />
+              Dueño / Encargado — {selectedTiendaForEncargado?.nombre}
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingEncargado ? (
+            <div className="flex justify-center p-10">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-5 py-2 text-xs">
+              {/* ESTADO ACTUAL DEL ENCARGADO */}
+              {encargadoData?.tieneUsuario ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-400 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4" /> Usuario de Acceso Vinculado
+                    </span>
+                    <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">
+                      {encargadoData.usuarioRol}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
+                    <div>
+                      <span className="text-slate-400">Nombre:</span>{" "}
+                      <strong className="text-white">{encargadoData.usuarioNombre || "Sin nombre"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Email:</span>{" "}
+                      <strong className="text-white font-mono">{encargadoData.usuarioEmail}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Teléfono:</span>{" "}
+                      <span>{encargadoData.encargadoTelefono || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Estado:</span>{" "}
+                      <span className="text-emerald-400 font-semibold">{encargadoData.usuarioActivo ? "Activo" : "Inactivo"}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDesvincularEncargado}
+                      disabled={savingEncargado}
+                      className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs h-7 gap-1"
+                    >
+                      <Trash2 className="h-3 w-3" /> Desvincular de esta tienda
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                  <p className="text-amber-400 font-bold text-xs flex items-center gap-1.5">
+                    <UserPlus className="h-4 w-4" /> Sin cuenta de usuario vinculada
+                  </p>
+                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                    Esta tienda tiene datos informativos ({selectedTiendaForEncargado?.encargadoNombre || "Sin encargado"}), pero aún no cuenta con un usuario en el sistema para iniciar sesión.
+                  </p>
+                </div>
+              )}
+
+              {/* SECCIÓN ASIGNAR / VINCULAR ENCARGADO */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <h4 className="font-semibold text-white text-xs uppercase tracking-wider flex items-center gap-1.5 text-primary">
+                  <UserPlus className="h-4 w-4" /> {encargadoData?.tieneUsuario ? "Cambiar Encargado" : "Vincular Encargado"}
+                </h4>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={encargadoTab === "nuevo" ? "default" : "outline"}
+                    onClick={() => setEncargadoTab("nuevo")}
+                    className={`text-xs h-8 ${encargadoTab === "nuevo" ? "bg-primary text-white" : "border-white/10 text-slate-300 hover:bg-white/5"}`}
+                  >
+                    Crear Nuevo Usuario
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={encargadoTab === "existente" ? "default" : "outline"}
+                    onClick={() => setEncargadoTab("existente")}
+                    className={`text-xs h-8 ${encargadoTab === "existente" ? "bg-primary text-white" : "border-white/10 text-slate-300 hover:bg-white/5"}`}
+                  >
+                    Vincular Usuario Existente
+                  </Button>
+                </div>
+
+                {encargadoTab === "nuevo" ? (
+                  <div className="space-y-3 p-3 bg-black/20 rounded-xl border border-white/5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-slate-400 text-[11px]">Nombre Completo *</Label>
+                        <Input
+                          value={nuevoEncargadoNombre}
+                          onChange={(e) => setNuevoEncargadoNombre(e.target.value)}
+                          placeholder="Ej: Carlos Rojas"
+                          className="bg-black/30 border-white/10 text-white text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-slate-400 text-[11px]">Correo Electrónico (Login) *</Label>
+                        <Input
+                          type="email"
+                          value={nuevoEncargadoEmail}
+                          onChange={(e) => setNuevoEncargadoEmail(e.target.value)}
+                          placeholder="carlos@mitienda.com"
+                          className="bg-black/30 border-white/10 text-white text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-slate-400 text-[11px]">Teléfono / WhatsApp</Label>
+                        <Input
+                          value={nuevoEncargadoTelefono}
+                          onChange={(e) => setNuevoEncargadoTelefono(e.target.value)}
+                          placeholder="71234567"
+                          className="bg-black/30 border-white/10 text-white text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-slate-400 text-[11px]">Contraseña</Label>
+                        <Input
+                          type="password"
+                          value={nuevoEncargadoPassword}
+                          onChange={(e) => setNuevoEncargadoPassword(e.target.value)}
+                          placeholder="Por defecto: skyworth123"
+                          className="bg-black/30 border-white/10 text-white text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 p-3 bg-black/20 rounded-xl border border-white/5">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-400 text-[11px]">Seleccionar Usuario del Sistema</Label>
+                      <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+                        <SelectTrigger className="bg-black/30 border-white/10 text-white text-xs">
+                          <SelectValue placeholder="Busca y selecciona un usuario..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-white/10 text-white max-h-56">
+                          {availableUsers.map((u) => (
+                            <SelectItem key={u.id} value={String(u.id)} className="text-xs">
+                              {u.nombreCompleto || u.email} ({u.email}) — {u.rol}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleVincularEncargado}
+                    disabled={savingEncargado || (encargadoTab === "existente" && !selectedExistingUserId) || (encargadoTab === "nuevo" && !nuevoEncargadoEmail.trim())}
+                    className="bg-primary hover:bg-primary/90 text-white text-xs shadow-md"
+                  >
+                    {savingEncargado ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                    Guardar y Vincular como Encargado
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-2 border-t border-white/10 pt-3">
+            <Button
+              variant="outline"
+              className="border-white/10 hover:bg-white/5 text-white w-full text-xs"
+              onClick={() => setEncargadoModalOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

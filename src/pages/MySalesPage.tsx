@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDateBolivia, formatDateTimeBolivia } from "@/lib/utils";
 import { compressImage, formatBytes } from "@/lib/imageCompressor";
+import { ImageUploadBox } from "@/components/common/ImageUploadBox";
 
 interface Sale {
   id: number;
@@ -626,153 +627,60 @@ export default function MySalesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* TAG */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Foto TAG</Label>
                     {resubmitSale.archivosObservados?.toUpperCase().includes("TAG") && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-300">Requerido</Badge>
                     )}
                   </div>
-                  <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all p-3 text-center min-h-[90px] ${
-                    compressingResubmitTag
-                      ? "border-primary/50 bg-primary/10 animate-pulse"
-                      : resubmitTag
-                      ? "border-emerald-500/40 bg-emerald-500/10"
-                      : "border-white/10 hover:border-primary/30 hover:bg-white/5"
-                  }`}>
-                    <input 
-                      type="file" 
-                      className="sr-only" 
-                      accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" 
-                      disabled={compressingResubmitTag}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleResubmitPhotoSelect(f, "tag");
-                        e.target.value = "";
-                      }} 
-                    />
-                    {compressingResubmitTag ? (
-                      <>
-                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                        <span className="text-[10px] text-primary font-medium">Optimizando...</span>
-                      </>
-                    ) : resubmitTag ? (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                        <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[120px]">{resubmitTag.name}</span>
-                        <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/70 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                          ✓ {formatBytes(resubmitTag.size)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground">Subir TAG</span>
-                      </>
-                    )}
-                  </label>
+                  <ImageUploadBox
+                    title="Foto TAG"
+                    file={resubmitTag}
+                    isCompressing={compressingResubmitTag}
+                    onSelect={(f) => handleResubmitPhotoSelect(f, "tag")}
+                    onRemove={() => setResubmitTag(null)}
+                    placeholder="Subir TAG"
+                  />
                   {resubmitSale.fotoTag && !resubmitTag && (
                     <p className="text-[10px] text-muted-foreground text-center">Foto previa cargada</p>
                   )}
                 </div>
 
                 {/* POLIZA */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Foto Póliza</Label>
                     {resubmitSale.archivosObservados?.toUpperCase().includes("POLIZA") && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-300">Requerido</Badge>
                     )}
                   </div>
-                  <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all p-3 text-center min-h-[90px] ${
-                    compressingResubmitPoliza
-                      ? "border-primary/50 bg-primary/10 animate-pulse"
-                      : resubmitPoliza
-                      ? "border-emerald-500/40 bg-emerald-500/10"
-                      : "border-white/10 hover:border-primary/30 hover:bg-white/5"
-                  }`}>
-                    <input 
-                      type="file" 
-                      className="sr-only" 
-                      accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" 
-                      disabled={compressingResubmitPoliza}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleResubmitPhotoSelect(f, "poliza");
-                        e.target.value = "";
-                      }} 
-                    />
-                    {compressingResubmitPoliza ? (
-                      <>
-                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                        <span className="text-[10px] text-primary font-medium">Optimizando...</span>
-                      </>
-                    ) : resubmitPoliza ? (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                        <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[120px]">{resubmitPoliza.name}</span>
-                        <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/70 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                          ✓ {formatBytes(resubmitPoliza.size)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground">Subir Póliza</span>
-                      </>
-                    )}
-                  </label>
+                  <ImageUploadBox
+                    title="Foto Póliza"
+                    file={resubmitPoliza}
+                    isCompressing={compressingResubmitPoliza}
+                    onSelect={(f) => handleResubmitPhotoSelect(f, "poliza")}
+                    onRemove={() => setResubmitPoliza(null)}
+                    placeholder="Subir Póliza"
+                  />
                   {resubmitSale.fotoPoliza && !resubmitPoliza && (
                     <p className="text-[10px] text-muted-foreground text-center">Foto previa cargada</p>
                   )}
                 </div>
 
                 {/* NOTA */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Foto Nota</Label>
                     {resubmitSale.archivosObservados?.toUpperCase().includes("NOTA") && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-300">Requerido</Badge>
                     )}
                   </div>
-                  <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all p-3 text-center min-h-[90px] ${
-                    compressingResubmitNota
-                      ? "border-primary/50 bg-primary/10 animate-pulse"
-                      : resubmitNota
-                      ? "border-emerald-500/40 bg-emerald-500/10"
-                      : "border-white/10 hover:border-primary/30 hover:bg-white/5"
-                  }`}>
-                    <input 
-                      type="file" 
-                      className="sr-only" 
-                      accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" 
-                      disabled={compressingResubmitNota}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleResubmitPhotoSelect(f, "nota");
-                        e.target.value = "";
-                      }} 
-                    />
-                    {compressingResubmitNota ? (
-                      <>
-                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                        <span className="text-[10px] text-primary font-medium">Optimizando...</span>
-                      </>
-                    ) : resubmitNota ? (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                        <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[120px]">{resubmitNota.name}</span>
-                        <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/70 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                          ✓ {formatBytes(resubmitNota.size)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground">Subir Nota</span>
-                      </>
-                    )}
-                  </label>
+                  <ImageUploadBox
+                    title="Foto Nota"
+                    file={resubmitNota}
+                    isCompressing={compressingResubmitNota}
+                    onSelect={(f) => handleResubmitPhotoSelect(f, "nota")}
+                    onRemove={() => setResubmitNota(null)}
+                    placeholder="Subir Nota"
+                  />
                   {resubmitSale.fotoNota && !resubmitNota && (
                     <p className="text-[10px] text-muted-foreground text-center">Foto previa cargada</p>
                   )}

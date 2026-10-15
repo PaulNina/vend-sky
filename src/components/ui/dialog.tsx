@@ -36,7 +36,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-8 px-4 sm:px-8 outline-none overflow-x-hidden",
+        "fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto py-4 px-2 sm:py-8 sm:px-6 outline-none overflow-x-hidden",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "[-webkit-overflow-scrolling:touch]",
       )}
@@ -51,7 +51,7 @@ const DialogContent = React.forwardRef<
       
       <div
         className={cn(
-          "relative z-10 grid w-full max-w-2xl gap-4 border bg-background p-5 sm:p-6 shadow-xl duration-200 sm:rounded-xl",
+          "relative z-10 grid w-full max-w-2xl gap-4 border bg-background p-5 sm:p-6 shadow-xl duration-200 sm:rounded-xl my-auto",
           "data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0",
           className,
         )}

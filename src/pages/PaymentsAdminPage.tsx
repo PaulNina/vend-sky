@@ -214,6 +214,7 @@ export default function PaymentsAdminPage() {
   const [fStartDate, setFStartDate] = useState<string>("");
   const [fEndDate, setFEndDate] = useState<string>("");
   const [fEstado, setFEstado] = useState<string>("Todos");
+  const [fSearchVendor, setFSearchVendor] = useState<string>("");
   const [fMostrarCon0, setFMostrarCon0] = useState(false);
   const [fDesgloseSemanal, setFDesgloseSemanal] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<CommissionReport | null>(null);
@@ -504,35 +505,49 @@ export default function PaymentsAdminPage() {
   // ==================== TAB 2 INDIVIDUAL PAYMENTS ====================
   const handlePeriodChange = (val: string) => {
     const today = new Date();
+    let start = "";
+    let end = "";
     if (val === "mes") {
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
-      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split("T")[0];
-      setFStartDate(firstDay);
-      setFEndDate(lastDay);
+      start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split("T")[0];
     } else if (val === "semana") {
       const dayOfWeek = today.getDay() || 7;
       const monday = new Date(today);
       monday.setDate(today.getDate() - dayOfWeek + 1);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      setFStartDate(monday.toISOString().split("T")[0]);
-      setFEndDate(sunday.toISOString().split("T")[0]);
+      start = monday.toISOString().split("T")[0];
+      end = sunday.toISOString().split("T")[0];
     } else if (val === "todos") {
-      setFStartDate("");
-      setFEndDate("");
+      start = "";
+      end = "";
     }
+    setFStartDate(start);
+    setFEndDate(end);
+    handleSearchIndividual(undefined, undefined, undefined, start, end);
   };
 
-  const handleSearchIndividual = async (overrideCampanaId?: string) => {
+  const handleSearchIndividual = async (
+    overrideCampanaId?: string,
+    overrideCiudad?: string,
+    overrideEstado?: string,
+    overrideStart?: string,
+    overrideEnd?: string
+  ) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       const campaignToUse = overrideCampanaId !== undefined ? overrideCampanaId : fCampana;
-      if (campaignToUse !== "todas") params.append("campanaId", campaignToUse);
-      if (fCiudad !== "todas") params.append("ciudad", fCiudad);
-      if (fStartDate) params.append("startDate", fStartDate);
-      if (fEndDate) params.append("endDate", fEndDate);
-      if (fEstado !== "Todos") params.append("estadoPago", fEstado);
+      const ciudadToUse = overrideCiudad !== undefined ? overrideCiudad : fCiudad;
+      const estadoToUse = overrideEstado !== undefined ? overrideEstado : fEstado;
+      const startToUse = overrideStart !== undefined ? overrideStart : fStartDate;
+      const endToUse = overrideEnd !== undefined ? overrideEnd : fEndDate;
+
+      if (campaignToUse && campaignToUse !== "todas") params.append("campanaId", campaignToUse);
+      if (ciudadToUse && ciudadToUse !== "todas") params.append("ciudad", ciudadToUse);
+      if (startToUse) params.append("startDate", startToUse);
+      if (endToUse) params.append("endDate", endToUse);
+      if (estadoToUse && estadoToUse !== "Todos") params.append("estadoPago", estadoToUse);
 
       const data = await apiGet<CommissionReport[]>(`/payments/commissions?${params.toString()}`);
       setReports(data || []);
@@ -651,7 +666,17 @@ export default function PaymentsAdminPage() {
   const totalLotesPendientes = lotes.filter((l) => l.estado === "BORRADOR" || l.estado === "EN_REVISION" || l.estado === "AUTORIZADO").length;
 
   // Metrics for Tab 2
-  const filteredReports = reports.filter((r) => (fMostrarCon0 ? true : r.montoTotal > 0));
+  const filteredReports = reports.filter((r) => {
+    if (!fMostrarCon0 && r.montoTotal <= 0) return false;
+    if (fSearchVendor.trim()) {
+      const q = fSearchVendor.toLowerCase();
+      const matchName = r.vendedorNombre?.toLowerCase().includes(q);
+      const matchTienda = r.tienda?.toLowerCase().includes(q);
+      const matchCiudad = r.ciudad?.toLowerCase().includes(q);
+      if (!matchName && !matchTienda && !matchCiudad) return false;
+    }
+    return true;
+  });
   const totalVendors = filteredReports.length;
   const totalUnits = filteredReports.reduce((acc, curr) => acc + curr.cantidadVentas, 0);
   const totalMonto = filteredReports.reduce((acc, curr) => acc + curr.montoTotal, 0);
@@ -995,10 +1020,10 @@ export default function PaymentsAdminPage() {
         <TabsContent value="individuales" className="space-y-6">
           <Card className="glass-card border-white/5 text-white shadow-xl shadow-black/20">
             <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Campaña *</Label>
-                  <Select value={fCampana} onValueChange={setFCampana}>
+                  <Select value={fCampana} onValueChange={(v) => { setFCampana(v); handleSearchIndividual(v); }}>
                     <SelectTrigger className="glass-card border-white/10 text-sm">
                       <SelectValue placeholder="Seleccionar" />
                     </SelectTrigger>
@@ -1026,7 +1051,7 @@ export default function PaymentsAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Ciudad</Label>
-                  <Select value={fCiudad} onValueChange={setFCiudad}>
+                  <Select value={fCiudad} onValueChange={(v) => { setFCiudad(v); handleSearchIndividual(undefined, v); }}>
                     <SelectTrigger className="glass-card border-white/10 text-sm">
                       <SelectValue placeholder="Todas" />
                     </SelectTrigger>
@@ -1056,56 +1081,88 @@ export default function PaymentsAdminPage() {
                     onChange={(e) => setFEndDate(e.target.value)}
                   />
                 </div>
-              </div>
-
-              <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                <div className="space-y-2 min-w-[200px]">
-                  <Label className="text-xs text-muted-foreground">Estado pago</Label>
-                  <Select value={fEstado} onValueChange={setFEstado}>
-                    <SelectTrigger className="glass-card border-white/10 text-sm">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent className="glass-card">
-                      <SelectItem value="Todos">Todos</SelectItem>
-                      <SelectItem value="Pendiente">Pendientes</SelectItem>
-                      <SelectItem value="Pagado">Pagados</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2 mt-4 md:mt-0">
-                  <Switch id="mostrar-0" checked={fMostrarCon0} onCheckedChange={setFMostrarCon0} />
-                  <Label htmlFor="mostrar-0" className="text-sm font-medium">Mostrar con 0</Label>
-                </div>
-
-                <div className="flex items-center space-x-2 mt-4 md:mt-0">
-                  <Switch id="desglose" checked={fDesgloseSemanal} onCheckedChange={setFDesgloseSemanal} />
-                  <Label htmlFor="desglose" className="text-sm font-medium">Desglose semanal</Label>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Buscar Vendedor/Tienda</Label>
+                  <div className="relative">
+                    <Search className="h-3.5 w-3.5 absolute left-2.5 top-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Nombre o tienda..."
+                      className="glass-card border-white/10 text-sm pl-8"
+                      value={fSearchVendor}
+                      onChange={(e) => setFSearchVendor(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Button
-                  className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
-                  onClick={() => handleExportExcel(true)}
-                  disabled={exportingExcel}
-                >
-                  {exportingExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Generar Liquidación
-                </Button>
-                <Button variant="outline" className="border-white/10 hover:bg-white/5 bg-transparent" onClick={() => handleSearchIndividual()} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
-                  Consultar
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/10 hover:bg-white/5 bg-transparent"
-                  onClick={() => handleExportExcel(false)}
-                  disabled={exportingExcel}
-                >
-                  {exportingExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                  Excel
-                </Button>
+              <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+                <div className="flex flex-wrap items-center gap-6">
+                  <div className="space-y-2 min-w-[200px]">
+                    <Label className="text-xs text-muted-foreground">Estado pago</Label>
+                    <Select value={fEstado} onValueChange={(v) => { setFEstado(v); handleSearchIndividual(undefined, undefined, v); }}>
+                      <SelectTrigger className="glass-card border-white/10 text-sm">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent className="glass-card">
+                        <SelectItem value="Todos">Todos</SelectItem>
+                        <SelectItem value="Pendiente">Pendientes</SelectItem>
+                        <SelectItem value="Pagado">Pagados</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center space-x-2 mt-4 md:mt-5">
+                    <Switch id="mostrar-0" checked={fMostrarCon0} onCheckedChange={setFMostrarCon0} />
+                    <Label htmlFor="mostrar-0" className="text-sm font-medium">Mostrar con Bs 0</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2 mt-4 md:mt-5">
+                    <Switch id="desglose" checked={fDesgloseSemanal} onCheckedChange={setFDesgloseSemanal} />
+                    <Label htmlFor="desglose" className="text-sm font-medium">Desglose semanal</Label>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="border-white/10 hover:bg-white/5 bg-transparent text-xs"
+                    onClick={() => {
+                      setFCampana("todas");
+                      setFCiudad("todas");
+                      setFStartDate("");
+                      setFEndDate("");
+                      setFEstado("Todos");
+                      setFSearchVendor("");
+                      setFMostrarCon0(false);
+                      handleSearchIndividual("todas", "todas", "Todos", "", "");
+                    }}
+                    disabled={loading}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    Limpiar Filtros
+                  </Button>
+                  <Button variant="outline" className="border-white/10 hover:bg-white/5 bg-transparent" onClick={() => handleSearchIndividual()} disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                    Consultar
+                  </Button>
+                  <Button
+                    className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                    onClick={() => handleExportExcel(true)}
+                    disabled={exportingExcel}
+                  >
+                    {exportingExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Generar Liquidación
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-white/10 hover:bg-white/5 bg-transparent"
+                    onClick={() => handleExportExcel(false)}
+                    disabled={exportingExcel}
+                  >
+                    {exportingExcel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Excel
+                  </Button>
+                </div>
               </div>
 
               <div className="pt-2 text-yellow-500 text-xs flex items-center gap-1.5 opacity-80">

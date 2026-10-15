@@ -141,6 +141,11 @@ export default function SupervisorClientePage() {
   const [motivoTexto, setMotivoTexto] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
 
+  // Modal de Confirmación de Eliminación / Anulación y Liberación de Serial
+  const [registroAEliminar, setRegistroAEliminar] = useState<RegistroClienteItem | null>(null);
+  const [motivoEliminacion, setMotivoEliminacion] = useState("");
+  const [deletingRegistro, setDeletingRegistro] = useState(false);
+
   // Registro de Entrega de Ruleta (Bandeo)
   const [entregaRuleta, setEntregaRuleta] = useState<EntregaRuleta | null>(null);
   const [loadingEntrega, setLoadingEntrega] = useState(false);
@@ -253,6 +258,30 @@ export default function SupervisorClientePage() {
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSubmittingAction(false);
+    }
+  };
+
+  const handleEliminarRegistro = async () => {
+    if (!registroAEliminar) return;
+    try {
+      setDeletingRegistro(true);
+      const queryParam = motivoEliminacion.trim() ? `?motivo=${encodeURIComponent(motivoEliminacion.trim())}` : "";
+      await apiDelete(`/supervisor/cliente/registros/${registroAEliminar.id}${queryParam}`);
+      toast({
+        title: "Registro Eliminado y Anulado",
+        description: `El registro #${registroAEliminar.id} fue eliminado y el serial ${registroAEliminar.serial} está libre para registrarse nuevamente.`,
+      });
+      setRegistroAEliminar(null);
+      setMotivoEliminacion("");
+      if (selectedRegistro?.id === registroAEliminar.id) {
+        setSelectedRegistro(null);
+      }
+      cargarRegistros();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al eliminar registro";
+      toast({ title: "Error al eliminar", description: message, variant: "destructive" });
+    } finally {
+      setDeletingRegistro(false);
     }
   };
 
@@ -571,14 +600,28 @@ export default function SupervisorClientePage() {
                         {r.estado === "RECHAZADO" && <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px]">Rechazado</Badge>}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => setSelectedRegistro(r)}
-                          className="h-8 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold"
-                        >
-                          <Eye className="w-3.5 h-3.5 mr-1" />
-                          Revisar Ficha y Evidencias
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedRegistro(r)}
+                            className="h-8 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold"
+                          >
+                            <Eye className="w-3.5 h-3.5 mr-1" />
+                            Revisar Ficha y Evidencias
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setRegistroAEliminar(r);
+                              setMotivoEliminacion("");
+                            }}
+                            className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/15 rounded-lg border border-red-500/20"
+                            title="Eliminar o anular registro y liberar serial"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1188,6 +1231,22 @@ export default function SupervisorClientePage() {
               </Button>
 
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedRegistro) {
+                    setRegistroAEliminar(selectedRegistro);
+                    setMotivoEliminacion("");
+                  }
+                }}
+                className="flex-1 sm:flex-none border-red-500/40 text-red-400 hover:bg-red-500/15 rounded-xl h-10 px-3"
+                title="Eliminar o anular registro y liberar serial"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Eliminar / Anular
+              </Button>
+
+              <Button
                 size="sm"
                 onClick={() => selectedRegistro && handleAprobar(selectedRegistro.id)}
                 className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl h-10 px-5 shadow-lg shadow-emerald-500/20"
@@ -1248,6 +1307,73 @@ export default function SupervisorClientePage() {
               className={`rounded-xl font-bold ${actionType === "OBSERVAR" ? "bg-orange-500 hover:bg-orange-400 text-slate-950" : "bg-red-500 hover:bg-red-400 text-white"}`}
             >
               {actionType === "OBSERVAR" ? "Registrar Observación" : "Confirmar Rechazo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmación para Eliminar / Anular Registro */}
+      <Dialog open={!!registroAEliminar} onOpenChange={(open) => !open && setRegistroAEliminar(null)}>
+        <DialogContent className="max-w-md bg-slate-950 border border-red-500/40 text-white rounded-3xl p-6 shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center mx-auto mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-lg font-bold text-center text-red-400">
+              ¿Eliminar o Anular Registro?
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs text-center mt-1">
+              Esta acción eliminará el registro #{registroAEliminar?.id} de{" "}
+              <span className="font-semibold text-white">{registroAEliminar?.nombreCliente} {registroAEliminar?.apellidoCliente}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-3">
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+              <p className="font-bold flex items-center gap-1.5 text-amber-400">
+                <CheckCircle2 className="w-4 h-4" /> El serial quedará liberado inmediatamente:
+              </p>
+              <p className="font-mono text-sm text-white font-black mt-1 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-white/5 inline-block">
+                {registroAEliminar?.serial}
+              </p>
+              <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
+                El serial podrá volver a ser registrado sin bloqueo por duplicidad. Los tickets generados se cancelarán.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-300">Motivo de eliminación o anulación (Opcional):</Label>
+              <Input
+                value={motivoEliminacion}
+                onChange={(e) => setMotivoEliminacion(e.target.value)}
+                placeholder="Ej: Serial registrado por error, anulación de compra, prueba..."
+                className="bg-slate-900 border-white/10 text-xs rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={deletingRegistro}
+              onClick={() => setRegistroAEliminar(null)}
+              className="flex-1 border border-white/10 text-slate-300 rounded-xl"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={deletingRegistro}
+              onClick={handleEliminarRegistro}
+              className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl"
+            >
+              {deletingRegistro ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1.5" />
+              )}
+              Eliminar y Liberar Serial
             </Button>
           </DialogFooter>
         </DialogContent>

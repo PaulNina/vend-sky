@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { apiPost } from "@/lib/api";
+import React, { useState, useEffect } from "react";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ import {
   Info,
   Check,
   XCircle,
+  Save,
+  Loader2,
 } from "lucide-react";
 
 interface TemplateDefinition {
@@ -74,29 +76,17 @@ const TEMPLATES_DISPONIBLES: TemplateDefinition[] = [
     csvEjemplo: ["59171234567", "Juan Perez", "Televisor Skyworth 50G6600H", "SK-78901234", "Foto de factura poco legible"],
   },
   {
-    id: "skyworth_registro_observado",
-    nombre: "skyworth_registro_observado",
-    descripcion: "Notificación de observación v1 con enlace para corregir fotografías o datos",
-    params: [
-      { label: "{{1}} Nombre del Cliente", placeholder: "Ej: Juan Pérez", defaultValue: "Juan Pérez" },
-      { label: "{{2}} Modelo de Televisor", placeholder: "Ej: Televisor Skyworth 50G6600H", defaultValue: "Televisor Skyworth 50G6600H" },
-      { label: "{{3}} Serie / TAG del Equipo", placeholder: "Ej: SK-78901234", defaultValue: "SK-78901234" },
-      { label: "{{4}} Motivo de Observación", placeholder: "Ej: Foto de factura borrosa", defaultValue: "Foto de factura poco legible, favor reenviar" },
-    ],
-    csvHeaders: ["celular", "nombre", "modelo", "serie", "motivo"],
-    csvEjemplo: ["59171234567", "Juan Perez", "Televisor Skyworth 50G6600H", "SK-78901234", "Foto de factura poco legible"],
-  },
-  {
     id: "skyworth_registro_rechazado",
     nombre: "skyworth_registro_rechazado",
     descripcion: "Notificación de registro rechazado con motivo explicativo",
     params: [
       { label: "{{1}} Nombre del Cliente", placeholder: "Ej: Juan Pérez", defaultValue: "Juan Pérez" },
-      { label: "{{2}} Serie / TAG del Equipo", placeholder: "Ej: SK-78901234", defaultValue: "SK-78901234" },
-      { label: "{{3}} Motivo del Rechazo", placeholder: "Ej: Número de serie no corresponde a distribuidor autorizado", defaultValue: "Número de serie no corresponde a distribuidor autorizado" },
+      { label: "{{2}} Producto / Modelo", placeholder: "Ej: Televisor Skyworth G6600H 50\"", defaultValue: "Televisor Skyworth G6600H 50\"" },
+      { label: "{{3}} Serie / TAG del Equipo", placeholder: "Ej: TCL-123456123", defaultValue: "TCL-123456123" },
+      { label: "{{4}} Motivo del Rechazo", placeholder: "Ej: Imágenes no corresponden a un producto Skyworth", defaultValue: "Imágenes no corresponden a un producto Skyworth" },
     ],
-    csvHeaders: ["celular", "nombre", "serie", "motivo"],
-    csvEjemplo: ["59171234567", "Juan Perez", "SK-78901234", "Serie fuera de campaña"],
+    csvHeaders: ["celular", "nombre", "producto", "serie", "motivo"],
+    csvEjemplo: ["59171234567", "Juan Perez", "Televisor Skyworth G6600H 50\"", "TCL-123456123", "Imágenes no corresponden a un producto Skyworth"],
   },
 ];
 
@@ -112,6 +102,51 @@ interface CsvRow {
 export default function WhatsappTemplatesSection() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("skyworth_registro_recibido");
   const [headerImageUrl, setHeaderImageUrl] = useState<string>("https://bono.skyworth.bo/logo_skyworth.jpg");
+  const [savingHeader, setSavingHeader] = useState<boolean>(false);
+
+  useEffect(() => {
+    apiGet<{ headerImageUrl: string }>("/whatsapp/header-image")
+      .then((res) => {
+        if (res?.headerImageUrl) {
+          setHeaderImageUrl(res.headerImageUrl);
+        }
+      })
+      .catch((err) => {
+        console.warn("No se pudo cargar la imagen de cabecera de WhatsApp:", err);
+      });
+  }, []);
+
+  const handleSaveHeaderImage = async () => {
+    if (!headerImageUrl.trim()) {
+      toast({
+        title: "URL requerida",
+        description: "Ingresa una URL válida para la imagen de cabecera.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingHeader(true);
+    try {
+      const res = await apiPut<{ headerImageUrl: string }>("/whatsapp/header-image", {
+        headerImageUrl: headerImageUrl.trim(),
+      });
+      if (res?.headerImageUrl) {
+        setHeaderImageUrl(res.headerImageUrl);
+      }
+      toast({
+        title: "¡Imagen de Cabecera Guardada!",
+        description: "Se guardó en la base de datos y se aplicará a todas las aprobaciones, observaciones y pruebas sin reiniciar.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Error al guardar cabecera",
+        description: err instanceof Error ? err.message : "Error al conectar con el servidor",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingHeader(false);
+    }
+  };
 
   // Estado Prueba Individual
   const [testPhone, setTestPhone] = useState<string>("");
@@ -380,14 +415,33 @@ export default function WhatsappTemplatesSection() {
                 <ImageIcon className="h-3.5 w-3.5 text-blue-400" />
                 URL de Imagen de Cabecera (Header Image)
               </Label>
-              <a
-                href={headerImageUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
-              >
-                Abrir imagen <ExternalLink className="h-3 w-3" />
-              </a>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSaveHeaderImage}
+                  disabled={savingHeader}
+                  className="h-7 text-xs px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/30"
+                >
+                  {savingHeader ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" /> Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3 w-3 mr-1" /> Guardar Cabecera
+                    </>
+                  )}
+                </Button>
+                <a
+                  href={headerImageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                >
+                  Abrir imagen <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             </div>
             <div className="flex gap-2 items-center">
               <Input
@@ -406,7 +460,7 @@ export default function WhatsappTemplatesSection() {
               />
             </div>
             <p className="text-[11px] text-slate-400">
-              Esta imagen se adjunta como banner superior del template en los teléfonos de los clientes.
+              Esta imagen se adjunta como banner superior del template en los teléfonos de los clientes. Al guardarla, se actualiza en base de datos sin tocar el backend.
             </p>
           </div>
         </CardContent>

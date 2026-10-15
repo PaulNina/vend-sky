@@ -37,6 +37,7 @@ interface UserRole {
   email: string;
   nombreCompleto?: string;
   rol: string;
+  roles?: string[];
   ciudad?: string | null;
   departamento?: string | null;
   tiendaId?: number | null;
@@ -54,9 +55,10 @@ export default function UsersRolesPage() {
     nombreCompleto?: string;
     password?: string;
     rol: string;
+    roles: string[];
     cities: string[];
     tiendaId?: string;
-  }>({ email: "", nombreCompleto: "", password: "", rol: "", cities: [], tiendaId: "" });
+  }>({ email: "", nombreCompleto: "", password: "", rol: "", roles: [], cities: [], tiendaId: "" });
 
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -82,24 +84,37 @@ export default function UsersRolesPage() {
 
   useEffect(() => { load(); }, [filters]);
 
+  const toggleRole = (roleValue: string) => {
+    setForm((prev) => {
+      const exists = prev.roles.includes(roleValue);
+      const updated = exists ? prev.roles.filter((r) => r !== roleValue) : [...prev.roles, roleValue];
+      return {
+        ...prev,
+        roles: updated,
+        rol: updated[0] || "",
+      };
+    });
+  };
+
   const save = async () => {
-    if (!form.email || !form.rol) {
-      toast({ title: "Error", description: "Email y rol son obligatorios.", variant: "destructive" });
+    if (!form.email || form.roles.length === 0) {
+      toast({ title: "Error", description: "Email y al menos un rol son obligatorios.", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
       await apiPost("/users/roles", { 
-        email: form.email,
-        nombreCompleto: form.nombreCompleto,
+        email: form.email.trim(),
+        nombreCompleto: (form.nombreCompleto || "").trim().toUpperCase(),
         password: form.password,
-        rol: form.rol, 
+        rol: form.roles[0],
+        roles: form.roles,
         ciudad: form.cities.length > 0 ? form.cities.join(",") : "",
         tiendaId: form.tiendaId && form.tiendaId !== "none" ? form.tiendaId : ""
       });
-      toast({ title: isEditing ? "Usuario actualizado" : "Usuario creado / Rol asignado" });
+      toast({ title: isEditing ? "Usuario actualizado" : "Usuario creado / Roles asignados" });
       setDialog(false); 
-      setForm({ email: "", nombreCompleto: "", password: "", rol: "", cities: [], tiendaId: "" }); 
+      setForm({ email: "", nombreCompleto: "", password: "", rol: "", roles: [], cities: [], tiendaId: "" }); 
       setIsEditing(false);
       load();
     } catch (e: unknown) {
@@ -120,11 +135,13 @@ export default function UsersRolesPage() {
   };
 
   const handleEdit = (user: UserRole) => {
+    const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.rol ? [user.rol] : ["REVISOR"]);
     setForm({
       email: user.email,
-      nombreCompleto: user.nombreCompleto || "",
+      nombreCompleto: user.nombreCompleto ? user.nombreCompleto.toUpperCase() : "",
       password: "",
-      rol: user.rol,
+      rol: userRoles[0] || "",
+      roles: userRoles,
       cities: user.ciudad ? user.ciudad.split(",").map(c => c.trim()) : [],
       tiendaId: user.tiendaId ? String(user.tiendaId) : ""
     });
@@ -133,7 +150,7 @@ export default function UsersRolesPage() {
   };
 
   const openNewDialog = () => {
-    setForm({ email: "", nombreCompleto: "", password: "", rol: "REVISOR", cities: [], tiendaId: "" });
+    setForm({ email: "", nombreCompleto: "", password: "", rol: "REVISOR", roles: ["REVISOR"], cities: [], tiendaId: "" });
     setIsEditing(false);
     setDialog(true);
   };
@@ -239,15 +256,23 @@ export default function UsersRolesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] px-2 py-0.5 font-medium border",
-                            roleObj?.badgeColor || "bg-slate-700/30 text-slate-400 border-white/10"
-                          )}
-                        >
-                          {roleObj?.label || assignment.rol}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {(assignment.roles && assignment.roles.length > 0 ? assignment.roles : [assignment.rol]).map((r) => {
+                            const rObj = getRoleObj(r);
+                            return (
+                              <Badge 
+                                key={r}
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] px-2 py-0.5 font-medium border",
+                                  rObj?.badgeColor || "bg-slate-700/30 text-slate-400 border-white/10"
+                                )}
+                              >
+                                {rObj?.label || r}
+                              </Badge>
+                            );
+                          })}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -311,9 +336,9 @@ export default function UsersRolesPage() {
               <Label className="text-slate-400 text-xs">Nombre Completo *</Label>
               <Input 
                 value={form.nombreCompleto || ""} 
-                onChange={(e) => setForm({ ...form, nombreCompleto: e.target.value })} 
-                placeholder="Ej: Carlos Mendoza" 
-                className="bg-black/20 border-white/10 text-white placeholder-slate-500 focus:border-primary focus:ring-0"
+                onChange={(e) => setForm({ ...form, nombreCompleto: e.target.value.toUpperCase() })} 
+                placeholder="EJ: CARLOS MENDOZA" 
+                className="bg-black/20 border-white/10 text-white placeholder-slate-500 focus:border-primary focus:ring-0 uppercase"
               />
             </div>
             <div className="space-y-1.5">
@@ -339,26 +364,43 @@ export default function UsersRolesPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-400 text-xs">Rol de Usuario *</Label>
-              <Select value={form.rol} onValueChange={(v) => setForm({ ...form, rol: v })}>
-                <SelectTrigger className="bg-black/20 border-white/10 text-white">
-                  <SelectValue placeholder="Seleccionar rol..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.value} value={r.value} className="focus:bg-white/5 focus:text-white">
-                      <div className="py-0.5">
-                        <p className="font-medium">{r.label}</p>
-                        <p className="text-[10px] text-muted-foreground">{r.description}</p>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-400 text-xs">Roles Asignados * (puede elegir más de uno)</Label>
+                <span className="text-[11px] text-primary font-semibold">
+                  {form.roles.length} {form.roles.length === 1 ? "rol" : "roles"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-black/30 p-2.5 rounded-xl border border-white/10 max-h-56 overflow-y-auto">
+                {ROLES.map((r) => {
+                  const isChecked = form.roles.includes(r.value);
+                  return (
+                    <div
+                      key={r.value}
+                      onClick={() => toggleRole(r.value)}
+                      className={cn(
+                        "flex items-start gap-2.5 p-2 rounded-lg cursor-pointer border transition-all text-xs",
+                        isChecked
+                          ? "bg-primary/20 border-primary/50 text-white shadow-sm"
+                          : "bg-white/5 border-transparent text-slate-300 hover:bg-white/10"
+                      )}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleRole(r.value)}
+                        className="mt-0.5 border-white/30 data-[state=checked]:bg-primary data-[state=checked]:text-black"
+                      />
+                      <div className="space-y-0.5 flex-1 select-none">
+                        <p className="font-semibold text-white leading-tight">{r.label}</p>
+                        <p className="text-[10px] text-slate-400 leading-tight">{r.description}</p>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Selector de Tienda (Para ENCARGADO_TIENDA o SUPERVISOR) */}
-            {(form.rol === "ENCARGADO_TIENDA" || form.rol === "SUPERVISOR") && (
+            {(form.roles.includes("ENCARGADO_TIENDA") || form.roles.includes("SUPERVISOR")) && (
               <div className="space-y-1.5">
                 <Label className="text-slate-400 text-xs font-semibold flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5 text-primary" /> Tienda Asignada (Ámbito de Control)

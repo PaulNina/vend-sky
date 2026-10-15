@@ -58,6 +58,8 @@ import WhatsappPage from "@/pages/admin/WhatsappPage";
 import WhatsappConfigPage from "@/pages/admin/WhatsappConfigPage";
 import AdminPremiosVendedoresPage from "@/pages/admin/AdminPremiosVendedoresPage";
 import VendorCanjesPage from "@/pages/VendorCanjesPage";
+import RegisterTiendaPage from "@/pages/RegisterTiendaPage";
+import StoreRequestsPage from "@/pages/admin/StoreRequestsPage";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +79,7 @@ const App = () => (
             <Route path="/mis-tickets" element={<ConsultaTicketsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/registro-tienda" element={<RegisterTiendaPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
@@ -189,6 +192,7 @@ const App = () => (
               <Route path="/admin/configuracion" element={<ConfigurationPage />} />
               <Route path="/admin/pagos" element={<PaymentsAdminPage />} />
               <Route path="/admin/tiendas" element={<TiendasPage />} />
+              <Route path="/admin/solicitudes-tiendas" element={<StoreRequestsPage />} />
               <Route path="/admin/whatsapp" element={<WhatsappPage />} />
               <Route path="/admin/whatsapp-config" element={<WhatsappConfigPage />} />
             </Route>

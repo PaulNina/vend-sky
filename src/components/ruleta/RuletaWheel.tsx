@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useAnimation, AnimatePresence } from "framer-motion";
-import { Sparkles, Trophy, CheckCircle2, Loader2 } from "lucide-react";
+import { Sparkles, Trophy, CheckCircle2, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface PremioItem {
@@ -22,6 +22,8 @@ interface RuletaWheelProps {
   isSubmitting?: boolean;
   clienteNombre?: string;
   clienteCi?: string;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 // Sonidos sintéticos con Web Audio API (cero dependencias de mp3 externos)
@@ -199,6 +201,8 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
   isSubmitting = false,
   clienteNombre,
   clienteCi,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   const controls = useAnimation();
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -311,7 +315,25 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
   const slicePath = `M 200 200 L 200 ${200 - arcRadius} A ${arcRadius} ${arcRadius} 0 ${sliceAngle > 180 ? 1 : 0} 1 ${arcEndX} ${arcEndY} Z`;
 
   return (
-    <div className="relative w-full flex flex-col items-center select-none overflow-hidden px-2 py-4">
+    <div className={`relative w-full flex flex-col items-center select-none overflow-hidden px-2 sm:px-3 py-3 sm:py-5 ${
+      isFullscreen ? "min-h-screen justify-center py-6" : ""
+    }`}>
+      {/* Botón de Pantalla Completa / Restaurar */}
+      {onToggleFullscreen && (
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          className="absolute top-3 right-3 z-30 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md transition-all shadow-lg hover:scale-105 active:scale-95"
+          title={isFullscreen ? "Restaurar tamaño normal" : "Agrandar a pantalla completa"}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-5 h-5 text-amber-300" />
+          ) : (
+            <Maximize2 className="w-5 h-5 text-amber-300" />
+          )}
+        </button>
+      )}
+
       {/* FONDO RADIAL SKYWORTH (Rayos de luz y destellos en azul cobalto vibrante) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Gradiente radial profundo */}
@@ -343,41 +365,53 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
       </div>
 
       {/* CABECERA OFICIAL 3D: "SOY 100% SKYWORTH - ¡CON SKYWORTH SIEMPRE GANAS!" */}
-      <div className="relative z-10 flex flex-col items-center text-center mb-3">
+      <div className={`relative z-10 flex flex-col items-center text-center px-2 max-w-full ${
+        isFullscreen ? "mb-4 sm:mb-6" : "mb-2 sm:mb-3"
+      }`}>
         {/* SOY */}
-        <div className="text-2xl sm:text-3xl font-black tracking-widest leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#fffbeb] via-[#fed867] to-[#9a6414] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] filter">
+        <div className={`${
+          isFullscreen ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"
+        } font-black tracking-widest leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#fffbeb] via-[#fed867] to-[#9a6414] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] filter`}>
           SOY
         </div>
 
         {/* 100% */}
-        <div className="text-5xl sm:text-6xl font-black tracking-tighter leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#fcd34d] to-[#854d0e] drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] filter -mt-1">
+        <div className={`${
+          isFullscreen ? "text-5xl sm:text-7xl" : "text-4xl sm:text-5xl"
+        } font-black tracking-tighter leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#fcd34d] to-[#854d0e] drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] filter -mt-0.5`}>
           100%
         </div>
 
         {/* SKYWORTH */}
-        <div className="text-xl sm:text-2xl font-black tracking-[0.22em] text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)] mt-0.5">
+        <div className={`${
+          isFullscreen ? "text-xl sm:text-2xl" : "text-base sm:text-xl"
+        } font-black tracking-[0.2em] text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)] mt-0.5`}>
           SKYWORTH
         </div>
 
         {/* SUBTÍTULO BANNER */}
-        <div className="mt-1.5 px-3 py-0.5 rounded-full bg-blue-900/60 border border-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-          <span className="text-[11px] sm:text-xs font-black tracking-wider text-white uppercase drop-shadow-[0_0_8px_rgba(56,189,248,0.9)]">
+        <div className="mt-1 px-3 py-0.5 rounded-full bg-blue-900/60 border border-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.3)] max-w-full">
+          <span className="text-[10px] sm:text-xs font-black tracking-wider text-white uppercase drop-shadow-[0_0_8px_rgba(56,189,248,0.9)]">
             ¡CON SKYWORTH SIEMPRE GANAS!
           </span>
         </div>
 
         {/* Indicador de cliente si está presente */}
         {clienteNombre && (
-          <div className="mt-1 text-[10px] text-cyan-200/90 font-medium">
+          <div className="mt-1 text-[10px] sm:text-xs text-cyan-200/90 font-medium max-w-full px-2 truncate">
             Cliente: <span className="text-white font-bold">{clienteNombre}</span> {clienteCi ? `(CI: ${clienteCi})` : ""}
           </div>
         )}
       </div>
 
-      {/* CONTENEDOR DE LA RULETA (Escalado responsivo para teléfonos celulares) */}
-      <div className="relative z-10 flex flex-col items-center w-full max-w-[340px] xs:max-w-[360px] sm:max-w-[400px]">
+      {/* CONTENEDOR DE LA RULETA (Escalado responsivo) */}
+      <div className={`relative z-10 flex flex-col items-center w-full px-1 transition-all duration-300 ${
+        isFullscreen
+          ? "max-w-[480px] sm:max-w-[560px] md:max-w-[620px]"
+          : "max-w-[270px] xs:max-w-[310px] sm:max-w-[360px]"
+      }`}>
         {/* RUEDA PRINCIPAL (SVG VIEWBOX 400x400) */}
-        <div className="relative w-full aspect-square drop-shadow-[0_15px_30px_rgba(0,0,0,0.7)]">
+        <div className="relative w-full aspect-square drop-shadow-[0_12px_24px_rgba(0,0,0,0.7)]">
           {/* DISCO GIRATORIO (Framer Motion) */}
           <motion.div
             className="w-full h-full"
@@ -571,44 +605,44 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
           </svg>
         </div>
 
-        {/* PEDESTAL / BASE AZUL METÁLICA (Como en la foto de referencia) */}
-        <div className="relative w-28 sm:w-36 h-10 -mt-2 z-0 flex flex-col items-center">
+        {/* PEDESTAL / BASE AZUL METÁLICA (Escalado responsivo) */}
+        <div className="relative w-24 sm:w-32 h-8 -mt-2 z-0 flex flex-col items-center">
           {/* Anillo de unión dorado */}
-          <div className="w-14 h-2 bg-gradient-to-r from-amber-600 via-amber-300 to-amber-700 rounded-sm shadow-md" />
+          <div className="w-12 h-1.5 bg-gradient-to-r from-amber-600 via-amber-300 to-amber-700 rounded-sm shadow-md" />
           {/* Columna cilíndrica azul metálica */}
-          <div className="w-20 sm:w-24 h-8 bg-gradient-to-r from-[#021f59] via-[#1a62d6] to-[#021f59] rounded-b-2xl border-x-2 border-b-2 border-blue-400/40 shadow-[0_10px_25px_rgba(0,0,0,0.8)] relative overflow-hidden flex items-center justify-center">
+          <div className="w-16 sm:w-20 h-6.5 bg-gradient-to-r from-[#021f59] via-[#1a62d6] to-[#021f59] rounded-b-xl border-x-2 border-b-2 border-blue-400/40 shadow-[0_10px_25px_rgba(0,0,0,0.8)] relative overflow-hidden flex items-center justify-center">
             {/* Reflejo vertical especular */}
-            <div className="w-6 h-full bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]" />
+            <div className="w-5 h-full bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]" />
           </div>
         </div>
 
-        {/* BOTÓN DE GIRO GIGANTE Y TÁCTIL (Optimizado para teléfonos móviles) */}
-        <div className="mt-4 w-full flex flex-col items-center">
+        {/* BOTÓN DE GIRO GIGANTE Y TÁCTIL (100% responsivo para móviles) */}
+        <div className="mt-3 sm:mt-4 w-full flex flex-col items-center px-1">
           <Button
             size="lg"
             onClick={onSpinRequest}
             disabled={disabled || isSpinning}
-            className="w-full sm:w-auto px-10 py-7 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-lg tracking-widest shadow-[0_0_35px_rgba(245,158,11,0.6)] active:scale-95 transition-all cursor-pointer border-2 border-yellow-200/60 uppercase"
+            className="w-full max-w-[320px] h-auto py-3.5 sm:py-4 px-4 sm:px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base tracking-wide shadow-[0_0_30px_rgba(245,158,11,0.5)] active:scale-95 transition-all cursor-pointer border-2 border-yellow-200/60 uppercase whitespace-normal leading-tight text-center"
           >
             {isSpinning ? (
-              <span className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 animate-spin text-slate-950" />
-                ¡GIRANDO LA RULETA!...
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
+                <span>¡GIRANDO LA RULETA!...</span>
               </span>
             ) : isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-950" />
-                REGISTRANDO Y GIRANDO...
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
+                <span>REGISTRANDO Y GIRANDO...</span>
               </span>
             ) : (
-              <span className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 animate-pulse text-slate-950" />
-                ¡GIRAR RULETA AHORA!
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5 shrink-0 animate-pulse text-slate-950" />
+                <span>¡GIRAR RULETA AHORA!</span>
               </span>
             )}
           </Button>
 
-          <p className="text-[11px] text-cyan-200/80 font-medium mt-2 text-center">
+          <p className="text-[10px] sm:text-xs text-cyan-200/90 font-medium mt-2 text-center px-2 leading-tight">
             {premios.length} opciones en juego · Descuento de stock en tiempo real
           </p>
         </div>

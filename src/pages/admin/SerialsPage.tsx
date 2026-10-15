@@ -13,6 +13,7 @@ import { Loader2, Upload, Download, Trash2, Pencil, Plus, Database, CircleCheck,
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import AddSerialDialog from "@/components/serials/AddSerialDialog";
+import { ProductSearchSelect } from "@/components/common/ProductSearchSelect";
 import { AdminEmptyState, AdminPageHeader, AdminStat, AdminToolbar } from "@/components/admin/AdminInterface";
 
 interface Producto {
@@ -465,18 +466,14 @@ export default function SerialsPage() {
               <Input value={editForm.modelo ?? ""} onChange={e => setEditForm(f => ({ ...f, modelo: e.target.value }))} className="bg-black/20 border-white/10 text-white focus:border-primary focus:ring-0 font-mono" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-400 text-xs">Producto</Label>
-              <Select value={editForm.productoId ? editForm.productoId.toString() : "none"} onValueChange={v => setEditForm(f => ({ ...f, productoId: v === "none" ? null : Number(v) }))}>
-                <SelectTrigger className="bg-black/20 border-white/10 text-white"><SelectValue placeholder="— Sin producto —" /></SelectTrigger>
-                <SelectContent className="bg-slate-900 border-white/10 text-white">
-                  <SelectItem value="none" className="focus:bg-white/5 focus:text-white">— Sin producto —</SelectItem>
-                  {productos.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()} className="focus:bg-white/5 focus:text-white">
-                      {p.nombre}{(p.tamanoPulgadas ?? p.pulgadas) ? ` ${p.tamanoPulgadas ?? p.pulgadas}"` : ""}{p.modelo ? ` — ${p.modelo}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-slate-400 text-xs">Producto Asociado</Label>
+              <ProductSearchSelect
+                value={editForm.productoId ? editForm.productoId.toString() : "none"}
+                onChange={(v) => setEditForm((f) => ({ ...f, productoId: !v || v === "none" ? null : Number(v) }))}
+                productos={productos}
+                placeholder="-- Sin producto asignado --"
+                allowEmpty={true}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-slate-400 text-xs">Container</Label>

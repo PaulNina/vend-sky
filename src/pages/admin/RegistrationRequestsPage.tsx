@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiGet, apiPatch } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, UserCheck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, UserCheck, Store } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -72,11 +73,18 @@ export default function RegistrationRequestsPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-white flex items-center gap-2">
-          <UserCheck className="h-6 w-6 text-primary" /> Solicitudes de Registro
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Vendedores pendientes de aprobación en el sistema</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-white flex items-center gap-2">
+            <UserCheck className="h-6 w-6 text-primary" /> Solicitudes de Registro (Vendedores)
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Vendedores pendientes de aprobación en el sistema</p>
+        </div>
+        <Button asChild variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 text-xs w-fit">
+          <Link to="/admin/solicitudes-tiendas">
+            <Store className="h-3.5 w-3.5 mr-1.5" /> Ver Solicitudes de Tiendas
+          </Link>
+        </Button>
       </div>
 
       <Card className="glass-card border-white/5 overflow-hidden shadow-xl hover:border-white/10 transition-all duration-300">

@@ -78,6 +78,7 @@ export interface ChatbotConfig {
   waPhoneNumberId2?: string;
   waNumero2?: string;
   waVerifyToken?: string;
+  waHeaderImageUrl?: string;
   modoRegistroWa?: ModoRegistroWa;
   cantidadFotosRequeridas?: number;
   mensajeRedireccionWeb?: string;
@@ -100,6 +101,7 @@ export interface ChatbotConfigRequest {
   waPhoneNumberId2?: string;
   waNumero2?: string;
   waVerifyToken?: string;
+  waHeaderImageUrl?: string;
   modoRegistroWa?: ModoRegistroWa;
   cantidadFotosRequeridas?: number;
   mensajeRedireccionWeb?: string;

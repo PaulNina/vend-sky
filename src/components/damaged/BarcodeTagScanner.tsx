@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import heic2any from "heic2any";
+import { ImageSourceModal } from "@/components/common/ImageSourceModal";
 
 interface BarcodeDetectorInstance {
   detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
@@ -50,7 +51,7 @@ export default function BarcodeTagScanner({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [editManual, setEditManual] = useState(isManual);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
 
   const processImageFile = async (rawFile: File) => {
     setScanning(true);
@@ -223,7 +224,7 @@ export default function BarcodeTagScanner({
       {/* Upload Box / Preview Area */}
       {!file ? (
         <div
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => setSourceModalOpen(true)}
           className="border-2 border-dashed border-white/15 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-white/5 transition-all text-center group"
         >
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -256,7 +257,7 @@ export default function BarcodeTagScanner({
                 variant="ghost"
                 size="sm"
                 className="h-6 text-[11px] text-primary hover:text-primary hover:bg-primary/10 px-2"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setSourceModalOpen(true)}
               >
                 <RefreshCw className="h-3 w-3 mr-1" /> Cambiar foto
               </Button>
@@ -287,13 +288,12 @@ export default function BarcodeTagScanner({
         </div>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,.heic,.heif"
-        capture="environment"
-        onChange={handleFileSelect}
-        className="hidden"
+      <ImageSourceModal
+        open={sourceModalOpen}
+        onOpenChange={setSourceModalOpen}
+        title={`Cargar: ${label}`}
+        subtitle="Captura una foto de la etiqueta con tu cámara o elígela de tu galería."
+        onSelect={processImageFile}
       />
 
       {/* Serial Value Input */}

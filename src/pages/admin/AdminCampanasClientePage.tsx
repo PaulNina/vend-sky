@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { CampanaCliente, CampanaDetalleResponse, PremioRuleta, CampanaClienteProducto } from "@/types/clientCampaign";
+import { ProductSearchSelect } from "@/components/common/ProductSearchSelect";
 
 interface CatalogoProduct {
   id: number;
@@ -866,19 +867,17 @@ export default function AdminCampanasClientePage() {
           <form onSubmit={handleAsociarProducto} className="space-y-4 py-2 text-xs">
             <div>
               <Label className="text-xs text-slate-300">Seleccionar Modelo / Televisor *</Label>
-              <select
-                required
-                value={selectedProductoId}
-                onChange={(e) => setSelectedProductoId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full mt-1.5 p-3 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:ring-1 focus:ring-amber-400"
-              >
-                <option value="">-- Elige un televisor del catálogo --</option>
-                {productosDisponiblesParaAsociar.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} {p.modelo ? `(${p.modelo})` : ""} {p.tamanoPulgadas || p.pulgadas ? `- ${p.tamanoPulgadas || p.pulgadas}"` : ""}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1.5">
+                <ProductSearchSelect
+                  value={selectedProductoId ? String(selectedProductoId) : ""}
+                  onChange={(val) => setSelectedProductoId(val && val !== "none" ? Number(val) : "")}
+                  productos={productosDisponiblesParaAsociar}
+                  placeholder="-- Busca por modelo, nombre o pulgadas --"
+                  allowEmpty={false}
+                  accentColor="amber"
+                  disabled={productosDisponiblesParaAsociar.length === 0}
+                />
+              </div>
               {productosDisponiblesParaAsociar.length === 0 && (
                 <p className="text-[10px] text-amber-400/80 mt-1.5">
                   Todos los modelos del catálogo ya están vinculados a esta campaña.

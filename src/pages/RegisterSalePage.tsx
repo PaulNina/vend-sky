@@ -15,6 +15,8 @@ import { Loader2, Package, CheckCircle2, AlertCircle, Upload, Store, RefreshCw, 
 import { useCities } from "@/hooks/useCities";
 import { useGlobalConfig } from "@/hooks/useGlobalConfig";
 import { compressImage, formatBytes } from "@/lib/imageCompressor";
+import { ImageUploadBox } from "@/components/common/ImageUploadBox";
+import { ProductSearchSelect } from "@/components/common/ProductSearchSelect";
 
 interface MyStore {
   id: number;
@@ -179,9 +181,9 @@ export default function RegisterSalePage() {
 
     try {
       const compressed = await compressImage(file, {
-        maxWidth: 1600,
-        maxHeight: 1600,
-        quality: 0.75,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.65,
       });
 
       if (type === "tag") setTagFile(compressed);
@@ -301,57 +303,24 @@ export default function RegisterSalePage() {
     file,
     isCompressing,
     onSelect,
-    accept = "image/*,.heic,.heif",
+    onRemove,
+    accept = "image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp",
   }: {
     label: string;
     file: File | null;
     isCompressing: boolean;
     onSelect: (f: File) => void;
+    onRemove?: () => void;
     accept?: string;
   }) => (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      <label
-        className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl cursor-pointer transition-all py-3.5 px-2 min-h-[96px] ${
-          isCompressing
-            ? "border-primary/50 bg-primary/10 glass-card animate-pulse"
-            : file
-            ? "border-emerald-500/40 bg-emerald-500/10 glass-card"
-            : "border-white/10 glass-card hover:border-primary/30 hover:bg-white/5"
-        }`}
-      >
-        <input
-          type="file"
-          className="sr-only"
-          accept={accept}
-          disabled={isCompressing}
-          onChange={(e) => {
-            const selected = e.target.files?.[0];
-            if (selected) onSelect(selected);
-            e.target.value = "";
-          }}
-        />
-        {isCompressing ? (
-          <>
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
-            <span className="text-[11px] text-primary font-medium text-center">Optimizando foto...</span>
-          </>
-        ) : file ? (
-          <>
-            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-            <span className="text-[10px] text-emerald-300 font-medium truncate max-w-[120px]">{file.name}</span>
-            <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-500/30">
-              ✓ {formatBytes(file.size)}
-            </span>
-          </>
-        ) : (
-          <>
-            <Upload className="h-5 w-5 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Subir foto</span>
-          </>
-        )}
-      </label>
-    </div>
+    <ImageUploadBox
+      title={label}
+      file={file}
+      isCompressing={isCompressing}
+      onSelect={onSelect}
+      onRemove={onRemove}
+      accept={accept}
+    />
   );
 
   const selectedProductObj = products.find((p) => String(p.id) === selectedProduct);
@@ -373,9 +342,9 @@ export default function RegisterSalePage() {
             <div className="flex gap-2">
               <Input
                 value={serial}
-                onChange={(e) => { setSerial(e.target.value); setSerialStatus("idle"); setSerialInfo(null); }}
+                onChange={(e) => { setSerial(e.target.value.toUpperCase()); setSerialStatus("idle"); setSerialInfo(null); }}
                 placeholder="Ingresa el número de serie..."
-                className="font-mono glass-card border-white/10"
+                className="font-mono uppercase glass-card border-white/10"
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), validarSerial())}
               />
               <Button type="button" variant="outline" className="glass-card border-white/10 hover:bg-white/5" onClick={validarSerial} disabled={serialStatus === "loading" || !serial.trim()}>
@@ -447,16 +416,13 @@ export default function RegisterSalePage() {
                   )}
                 </div>
               ) : (
-                <Select value={selectedProduct} onValueChange={setSelectedProduct} required>
-                  <SelectTrigger className="glass-card border-white/10"><SelectValue placeholder="Valida el serial para autocompletar..." /></SelectTrigger>
-                  <SelectContent className="glass-card">
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.nombre} {(p.tamanoPulgadas ?? p.pulgadas) ? `${p.tamanoPulgadas ?? p.pulgadas}"` : ""} — {p.modelo ?? p.modeloCodigo ?? ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ProductSearchSelect
+                  value={selectedProduct}
+                  onChange={(val) => setSelectedProduct(val && val !== "none" ? val : "")}
+                  productos={products}
+                  placeholder="Buscar producto por modelo, nombre o pulgadas..."
+                  allowEmpty={false}
+                />
               )}
             </div>
 
@@ -546,18 +512,21 @@ export default function RegisterSalePage() {
                 file={tagFile}
                 isCompressing={compressingTag}
                 onSelect={(file) => handlePhotoSelect(file, "tag")}
+                onRemove={() => setTagFile(null)}
               />
               <FileInput
                 label="Foto Póliza *"
                 file={policyFile}
                 isCompressing={compressingPolicy}
                 onSelect={(file) => handlePhotoSelect(file, "policy")}
+                onRemove={() => setPolicyFile(null)}
               />
               <FileInput
                 label="Nota de entrega *"
                 file={invoiceFile}
                 isCompressing={compressingInvoice}
                 onSelect={(file) => handlePhotoSelect(file, "invoice")}
+                onRemove={() => setInvoiceFile(null)}
               />
             </div>
           </CardContent>

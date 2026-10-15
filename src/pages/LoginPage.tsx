@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, ArrowRight, BarChart3, Globe2, KeyRound, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowRight, BarChart3, Globe2, KeyRound, Mail, ShieldCheck, Sparkles, Store } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 
@@ -150,6 +150,15 @@ export default function LoginPage() {
               <Button type="submit" className="gradient-brand shadow-brand group h-12 w-full rounded-xl border-0 font-bold text-white hover:brightness-110" disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Ingresar al sistema <ArrowRight className="ml-auto h-4 w-4 transition-transform group-hover:translate-x-1" /></>}
               </Button>
+
+              <div className="pt-3 border-t border-white/5 flex flex-col items-center gap-1.5 text-center">
+                <Link to="/registro-tienda" className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium hover:underline text-xs">
+                  <Store className="h-3.5 w-3.5" /> ¿Dueño de Tienda? Registra o reclama tu tienda aquí
+                </Link>
+                <Link to="/register" className="text-slate-400 hover:text-white transition-colors text-xs">
+                  ¿Vendedor nuevo? Regístrate aquí
+                </Link>
+              </div>
             </form>
           </div>
 

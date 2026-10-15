@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 import { compressImage } from "@/lib/imageCompressor";
+import { ImageUploadBox } from "@/components/common/ImageUploadBox";
 import {
   Search,
   Ticket,
@@ -120,7 +121,7 @@ export default function ConsultaTicketsPage() {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-black text-white">Consulta el Estado de tus Tickets</h1>
           <p className="text-slate-400 text-xs sm:text-sm">
-            Ingresa tu número de Cédula de Identidad para verificar tus tickets y estado de aprobación.
+            Ingresa tu número de Cédula de Identidad o Celular para verificar tus tickets y estado de aprobación.
           </p>
         </div>
 
@@ -129,9 +130,9 @@ export default function ConsultaTicketsPage() {
           <form onSubmit={handleBuscar} className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <Input
-                placeholder="Ej: 1234567 SC"
+                placeholder="Ej: 3901123, 3901123 SC o Celular"
                 value={ci}
-                onChange={(e) => setCi(e.target.value)}
+                onChange={(e) => setCi(e.target.value.toUpperCase())}
                 className="bg-slate-950 border-white/10 h-12 rounded-xl text-base font-mono"
               />
             </div>
@@ -199,27 +200,37 @@ export default function ConsultaTicketsPage() {
                       {selectedObservadoId === reg.id ? (
                         <div className="pt-2 space-y-3 border-t border-orange-500/20">
                           <p className="text-xs font-semibold text-white">Cargar respaldos corregidos:</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <Label className="text-[11px] text-slate-300">Foto TAG</Label>
-                              <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoTag(e.target.files?.[0] || null)} className="bg-slate-950 text-xs h-9" />
-                            </div>
-                            <div>
-                              <Label className="text-[11px] text-slate-300">Foto Póliza Sellada</Label>
-                              <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoPoliza(e.target.files?.[0] || null)} className="bg-slate-950 text-xs h-9" />
-                            </div>
-                            <div>
-                              <Label className="text-[11px] text-slate-300">Foto Factura/Nota</Label>
-                              <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoNota(e.target.files?.[0] || null)} className="bg-slate-950 text-xs h-9" />
-                            </div>
-                            <div>
-                              <Label className="text-[11px] text-slate-300">Foto CI Anverso (Opcional)</Label>
-                              <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoCiAnverso(e.target.files?.[0] || null)} className="bg-slate-950 text-xs h-9" />
-                            </div>
-                            <div>
-                              <Label className="text-[11px] text-slate-300">Foto CI Reverso (Opcional)</Label>
-                              <Input type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp" onChange={(e) => setFotoCiReverso(e.target.files?.[0] || null)} className="bg-slate-950 text-xs h-9" />
-                            </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                            <ImageUploadBox
+                              title="Foto TAG (Etiqueta Trasera)"
+                              file={fotoTag}
+                              onSelect={(f) => setFotoTag(f)}
+                              onRemove={() => setFotoTag(null)}
+                            />
+                            <ImageUploadBox
+                              title="Foto Póliza Sellada"
+                              file={fotoPoliza}
+                              onSelect={(f) => setFotoPoliza(f)}
+                              onRemove={() => setFotoPoliza(null)}
+                            />
+                            <ImageUploadBox
+                              title="Foto Factura/Nota"
+                              file={fotoNota}
+                              onSelect={(f) => setFotoNota(f)}
+                              onRemove={() => setFotoNota(null)}
+                            />
+                            <ImageUploadBox
+                              title="Foto CI Anverso (Opcional)"
+                              file={fotoCiAnverso}
+                              onSelect={(f) => setFotoCiAnverso(f)}
+                              onRemove={() => setFotoCiAnverso(null)}
+                            />
+                            <ImageUploadBox
+                              title="Foto CI Reverso (Opcional)"
+                              file={fotoCiReverso}
+                              onSelect={(f) => setFotoCiReverso(f)}
+                              onRemove={() => setFotoCiReverso(null)}
+                            />
                           </div>
                           <div className="flex justify-end gap-2 pt-2">
                             <Button variant="ghost" size="sm" onClick={() => setSelectedObservadoId(null)} className="text-xs text-slate-400">

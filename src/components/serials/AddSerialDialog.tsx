@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { apiPost } from "@/lib/api";
-import { PlusCircle, Layers, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PlusCircle, Layers, FileText, Loader2, CheckCircle2, AlertCircle, Search, X, Check, ChevronsUpDown } from "lucide-react";
 
 export interface ProductoOption {
   id: number;
@@ -26,6 +28,8 @@ interface AddSerialDialogProps {
   productos: ProductoOption[];
   onSuccess: () => void;
 }
+
+import { ProductSearchSelect } from "@/components/common/ProductSearchSelect";
 
 export default function AddSerialDialog({
   open,
@@ -231,23 +235,12 @@ export default function AddSerialDialog({
 
               <div className="space-y-1.5">
                 <Label className="text-xs text-slate-300">Producto / Modelo Asociado</Label>
-                <Select value={singleProductoId} onValueChange={setSingleProductoId}>
-                  <SelectTrigger className="bg-black/20 border-white/10 text-white">
-                    <SelectValue placeholder="Seleccionar producto..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10 text-white max-h-60">
-                    <SelectItem value="none">-- Sin producto asignado --</SelectItem>
-                    {productos.map((p) => {
-                      const inches = p.tamanoPulgadas ?? p.pulgadas;
-                      const model = p.modelo ?? p.modeloCodigo;
-                      return (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.nombre} {inches ? `(${inches}")` : ""} {model ? `— ${model}` : ""}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <ProductSearchSelect
+                  value={singleProductoId}
+                  onChange={setSingleProductoId}
+                  productos={productos}
+                  placeholder="Buscar y seleccionar producto o modelo..."
+                />
               </div>
 
               {/* Optional Logistics Grid */}
@@ -341,23 +334,12 @@ export default function AddSerialDialog({
             <form onSubmit={handleBulkSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-slate-300">Producto / Modelo para todo el Lote</Label>
-                <Select value={bulkProductoId} onValueChange={setBulkProductoId}>
-                  <SelectTrigger className="bg-black/20 border-white/10 text-white">
-                    <SelectValue placeholder="Seleccionar producto para este lote..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10 text-white max-h-60">
-                    <SelectItem value="none">-- Sin producto asignado --</SelectItem>
-                    {productos.map((p) => {
-                      const inches = p.tamanoPulgadas ?? p.pulgadas;
-                      const model = p.modelo ?? p.modeloCodigo;
-                      return (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.nombre} {inches ? `(${inches}")` : ""} {model ? `— ${model}` : ""}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <ProductSearchSelect
+                  value={bulkProductoId}
+                  onChange={setBulkProductoId}
+                  productos={productos}
+                  placeholder="Buscar y seleccionar producto para todo el lote..."
+                />
               </div>
 
               <div className="space-y-1.5">
