@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useAnimation, AnimatePresence } from "framer-motion";
-import { Sparkles, Trophy, CheckCircle2, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import { Sparkles, Trophy, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface PremioItem {
@@ -10,6 +10,7 @@ export interface PremioItem {
   colorHex?: string;
   imagenUrl?: string;
   saldoDisponible?: number;
+  esSinPremio?: boolean;
 }
 
 interface RuletaWheelProps {
@@ -24,6 +25,8 @@ interface RuletaWheelProps {
   clienteCi?: string;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  onClose?: () => void;
+  sigaParticipandoHabilitado?: boolean;
 }
 
 // Sonidos sintéticos con Web Audio API (cero dependencias de mp3 externos)
@@ -84,6 +87,22 @@ function renderPrizeIcon(nombre: string, imagenUrl?: string) {
   }
 
   const n = (nombre || "").toLowerCase();
+
+  // 0. SIGA PARTICIPANDO (Boleto Oficial de la Gran Rifa Skyworth)
+  if (n.includes("siga") || n.includes("participando") || n.includes("suerte") || n.includes("intenta")) {
+    return (
+      <g transform="translate(176, 68) scale(0.95)">
+        {/* Ticket Dorado Sorteo */}
+        <rect x="4" y="8" width="42" height="26" rx="3" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.2" />
+        <path d="M 4 21 A 3 3 0 0 1 4 15 L 4 8 L 46 8 L 46 15 A 3 3 0 0 1 46 21 L 46 34 L 4 34 Z" fill="#1e293b" stroke="#facc15" strokeWidth="1" />
+        <circle cx="25" cy="21" r="5" fill="#facc15" opacity="0.25" />
+        {/* Estrella de la suerte */}
+        <path d="M 25 15 L 26.5 19.5 L 31 21 L 26.5 22.5 L 25 27 L 23.5 22.5 L 19 21 L 23.5 19.5 Z" fill="#facc15" />
+        <text x="25" y="13" fill="#38bdf8" fontSize="3.2" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">SORTEO</text>
+        <text x="25" y="32" fill="#e2e8f0" fontSize="2.8" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">100K BS</text>
+      </g>
+    );
+  }
 
   // 1. GAMEPAD (Mando / Controlador gamer)
   if (n.includes("gamepad") || n.includes("mando") || n.includes("control") || n.includes("joystick")) {
@@ -203,6 +222,8 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
   clienteCi,
   isFullscreen = false,
   onToggleFullscreen,
+  onClose,
+  sigaParticipandoHabilitado = false,
 }) => {
   const controls = useAnimation();
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -217,23 +238,98 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
     };
   }, []);
 
-  // Normalización a gajos equilibrados (8 gajos como en el diseño de referencia)
+  // Normalización a gajos equilibrados (6 u 8 gajos) con distribución armónica de Siga Participando
   const displaySlices = useMemo(() => {
-    if (premios.length === 0) return [];
-    if (premios.length === 4) {
-      // 8 gajos duplicando simétricamente
-      return [...premios, ...premios].map((p, i) => ({ ...p, originalIndex: i % 4, sliceIndex: i }));
+    const physical = premios.filter((p) => !p.esSinPremio);
+    const virtualSiga: PremioItem = {
+      premioId: -1,
+      nombre: "¡Sigue participando!",
+      descripcion: "Boleto Gran Sorteo Skyworth Bs 100.000",
+      colorHex: "#1e293b",
+      esSinPremio: true,
+    };
+    const sigaItem = sigaParticipandoHabilitado ? virtualSiga : premios.find((p) => p.esSinPremio);
+
+    if (physical.length === 0 && !sigaItem) return [];
+
+    // Si NO hay opción de Siga Participando activa en la campaña
+    if (!sigaItem) {
+      if (physical.length === 4) {
+        return [...physical, ...physical].map((p, i) => ({ ...p, originalIndex: i % 4, sliceIndex: i }));
+      }
+      if (physical.length === 2) {
+        return [...physical, ...physical, ...physical, ...physical].map((p, i) => ({ ...p, originalIndex: i % 2, sliceIndex: i }));
+      }
+      if (physical.length === 3) {
+        return [...physical, ...physical].map((p, i) => ({ ...p, originalIndex: i % 3, sliceIndex: i }));
+      }
+      return physical.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
     }
-    if (premios.length === 2) {
-      // 8 gajos cuatriplicando
-      return [...premios, ...premios, ...premios, ...premios].map((p, i) => ({ ...p, originalIndex: i % 2, sliceIndex: i }));
+
+    // SI HAY "Siga Participando":
+    // Añadimos 1 o 2 campos de siga participando según la cantidad de items físicos del operador
+    const n = physical.length;
+
+    if (n === 0) {
+      return Array.from({ length: 6 }).map((_, i) => ({ ...sigaItem, originalIndex: 0, sliceIndex: i }));
     }
-    if (premios.length === 3) {
-      // 6 gajos duplicando
-      return [...premios, ...premios].map((p, i) => ({ ...p, originalIndex: i % 3, sliceIndex: i }));
+
+    if (n === 1) {
+      // 1 item físico (A): 4 A + 2 Siga Participando opuestos = 6 gajos [A, A, S, A, A, S]
+      const [A] = physical;
+      const list = [A, A, sigaItem, A, A, sigaItem];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
     }
-    return premios.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
-  }, [premios]);
+
+    if (n === 2) {
+      // 2 items físicos (A, B): 8 gajos con 2 Siga Participando opuestos (25% visual):
+      // [A, B, A, S, B, A, B, S]
+      const [A, B] = physical;
+      const list = [A, B, A, sigaItem, B, A, B, sigaItem];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+    }
+
+    if (n === 3) {
+      // 3 items físicos (A, B, C): 8 gajos con 2 Siga Participando opuestos (25% visual):
+      // [A, B, C, S, A, B, C, S]
+      const [A, B, C] = physical;
+      const list = [A, B, C, sigaItem, A, B, C, sigaItem];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+    }
+
+    if (n === 4) {
+      // 4 items físicos (A, B, C, D): 6 gajos con 2 Siga Participando:
+      // [A, B, S, C, D, S]
+      const [A, B, C, D] = physical;
+      const list = [A, B, sigaItem, C, D, sigaItem];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+    }
+
+    if (n === 5) {
+      // 5 items físicos: 6 gajos con 1 Siga Participando:
+      // [A, B, C, S, D, E]
+      const [A, B, C, D, E] = physical;
+      const list = [A, B, C, sigaItem, D, E];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+    }
+
+    if (n === 6) {
+      // 6 items físicos: 8 gajos con 2 Siga Participando:
+      // [A, B, C, S, D, E, F, S]
+      const [A, B, C, D, E, F] = physical;
+      const list = [A, B, C, sigaItem, D, E, F, sigaItem];
+      return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+    }
+
+    // 7 o más ítems: intercalar 1 o 2 según sea par/impar
+    const list = [
+      ...physical.slice(0, 3),
+      sigaItem,
+      ...physical.slice(3, 6),
+      ...(physical.length > 6 ? [sigaItem, ...physical.slice(6)] : []),
+    ];
+    return list.map((p, i) => ({ ...p, originalIndex: i, sliceIndex: i }));
+  }, [premios, sigaParticipandoHabilitado]);
 
   const totalSlices = Math.max(1, displaySlices.length);
   const sliceAngle = 360 / totalSlices;
@@ -315,24 +411,27 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
   const slicePath = `M 200 200 L 200 ${200 - arcRadius} A ${arcRadius} ${arcRadius} 0 ${sliceAngle > 180 ? 1 : 0} 1 ${arcEndX} ${arcEndY} Z`;
 
   return (
-    <div className={`relative w-full flex flex-col items-center select-none overflow-hidden px-2 sm:px-3 py-3 sm:py-5 ${
-      isFullscreen ? "min-h-screen justify-center py-6" : ""
-    }`}>
-      {/* Botón de Pantalla Completa / Restaurar */}
-      {onToggleFullscreen && (
-        <button
-          type="button"
-          onClick={onToggleFullscreen}
-          className="absolute top-3 right-3 z-30 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md transition-all shadow-lg hover:scale-105 active:scale-95"
-          title={isFullscreen ? "Restaurar tamaño normal" : "Agrandar a pantalla completa"}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-5 h-5 text-amber-300" />
-          ) : (
-            <Maximize2 className="w-5 h-5 text-amber-300" />
-          )}
-        </button>
-      )}
+    <div className="relative w-full h-[100dvh] flex flex-col justify-between items-center select-none overflow-hidden p-3 sm:p-5 bg-[#001038] text-white">
+      {/* BARRA SUPERIOR OPERATIVA */}
+      <div className="relative z-30 w-full flex items-center justify-between px-2 pt-1 pb-1 shrink-0">
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSpinning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white text-xs font-semibold backdrop-blur-md border border-white/20 transition-all active:scale-95 disabled:opacity-40"
+            title="Volver al panel de bandeo"
+          >
+            <ArrowLeft className="w-4 h-4 text-cyan-300" />
+            <span>Volver</span>
+          </button>
+        ) : <div />}
+
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/70 border border-cyan-400/40 text-[11px] font-black text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+          <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+          <span>RULETA OFICIAL SKYWORTH</span>
+        </div>
+      </div>
 
       {/* FONDO RADIAL SKYWORTH (Rayos de luz y destellos en azul cobalto vibrante) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -364,54 +463,37 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
         <div className="absolute top-52 right-12 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff] animate-ping" />
       </div>
 
-      {/* CABECERA OFICIAL 3D: "SOY 100% SKYWORTH - ¡CON SKYWORTH SIEMPRE GANAS!" */}
-      <div className={`relative z-10 flex flex-col items-center text-center px-2 max-w-full ${
-        isFullscreen ? "mb-4 sm:mb-6" : "mb-2 sm:mb-3"
-      }`}>
-        {/* SOY */}
-        <div className={`${
-          isFullscreen ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"
-        } font-black tracking-widest leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#fffbeb] via-[#fed867] to-[#9a6414] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] filter`}>
-          SOY
+      {/* CABECERA OFICIAL 3D: "SOY 100% SKYWORTH" */}
+      <div className="relative z-20 flex flex-col items-center text-center px-2 shrink-0">
+        <div className="flex items-baseline justify-center gap-1.5">
+          <span className="text-sm sm:text-base font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-[#fffbeb] via-[#fed867] to-[#9a6414] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+            SOY
+          </span>
+          <span className="text-3xl sm:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#fcd34d] to-[#854d0e] drop-shadow-[0_3px_6px_rgba(0,0,0,0.9)] -mt-0.5">
+            100%
+          </span>
+          <span className="text-base sm:text-lg font-black tracking-[0.2em] text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
+            SKYWORTH
+          </span>
         </div>
 
-        {/* 100% */}
-        <div className={`${
-          isFullscreen ? "text-5xl sm:text-7xl" : "text-4xl sm:text-5xl"
-        } font-black tracking-tighter leading-none text-transparent bg-clip-text bg-gradient-to-b from-[#ffffff] via-[#fcd34d] to-[#854d0e] drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] filter -mt-0.5`}>
-          100%
-        </div>
-
-        {/* SKYWORTH */}
-        <div className={`${
-          isFullscreen ? "text-xl sm:text-2xl" : "text-base sm:text-xl"
-        } font-black tracking-[0.2em] text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)] mt-0.5`}>
-          SKYWORTH
-        </div>
-
-        {/* SUBTÍTULO BANNER */}
-        <div className="mt-1 px-3 py-0.5 rounded-full bg-blue-900/60 border border-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.3)] max-w-full">
+        <div className="mt-0.5 px-3 py-0.5 rounded-full bg-blue-900/60 border border-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.3)]">
           <span className="text-[10px] sm:text-xs font-black tracking-wider text-white uppercase drop-shadow-[0_0_8px_rgba(56,189,248,0.9)]">
             ¡CON SKYWORTH SIEMPRE GANAS!
           </span>
         </div>
 
-        {/* Indicador de cliente si está presente */}
         {clienteNombre && (
-          <div className="mt-1 text-[10px] sm:text-xs text-cyan-200/90 font-medium max-w-full px-2 truncate">
+          <div className="mt-1 px-3 py-0.5 rounded-full bg-slate-900/70 border border-white/10 text-[11px] text-cyan-200/90 font-medium max-w-[90vw] truncate">
             Cliente: <span className="text-white font-bold">{clienteNombre}</span> {clienteCi ? `(CI: ${clienteCi})` : ""}
           </div>
         )}
       </div>
 
-      {/* CONTENEDOR DE LA RULETA (Escalado responsivo) */}
-      <div className={`relative z-10 flex flex-col items-center w-full px-1 transition-all duration-300 ${
-        isFullscreen
-          ? "max-w-[480px] sm:max-w-[560px] md:max-w-[620px]"
-          : "max-w-[270px] xs:max-w-[310px] sm:max-w-[360px]"
-      }`}>
+      {/* CONTENEDOR CENTRAL DE LA RULETA (Centrado automático en móviles) */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-auto w-full min-h-0 shrink">
         {/* RUEDA PRINCIPAL (SVG VIEWBOX 400x400) */}
-        <div className="relative w-full aspect-square drop-shadow-[0_12px_24px_rgba(0,0,0,0.7)]">
+        <div className="relative w-[min(78vw,42vh,350px)] aspect-square drop-shadow-[0_15px_30px_rgba(0,0,0,0.85)]">
           {/* DISCO GIRATORIO (Framer Motion) */}
           <motion.div
             className="w-full h-full"
@@ -447,13 +529,22 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
                   <stop offset="0%" stopColor="#ffffff" />
                   <stop offset="100%" stopColor="#edf2f7" />
                 </linearGradient>
+
+                {/* Gradiente Pizarra Metálico para Gajos de Siga Participando */}
+                <linearGradient id="sliceSlateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#1e293b" />
+                  <stop offset="100%" stopColor="#0a1324" />
+                </linearGradient>
               </defs>
 
               {/* GAJOS INTERIORES DE LA RULETA */}
               {displaySlices.map((premio, idx) => {
                 const isEven = idx % 2 === 0;
-                const fillStyle = isEven ? "url(#sliceBlueGradient)" : "url(#sliceWhiteGradient)";
-                const textColor = isEven ? "#ffffff" : "#0c3f96";
+                const isSiga = !!premio.esSinPremio || (premio.nombre || "").toLowerCase().includes("siga");
+                const fillStyle = isSiga
+                  ? "url(#sliceSlateGradient)"
+                  : (isEven ? "url(#sliceBlueGradient)" : "url(#sliceWhiteGradient)");
+                const textColor = isSiga ? "#fde047" : (isEven ? "#ffffff" : "#0c3f96");
                 const midAngle = idx * sliceAngle + sliceAngle / 2;
 
                 return (
@@ -605,47 +696,44 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
           </svg>
         </div>
 
-        {/* PEDESTAL / BASE AZUL METÁLICA (Escalado responsivo) */}
-        <div className="relative w-24 sm:w-32 h-8 -mt-2 z-0 flex flex-col items-center">
-          {/* Anillo de unión dorado */}
-          <div className="w-12 h-1.5 bg-gradient-to-r from-amber-600 via-amber-300 to-amber-700 rounded-sm shadow-md" />
-          {/* Columna cilíndrica azul metálica */}
-          <div className="w-16 sm:w-20 h-6.5 bg-gradient-to-r from-[#021f59] via-[#1a62d6] to-[#021f59] rounded-b-xl border-x-2 border-b-2 border-blue-400/40 shadow-[0_10px_25px_rgba(0,0,0,0.8)] relative overflow-hidden flex items-center justify-center">
-            {/* Reflejo vertical especular */}
-            <div className="w-5 h-full bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]" />
+        {/* PEDESTAL / BASE AZUL METÁLICA */}
+        <div className="relative w-24 sm:w-28 h-6 -mt-2 z-0 flex flex-col items-center shrink-0">
+          <div className="w-12 h-1 bg-gradient-to-r from-amber-600 via-amber-300 to-amber-700 rounded-sm shadow-md" />
+          <div className="w-16 h-5 bg-gradient-to-r from-[#021f59] via-[#1a62d6] to-[#021f59] rounded-b-xl border-x-2 border-b-2 border-blue-400/40 shadow-[0_8px_20px_rgba(0,0,0,0.8)] relative overflow-hidden flex items-center justify-center">
+            <div className="w-4 h-full bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]" />
           </div>
         </div>
+      </div>
 
-        {/* BOTÓN DE GIRO GIGANTE Y TÁCTIL (100% responsivo para móviles) */}
-        <div className="mt-3 sm:mt-4 w-full flex flex-col items-center px-1">
-          <Button
-            size="lg"
-            onClick={onSpinRequest}
-            disabled={disabled || isSpinning}
-            className="w-full max-w-[320px] h-auto py-3.5 sm:py-4 px-4 sm:px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base tracking-wide shadow-[0_0_30px_rgba(245,158,11,0.5)] active:scale-95 transition-all cursor-pointer border-2 border-yellow-200/60 uppercase whitespace-normal leading-tight text-center"
-          >
-            {isSpinning ? (
-              <span className="flex items-center justify-center gap-2">
-                <Sparkles className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
-                <span>¡GIRANDO LA RULETA!...</span>
-              </span>
-            ) : isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
-                <span>REGISTRANDO Y GIRANDO...</span>
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <Sparkles className="w-5 h-5 shrink-0 animate-pulse text-slate-950" />
-                <span>¡GIRAR RULETA AHORA!</span>
-              </span>
-            )}
-          </Button>
+      {/* BOTÓN DE GIRO GIGANTE Y TÁCTIL (Fácil de pulsar en móvil) */}
+      <div className="relative z-20 w-full max-w-[340px] flex flex-col items-center pb-2 pt-1 shrink-0">
+        <Button
+          size="lg"
+          onClick={onSpinRequest}
+          disabled={disabled || isSpinning}
+          className="w-full h-13 sm:h-14 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base tracking-wide shadow-[0_0_35px_rgba(245,158,11,0.6)] active:scale-95 transition-all cursor-pointer border-2 border-yellow-200/80 uppercase whitespace-normal leading-tight text-center"
+        >
+          {isSpinning ? (
+            <span className="flex items-center justify-center gap-2">
+              <Sparkles className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
+              <span>¡GIRANDO LA RULETA!...</span>
+            </span>
+          ) : isSubmitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 shrink-0 animate-spin text-slate-950" />
+              <span>PREPARANDO RULETA...</span>
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              <Sparkles className="w-5 h-5 shrink-0 animate-bounce text-slate-950" />
+              <span>¡TOCA PARA GIRAR!</span>
+            </span>
+          )}
+        </Button>
 
-          <p className="text-[10px] sm:text-xs text-cyan-200/90 font-medium mt-2 text-center px-2 leading-tight">
-            {premios.length} opciones en juego · Descuento de stock en tiempo real
-          </p>
-        </div>
+        <p className="text-[10px] sm:text-xs text-cyan-200/90 font-medium mt-1.5 text-center px-2 leading-tight">
+          {premios.length} opciones en juego · ¡Premio físico inmediato!
+        </p>
       </div>
 
       {/* OVERLAY DE CELEBRACIÓN AL DETENERSE LA RULETA */}
@@ -655,22 +743,57 @@ export const RuletaWheel: React.FC<RuletaWheelProps> = ({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-x-4 top-1/3 z-50 p-6 rounded-3xl bg-slate-950/95 border-2 border-amber-400 shadow-[0_0_60px_rgba(245,158,11,0.9)] text-center flex flex-col items-center backdrop-blur-xl"
+            className={`absolute inset-4 sm:inset-x-8 top-1/4 z-50 p-6 rounded-3xl bg-slate-950/95 border-2 ${
+              winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                ? "border-cyan-400 shadow-[0_0_80px_rgba(34,211,238,0.85)]"
+                : "border-amber-400 shadow-[0_0_80px_rgba(245,158,11,0.95)]"
+            } text-center flex flex-col items-center justify-center backdrop-blur-2xl`}
           >
-            <div className="w-14 h-14 rounded-full bg-amber-400/20 text-amber-400 flex items-center justify-center mb-2 animate-bounce">
-              <Trophy className="w-8 h-8" />
+            <div
+              className={`w-16 h-16 rounded-full flex items-center justify-center mb-2 animate-bounce ${
+                winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                  ? "bg-cyan-400/20 text-cyan-400"
+                  : "bg-amber-400/20 text-amber-400"
+              }`}
+            >
+              {winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga") ? (
+                <Sparkles className="w-9 h-9" />
+              ) : (
+                <Trophy className="w-9 h-9" />
+              )}
             </div>
-            <div className="text-xs uppercase font-black tracking-widest text-amber-300">
-              ¡FELICITACIONES!
+            <div
+              className={`text-xs uppercase font-black tracking-widest ${
+                winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                  ? "text-cyan-300"
+                  : "text-amber-300"
+              }`}
+            >
+              {winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                ? "¡SIGUE PARTICIPANDO!"
+                : "¡FELICITACIONES!"}
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white mt-1">
-              {winnerAnnounced.nombre}
+            <div className="text-2xl sm:text-3xl font-black text-white mt-1 leading-tight">
+              {winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                ? "Gran Sorteo Skyworth"
+                : winnerAnnounced.nombre}
             </div>
-            {winnerAnnounced.descripcion && (
-              <p className="text-xs text-slate-300 mt-1 max-w-xs">{winnerAnnounced.descripcion}</p>
-            )}
-            <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <CheckCircle2 className="w-4 h-4" /> Preparando registro fotográfico...
+            <p className="text-xs text-slate-300 mt-1 max-w-xs">
+              {winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                ? "¡Tu compra fue registrada con éxito! Ya estás participando por los premios mayores y el sorteo por Bs 100.000."
+                : winnerAnnounced.descripcion}
+            </p>
+            <div
+              className={`mt-4 flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl border ${
+                winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                  ? "text-cyan-300 bg-cyan-500/10 border-cyan-500/30"
+                  : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />{" "}
+              {winnerAnnounced.esSinPremio || (winnerAnnounced.nombre || "").toLowerCase().includes("siga")
+                ? "Registro confirmado para los sorteos quincenales"
+                : "Preparando registro fotográfico..."}
             </div>
           </motion.div>
         )}

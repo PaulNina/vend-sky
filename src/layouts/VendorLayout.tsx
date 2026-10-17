@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
+import { VersionBadge } from "@/components/common/VersionBadge";
 
 export default function VendorLayout() {
   const { user, roles } = useAuth();
@@ -35,10 +36,13 @@ export default function VendorLayout() {
         <div className="flex-1 flex flex-col">
           <header className="h-12 sm:h-14 flex items-center border-b border-border/50 px-3 sm:px-4 bg-background/90 backdrop-blur-md sticky top-0 z-10">
             <SidebarTrigger className="sky-sidebar-trigger mr-3 h-9 w-9 rounded-xl sm:mr-4" />
-            <div className="flex items-center gap-2">
-              <SkyworthLogo tone="white" className="w-24 sm:w-28" />
-              <span className="h-5 w-px bg-white/10" />
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <SkyworthLogo tone="white" className="w-24 sm:w-28" />
+                <span className="h-5 w-px bg-white/10" />
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden xs:inline">Bono Vendedor</span>
+              </div>
+              <VersionBadge compact className="ml-auto" />
             </div>
           </header>
           <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-auto">

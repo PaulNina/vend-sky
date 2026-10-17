@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
+import { VersionBadge } from "@/components/common/VersionBadge";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -277,6 +278,8 @@ export function AppSidebar() {
             <p className="mt-2 truncate text-[10px] font-medium text-slate-300">{user.email}</p>
           </div>
         )}
+
+        <VersionBadge compact={collapsed} className={collapsed ? "my-1" : "w-full"} />
         <Button
           variant="ghost"
           size={collapsed ? "icon" : "sm"}

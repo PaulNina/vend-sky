@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SkyworthLogo } from "@/components/brand/SkyworthLogo";
 import { CircleCheck, Command, MessageSquare } from "lucide-react";
 import { WhatsAppNotificationListener, useWhatsAppUnreadCount } from "@/components/whatsapp/WhatsAppNotificationListener";
+import { VersionBadge } from "@/components/common/VersionBadge";
 
 export default function AdminLayout() {
   const { user } = useAuth();
@@ -47,6 +48,7 @@ export default function AdminLayout() {
                 )}
               </Link>
 
+              <VersionBadge compact className="hidden sm:inline-flex" />
               <div className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.12em] sm:text-[10px] sm:tracking-[.14em] ${isRemoteData ? "text-amber-400" : "text-emerald-400/80"}`} title={isRemoteData ? "Las acciones realizadas aquí afectan la base de datos remota" : "Entorno local"}>
                 <span className="relative flex h-2 w-2"><span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-30 ${isRemoteData ? "bg-amber-400" : "bg-emerald-400"}`} /><span className={`relative inline-flex h-2 w-2 rounded-full ${isRemoteData ? "bg-amber-400" : "bg-emerald-400"}`} /></span>
                 {isRemoteData ? "Datos en línea" : "Entorno local"}

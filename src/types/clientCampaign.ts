@@ -7,6 +7,8 @@ export interface CampanaCliente {
   activo: boolean;
   registroHabilitado: boolean;
   ruletaHabilitada: boolean;
+  ruletaSigaParticipandoHabilitado?: boolean;
+  ruletaSigaParticipandoPorcentaje?: number;
   webHabilitada: boolean;
   chatbotHabilitado: boolean;
   premioFinalMonto: number;
@@ -39,6 +41,7 @@ export interface PremioRuleta {
   colorHex?: string;
   probabilidadPeso: number;
   activo: boolean;
+  esSinPremio?: boolean;
   ordenRuleta?: number;
 }
 

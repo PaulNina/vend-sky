@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import RequireAuth from "@/components/guards/RequireAuth";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { UpdateNotificationPrompt } from "@/components/common/UpdateNotificationPrompt";
 
 // Public pages
 import LandingPage from "@/pages/LandingPage";
@@ -69,6 +70,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <PWAInstallPrompt />
+      <UpdateNotificationPrompt />
       <BrowserRouter>
         <AuthProvider>
           <Routes>

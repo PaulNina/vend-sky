@@ -197,6 +197,27 @@ export default function AdminCampanasClientePage() {
     }
   };
 
+  // Actualización de cualquier campo numérico o booleano de la campaña
+  const handleUpdateCampanaCampo = async <K extends keyof CampanaCliente>(campo: K, valor: CampanaCliente[K]) => {
+    if (!selectedCampana) return;
+    try {
+      const payload = {
+        ...selectedCampana,
+        [campo]: valor,
+      };
+      const updated = await apiPost<CampanaCliente>("/admin/campanas-cliente", payload);
+      setSelectedCampana(updated);
+      setCampanas((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      toast({
+        title: "Configuración actualizada",
+        description: `Se guardó la configuración de la ruleta.`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al actualizar configuración";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    }
+  };
+
   // Guardar / Vincular Producto con Tickets a la Campaña
   const handleAsociarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -620,6 +641,92 @@ export default function AdminCampanasClientePage() {
                   </Button>
                 </CardHeader>
                 <CardContent className="pt-4">
+                  {/* CONTROL DE SIGA PARTICIPANDO EN RULETA */}
+                  <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-slate-950/80 via-slate-900/90 to-slate-950/80 border border-cyan-500/30 shadow-lg">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${selectedCampana.ruletaSigaParticipandoHabilitado ? "bg-cyan-400 animate-pulse" : "bg-slate-600"}`} />
+                          <h4 className="text-sm font-bold text-white tracking-wide flex items-center gap-1.5">
+                            Opción "Siga Participando"
+                          </h4>
+                          {selectedCampana.ruletaSigaParticipandoHabilitado ? (
+                            <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold">
+                              Activo ({selectedCampana.ruletaSigaParticipandoPorcentaje ?? 20}%)
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-slate-800 text-slate-400 border border-white/10 text-[10px]">
+                              Inactivo (Solo Premios Físicos)
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                          Si está marcado, la ruleta del impulsador inyecta automáticamente 1 o 2 sectores de "Siga Participando" según la cantidad de ítems físicos con stock del operador. El resultado no descuenta inventario ni exige foto de entrega.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-4 self-end sm:self-center shrink-0">
+                        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-white/10">
+                          <span className="text-xs font-semibold text-slate-300">
+                            {selectedCampana.ruletaSigaParticipandoHabilitado ? "Habilitado" : "Deshabilitado"}
+                          </span>
+                          <Switch
+                            checked={!!selectedCampana.ruletaSigaParticipandoHabilitado}
+                            onCheckedChange={(val) => handleUpdateCampanaCampo("ruletaSigaParticipandoHabilitado", val)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedCampana.ruletaSigaParticipandoHabilitado && (
+                      <div className="mt-3 pt-3 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="siga-pct" className="text-slate-300 font-medium">
+                            Tasa de probabilidad:
+                          </Label>
+                          <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-lg border border-cyan-500/40">
+                            <input
+                              id="siga-pct"
+                              type="number"
+                              min={1}
+                              max={80}
+                              value={selectedCampana.ruletaSigaParticipandoPorcentaje ?? 20}
+                              onChange={(e) => {
+                                const val = Math.max(1, Math.min(80, Number(e.target.value) || 1));
+                                setSelectedCampana({ ...selectedCampana, ruletaSigaParticipandoPorcentaje: val });
+                              }}
+                              onBlur={(e) => {
+                                const val = Math.max(1, Math.min(80, Number(e.target.value) || 20));
+                                handleUpdateCampanaCampo("ruletaSigaParticipandoPorcentaje", val);
+                              }}
+                              className="w-12 bg-transparent text-center font-bold text-cyan-300 focus:outline-none"
+                            />
+                            <span className="font-bold text-cyan-400">%</span>
+                          </div>
+                        </div>
+
+                        {/* Botones rápidos de porcentaje */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-400 mr-1">Tasa sugerida:</span>
+                          {[15, 20, 25, 30].map((pct) => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => handleUpdateCampanaCampo("ruletaSigaParticipandoPorcentaje", pct)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                (selectedCampana.ruletaSigaParticipandoPorcentaje ?? 20) === pct
+                                  ? "bg-cyan-500 text-slate-950 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
+                                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                              }`}
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="rounded-2xl border border-white/5 overflow-hidden">
                     <Table>
                       <TableHeader className="bg-slate-950/80">

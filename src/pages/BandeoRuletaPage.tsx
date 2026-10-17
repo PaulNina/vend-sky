@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCities } from "@/hooks/useCities";
 import { apiGet, apiPostForm, apiPostFormWithProgress } from "@/lib/api";
@@ -12,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { compressImage, formatBytes } from "@/lib/imageCompressor";
+import { VersionBadge } from "@/components/common/VersionBadge";
 import { ImageUploadBox } from "@/components/common/ImageUploadBox";
 import { 
   CheckCircle2, 
@@ -66,6 +68,7 @@ export interface RegistroBandeoItem {
   premioImagen?: string;
   premioColor?: string;
   premioEntregado?: boolean;
+  esSinPremio?: boolean;
   revertido?: boolean;
   fotoEntrega?: string;
 }
@@ -74,9 +77,15 @@ export default function BandeoRuletaPage() {
   const { user } = useAuth();
 
   // Estados de campaña y premios
-  const [campana, setCampana] = useState<{ id: number; nombre: string } | null>(null);
+  const [campana, setCampana] = useState<{
+    id: number;
+    nombre: string;
+    ruletaSigaParticipandoHabilitado?: boolean;
+    ruletaSigaParticipandoPorcentaje?: number;
+  } | null>(null);
   const [premiosDisponibles, setPremiosDisponibles] = useState<PremioItem[]>([]);
   const [loadingPremios, setLoadingPremios] = useState(true);
+  const tieneSigaParticipando = !!campana?.ruletaSigaParticipandoHabilitado;
 
   // Formulario de registro
   const [serial, setSerial] = useState("");
@@ -341,12 +350,34 @@ export default function BandeoRuletaPage() {
   const cargarPremios = async () => {
     try {
       setLoadingPremios(true);
-      const campanaRes = await apiGet<{ activa: boolean; campana: { id: number; nombre: string } }>("/cliente/campana-activa");
-      if (campanaRes.activa && campanaRes.campana) {
-        setCampana(campanaRes.campana);
-        const premiosRes = await apiGet<PremioItem[]>(`/bandeo/premios-disponibles?campanaId=${campanaRes.campana.id}`);
-        setPremiosDisponibles(premiosRes || []);
+      let campanaData: {
+        id: number;
+        nombre: string;
+        ruletaSigaParticipandoHabilitado?: boolean;
+        ruletaSigaParticipandoPorcentaje?: number;
+      } | null = null;
+
+      try {
+        const campanaRes = await apiGet<{
+          activa: boolean;
+          campana: {
+            id: number;
+            nombre: string;
+            ruletaSigaParticipandoHabilitado?: boolean;
+            ruletaSigaParticipandoPorcentaje?: number;
+          };
+        }>("/cliente/campana-activa");
+        if (campanaRes && campanaRes.campana) {
+          campanaData = campanaRes.campana;
+          setCampana(campanaData);
+        }
+      } catch (e) {
+        console.warn("No se pudo obtener campaña activa:", e);
       }
+
+      const campanaParam = campanaData?.id ? `?campanaId=${campanaData.id}` : "";
+      const premiosRes = await apiGet<PremioItem[]>(`/bandeo/premios-disponibles${campanaParam}`);
+      setPremiosDisponibles(premiosRes || []);
     } catch (err) {
       console.error("Error al cargar premios del impulsador:", err);
     } finally {
@@ -563,10 +594,10 @@ export default function BandeoRuletaPage() {
       return;
     }
 
-    if (premiosDisponibles.length === 0) {
+    if (premiosDisponibles.length === 0 && !tieneSigaParticipando) {
       toast({ 
         title: "Sin stock de premios en tu inventario", 
-        description: "Tu usuario no cuenta con premios con saldo disponible para girar la ruleta. Revisa 'Mi Stock Premios' o solicita asignación al Administrador.", 
+        description: "Tu usuario no cuenta con premios con saldo disponible para girar la ruleta y la opción 'Siga Participando' no está habilitada. Solicita asignación al Administrador.", 
         variant: "destructive" 
       });
       return;
@@ -609,12 +640,14 @@ export default function BandeoRuletaPage() {
       const res = await apiPostFormWithProgress<{
         success: boolean;
         registroId: number;
-        entregaId: number;
-        premioGanado: {
+        entregaId?: number | null;
+        resultado?: string;
+        premioGanado?: {
           id: number;
           nombre: string;
-          descripcion: string;
-          colorHex: string;
+          descripcion?: string;
+          colorHex?: string;
+          esSinPremio?: boolean;
         };
       }>("/bandeo/registro-y-ruleta", formData, (prog) => {
         setUploadPercent(prog.percent);
@@ -632,8 +665,11 @@ export default function BandeoRuletaPage() {
       });
 
       if (res.success && res.premioGanado) {
-        setEntregaId(res.entregaId);
-        setPremioGanadorId(res.premioGanado.id);
+        setEntregaId(res.entregaId ?? null);
+        const winnerId = (res.resultado === "SIGA_PARTICIPANDO" || res.premioGanado.esSinPremio || !res.entregaId)
+          ? -1
+          : res.premioGanado.id;
+        setPremioGanadorId(winnerId);
         setUploadPercent(100);
         setUploadState("success");
         setUploadDetailText("¡Respaldos verificados exitosamente!");
@@ -665,13 +701,24 @@ export default function BandeoRuletaPage() {
   const handleSpinComplete = (winner: PremioItem) => {
     setIsSpinning(false);
     setPremioGanador(winner);
-    // Mostrar modal de entrega
+    const isSiga = !!winner.esSinPremio || (winner.nombre || "").toLowerCase().includes("siga");
+
     setTimeout(() => {
       setShowRuletaModal(false);
-      setShowEntregaModal(true);
-      cargarPremios(); // Refrescar inventario del impulsador
-      cargarMisRegistros();
-    }, 1500);
+      if (isSiga) {
+        toast({
+          title: "¡Registro Completado!",
+          description: "El cliente ya está participando en el Gran Sorteo Nacional. No requiere foto de entrega física.",
+        });
+        resetFormulario();
+        cargarPremios();
+        cargarMisRegistros();
+      } else {
+        setShowEntregaModal(true);
+        cargarPremios(); // Refrescar inventario del impulsador
+        cargarMisRegistros();
+      }
+    }, 2800);
   };
 
   const [formKey, setFormKey] = useState(0);
@@ -792,7 +839,19 @@ export default function BandeoRuletaPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <VersionBadge compact className="mr-1" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowRuletaModal(true)}
+            className="border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            Ver Ruleta
+          </Button>
+
           <Button
             type="button"
             variant="ghost"
@@ -800,7 +859,7 @@ export default function BandeoRuletaPage() {
             onClick={resetFormulario}
             className="border border-white/10 hover:bg-white/5 text-slate-300 rounded-xl text-xs"
           >
-            Nuevo Registro / Limpiar
+            Nuevo Registro
           </Button>
 
           <Button
@@ -808,9 +867,9 @@ export default function BandeoRuletaPage() {
             variant="outline"
             size="sm"
             onClick={cargarPremios}
-            className="border-white/10 hover:bg-white/5 text-slate-300 rounded-xl"
+            className="border-white/10 hover:bg-white/5 text-slate-300 rounded-xl text-xs"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loadingPremios ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${loadingPremios ? "animate-spin" : ""}`} />
             Stock ({premiosDisponibles.reduce((acc, p) => acc + (p.saldoDisponible || 0), 0)} u.)
           </Button>
         </div>
@@ -1229,10 +1288,14 @@ export default function BandeoRuletaPage() {
             </span>
 
             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium ${
-              premiosDisponibles.length > 0 ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/10 text-rose-300 border border-rose-500/30"
+              premiosDisponibles.length > 0 || tieneSigaParticipando ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/10 text-rose-300 border border-rose-500/30"
             }`}>
-              {premiosDisponibles.length > 0 ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <AlertCircle className="w-3.5 h-3.5 text-rose-400" />}
-              {premiosDisponibles.length > 0 ? `Stock Ruleta (${premiosDisponibles.length} premios)` : "Sin Stock Ruleta"}
+              {premiosDisponibles.length > 0 || tieneSigaParticipando ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <AlertCircle className="w-3.5 h-3.5 text-rose-400" />}
+              {premiosDisponibles.length > 0 
+                ? `Stock Ruleta (${premiosDisponibles.length} premios)` 
+                : tieneSigaParticipando 
+                  ? "Ruleta Activa (Siga Participando)" 
+                  : "Sin Stock Ruleta"}
             </span>
           </div>
         </div>
@@ -1503,17 +1566,29 @@ export default function BandeoRuletaPage() {
                       {r.premioNombre && (
                         <div className="p-3 rounded-xl bg-slate-950/60 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                              <Gift className="w-4 h-4" />
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              r.esSinPremio || (r.premioNombre || "").toLowerCase().includes("siga")
+                                ? "bg-cyan-500/10 border border-cyan-500/30 text-cyan-400"
+                                : "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                            }`}>
+                              {r.esSinPremio || (r.premioNombre || "").toLowerCase().includes("siga") ? (
+                                <Sparkles className="w-4 h-4" />
+                              ) : (
+                                <Gift className="w-4 h-4" />
+                              )}
                             </div>
                             <div>
-                              <span className="text-[10px] text-slate-400 font-semibold">PREMIO GANADO EN RULETA</span>
+                              <span className="text-[10px] text-slate-400 font-semibold">RESULTADO EN RULETA</span>
                               <p className="font-bold text-white text-sm">{r.premioNombre}</p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {r.premioEntregado ? (
+                            {r.esSinPremio || (r.premioNombre || "").toLowerCase().includes("siga") ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[11px] font-semibold">
+                                <Sparkles className="w-3.5 h-3.5" /> Habilitado al Gran Sorteo
+                              </span>
+                            ) : r.premioEntregado ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Entregado con Foto
                               </span>
@@ -1728,33 +1803,32 @@ export default function BandeoRuletaPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de la Ruleta Interactiva Inmersiva Móvil */}
-      <Dialog open={showRuletaModal} onOpenChange={setShowRuletaModal}>
-        <DialogContent className={
-          isRuletaFullscreen
-            ? "fixed inset-0 z-50 w-screen h-screen max-w-none m-0 p-0 gap-0 overflow-y-auto bg-[#001038] border-none text-white rounded-none flex flex-col justify-center items-center shadow-none"
-            : "max-w-md w-full p-0 gap-0 overflow-hidden bg-[#001038] border-2 border-amber-400/50 text-white rounded-3xl shadow-[0_0_60px_rgba(2,44,125,0.9)] max-h-[96vh] overflow-y-auto"
-        }>
-          <DialogHeader className="sr-only">
-            <DialogTitle>Ruleta Oficial Skyworth</DialogTitle>
-            <DialogDescription>Giro de ruleta promocional</DialogDescription>
-          </DialogHeader>
-
-          <RuletaWheel
-            premios={premiosDisponibles}
-            premioGanadorId={premioGanadorId}
-            isSpinning={isSpinning}
-            onSpinRequest={handleSpinRequest}
-            onSpinComplete={handleSpinComplete}
-            disabled={submittingRegistration}
-            isSubmitting={submittingRegistration}
-            clienteNombre={`${nombreCliente} ${apellidoCliente}`.trim()}
-            clienteCi={ci}
-            isFullscreen={isRuletaFullscreen}
-            onToggleFullscreen={handleToggleRuletaFullscreen}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Pantalla Completa Inmersiva de la Ruleta (Optimizada Móvil, Cero Modales, Cero Agrandar) */}
+      <AnimatePresence>
+        {showRuletaModal && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 w-full h-[100dvh] bg-[#001038] text-white overflow-hidden flex flex-col"
+          >
+            <RuletaWheel
+              premios={premiosDisponibles}
+              sigaParticipandoHabilitado={tieneSigaParticipando}
+              premioGanadorId={premioGanadorId}
+              isSpinning={isSpinning}
+              onSpinRequest={handleSpinRequest}
+              onSpinComplete={handleSpinComplete}
+              disabled={submittingRegistration}
+              isSubmitting={submittingRegistration}
+              clienteNombre={`${nombreCliente} ${apellidoCliente}`.trim()}
+              clienteCi={ci}
+              onClose={() => setShowRuletaModal(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Confirmación de Entrega Física con Foto */}
       <Dialog open={showEntregaModal} onOpenChange={setShowEntregaModal}>
